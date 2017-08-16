@@ -34,6 +34,12 @@ GITINFOGNU=-cpp $(GITINFO_BASE) -DBUILDDATE_PP=\""$(BUILD_DATE)\""
 GITINFOXLF=-qsuffix=cpp=f90 '-WF,-DGITHASH_PP=\"$(GIT_HASH)\",-DGITDATE_PP=\"$(GIT_DATE)\",-DBUILDDATE_PP=\"$(BUILD_DATE_XLF)\"'
 GITINFOPGI=-Mpreprocess $(GITINFO_BASE) -DBUILDDATE_PP=\""$(BUILD_DATE)\""
 
+undersc:=_
+empty:=
+space:=$(empty) $(empty)
+GIT_DATE_TAU := $(subst $(space),$(undersc),$(GIT_DATE))
+BUILD_DATE_TAU := $(shell date "+%b_%d_%Y_%T")
+GITINFO_TAU=-fpp -DGITHASH_PP=\"$(GIT_HASH)\" -DGITDATE_PP=\"$(GIT_DATE_TAU)\" -DBUILDDATE_PP=\"$(BUILD_DATE_TAU)\"
 
 # Definition of the non-MPI object variables
 
@@ -266,6 +272,28 @@ mpi_intel_linux_64ib : obj = fds_mpi_intel_linux_64ib
 mpi_intel_linux_64ib : setup $(obj_mpi)
 	$(FCOMPL) $(FFLAGS) $(LFLAGS) $(FOPENMPFLAGS) -o $(obj) $(obj_mpi) $(LFLAGSMKL)
 
+ifdef MKLROOT # This assumes the MKL library is available.
+ifneq ("$(wildcard ${MKLROOT}/lib/intel64/libmkl_blacs_openmpi_lp64.a)","")
+# Use cluster_sparse_solver with openmpi blacs
+mpi_intel_linux_64ib_tau : FFLAGS = -m64 -O2 -ipo -g -traceback -no-wrap-margin -assume realloc_lhs -DWITH_CLUSTER_SPARSE_SOLVER -I$(MKLROOT)/include $(GITINFO_TAU)
+#-fpp -DGITHASH_PP=\"$(GIT_HASH)\"
+mpi_intel_linux_64ib_tau : LFLAGSMKL = -Wl,--start-group ${MKLROOT}/lib/intel64/libmkl_intel_lp64.a ${MKLROOT}/lib/intel64/libmkl_core.a ${MKLROOT}/lib/intel64/libmkl_intel_thread.a ${MKLROOT}/lib/intel64/libmkl_blacs_openmpi_lp64.a -Wl,--end-group -lpthread -lm -ldl
+else
+# Use pardiso, non-mpi OpenMP threaded version.
+mpi_intel_linux_64ib_tau : FFLAGS = -m64 -O2 -ipo -g -traceback -no-wrap-margin -assume realloc_lhs -DWITH_PARDISO -I$(MKLROOT)/include -fpp -DGITHASH_PP=\"$(GIT_HASH)\"
+mpi_intel_linux_64ib_tau : LFLAGSMKL = -L$(MKLROOT)/lib -mkl
+endif
+else # MKL is not available.
+mpi_intel_linux_64ib_tau : FFLAGS = -m64 -O2 -ipo -g -traceback -no-wrap-margin -assume realloc_lhs -fpp -DGITHASH_PP=\"$(GIT_HASH)\"
+mpi_intel_linux_64ib_tau : LFLAGSMKL =
+endif
+mpi_intel_linux_64ib_tau : LFLAGS = -static-intel
+mpi_intel_linux_64ib_tau : FCOMPL = ${TAU_DIR}/x86_64/bin/tau_f90.sh
+mpi_intel_linux_64ib_tau : FOPENMPFLAGS = -qopenmp -qopenmp-link static -liomp5
+mpi_intel_linux_64ib_tau : obj = fds_mpi_intel_linux_64ib_tau
+mpi_intel_linux_64ib_tau : setup $(obj_mpi)
+	$(FCOMPL) $(FFLAGS) $(LFLAGS) $(FOPENMPFLAGS) -o $(obj) $(obj_mpi) $(LFLAGSMKL)
+
 mpi_intel_linux_64ib_scorep : FFLAGS = -m64 -O2 -ipo -traceback $(GITINFO)
 mpi_intel_linux_64ib_scorep : LFLAGS = -static-intel
 mpi_intel_linux_64ib_scorep : FCOMPL = scorep --mpp=mpi $(MPIFORT)
@@ -333,14 +361,26 @@ mpi_intel_linux_64ib_db : obj = fds_mpi_intel_linux_64ib_db
 mpi_intel_linux_64ib_db : setup $(obj_mpi)
 	$(FCOMPL) $(FFLAGS) $(LFLAGS) $(FOPENMPFLAGS) -o $(obj) $(obj_mpi) $(LFLAGSMKL)
 
+ifdef MKLROOT # This assumes the MKL library is available.
+ifneq ("$(wildcard ${MKLROOT}/lib/intel64/libmkl_blacs_openmpi_lp64.a)","")
+# Use cluster_sparse_solver with openmpi blacs
+mpi_intel_linux_64ib_dv : FFLAGS = -m64 -O1 -traceback -no-wrap-margin -assume realloc_lhs -DWITH_CLUSTER_SPARSE_SOLVER -I$(MKLROOT)/include $(GITINFO)
+mpi_intel_linux_64ib_dv : LFLAGSMKL = -Wl,--start-group ${MKLROOT}/lib/intel64/libmkl_intel_lp64.a ${MKLROOT}/lib/intel64/libmkl_core.a ${MKLROOT}/lib/intel64/libmkl_intel_thread.a ${MKLROOT}/lib/intel64/libmkl_blacs_openmpi_lp64.a -Wl,--end-group -lpthread -lm -ldl
+else
+# Use pardiso, non-mpi OpenMP threaded version.
+mpi_intel_linux_64ib_dv : FFLAGS = -m64 -O1 -traceback -no-wrap-margin -assume realloc_lhs -DWITH_PARDISO -I$(MKLROOT)/include $(GITINFO)
+mpi_intel_linux_64ib_dv : LFLAGSMKL = -L$(MKLROOT)/lib -mkl
+endif
+else # MKL is not available.
 mpi_intel_linux_64ib_dv : FFLAGS = -m64 -O1 -traceback -no-wrap-margin -assume realloc_lhs $(GITINFO)
+mpi_intel_linux_64ib_dv : LFLAGSMKL =
+endif
 mpi_intel_linux_64ib_dv : LFLAGS = -static-intel
 mpi_intel_linux_64ib_dv : FCOMPL = $(MPIFORT)
 mpi_intel_linux_64ib_dv : FOPENMPFLAGS = -qopenmp -qopenmp-link static -liomp5
 mpi_intel_linux_64ib_dv : obj = fds_mpi_intel_linux_64ib_dv
 mpi_intel_linux_64ib_dv : setup $(obj_mpi)
-	$(FCOMPL) $(FFLAGS) $(LFLAGS) $(FOPENMPFLAGS) -o $(obj) $(obj_mpi)
-
+	$(FCOMPL) $(FFLAGS) $(LFLAGS) $(FOPENMPFLAGS) -o $(obj) $(obj_mpi) $(LFLAGSMKL)
 
 # OSX
 
@@ -688,7 +728,7 @@ velo.o : func.o prec.o cons.o type.o mesh.o turb.o geom.o
 evac.o : func.o prec.o cons.o type.o mesh.o ieva.o data.o
 divg.o : func.o prec.o cons.o type.o mesh.o scrc.o evac.o mass.o
 mass.o : func.o prec.o cons.o type.o mesh.o turb.o soot.o geom.o
-radi.o : func.o prec.o cons.o type.o mesh.o irad.o
+radi.o : func.o prec.o cons.o type.o mesh.o irad.o geom.o
 pres.o : func.o prec.o cons.o type.o mesh.o pois.o velo.o scrc.o geom.o
 part.o : func.o prec.o cons.o type.o mesh.o devc.o data.o geom.o
 vege.o : func.o prec.o cons.o type.o mesh.o devc.o part.o
@@ -711,7 +751,7 @@ smvv.obj : prec.obj func.obj
 ctrl.obj : prec.obj cons.obj type.obj mesh.obj func.obj
 samr.obj : prec.obj cons.obj mesh.obj turb.obj
 gsmv.obj : func.obj prec.obj cons.obj mesh.obj
-geom.obj : func.obj prec.obj cons.obj mesh.obj
+geom.obj : gsmv.obj func.obj prec.obj cons.obj mesh.obj
 scrc.obj : prec.obj cons.obj mesh.obj func.obj pois.obj
 irad.obj : func.obj prec.obj cons.obj type.obj mesh.obj
 ieva.obj : func.obj prec.obj cons.obj type.obj mesh.obj
@@ -722,7 +762,7 @@ velo.obj : func.obj prec.obj cons.obj type.obj mesh.obj turb.obj geom.obj
 evac.obj : func.obj prec.obj cons.obj type.obj mesh.obj ieva.obj data.obj
 divg.obj : func.obj prec.obj cons.obj type.obj mesh.obj scrc.obj evac.obj mass.obj
 mass.obj : func.obj prec.obj cons.obj type.obj mesh.obj turb.obj soot.obj geom.obj
-radi.obj : func.obj prec.obj cons.obj type.obj mesh.obj irad.obj
+radi.obj : func.obj prec.obj cons.obj type.obj mesh.obj irad.obj geom.obj
 pres.obj : func.obj prec.obj cons.obj type.obj mesh.obj pois.obj velo.obj scrc.obj geom.obj
 part.obj : func.obj prec.obj cons.obj type.obj mesh.obj devc.obj data.obj geom.obj
 vege.obj : func.obj prec.obj cons.obj type.obj mesh.obj devc.obj part.obj

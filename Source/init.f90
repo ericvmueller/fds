@@ -915,6 +915,27 @@ ENDDO OBST_LOOP_2
 
 IF (ANY(OBSTRUCTION%HT3D)) SOLID_HT3D=.TRUE.
 
+! Solid phase chemical heat source term
+
+IF (SOLID_HT3D) THEN
+   ALLOCATE(M%Q_DOT_PPP_S(0:M%IBP1,0:M%JBP1,0:M%KBP1),STAT=IZERO)
+   CALL ChkMemErr('INIT','Q_DOT_PPP_S',IZERO)
+   M%Q_DOT_PPP_S = 0._EB
+   ! Set internal heat source for 3d heat transfer
+   OBST_LOOP_3: DO N=1,M%N_OBST
+      OB=>M%OBSTRUCTION(N)
+      DO K=OB%K1+1,OB%K2
+         DO J=OB%J1+1,OB%J2
+            DO I=OB%I1+1,OB%I2
+               M%Q_DOT_PPP_S(I,J,K) = OB%INTERNAL_HEAT_SOURCE
+            ENDDO
+         ENDDO
+      ENDDO
+   ENDDO OBST_LOOP_3
+ENDIF
+
+! Experimental coupling between 1D pyrolysis model and 3D heat transfer solver
+
 IF (COUPLED_1D3D_HEAT_TRANSFER) THEN
    ! fine-grained 1D work arrays
    ALLOCATE(M%ONE_D_WORK1(0:NWP_MAX),STAT=IZERO); CALL ChkMemErr('INIT','ONE_D_WORK1',IZERO)
@@ -934,19 +955,6 @@ IF (COUPLED_1D3D_HEAT_TRANSFER) THEN
    M%ONE_D_WORK6 = 0._EB
    M%ONE_D_WORK7 = 0._EB
    M%ONE_D_WORK8 = 0._EB
-   ! solid phase chemical heat source term
-   IF (ANY(SURFACE%PYROLYSIS_MODEL==PYROLYSIS_PREDICTED)) THEN
-      PYROLYSIS_HT3D = .TRUE.
-      STORE_Q_DOT_PPP_S = .TRUE.
-   ENDIF
-ENDIF
-
-! solid phase chemical heat source term
-
-IF (STORE_Q_DOT_PPP_S) THEN
-   ALLOCATE(M%Q_DOT_PPP_S(0:M%IBP1,0:M%JBP1,0:M%KBP1),STAT=IZERO)
-   CALL ChkMemErr('INIT','Q_DOT_PPP_S',IZERO)
-   M%Q_DOT_PPP_S = 0._EB
 ENDIF
 
 ! Allocate local auto-ignition temperature
@@ -1967,7 +1975,7 @@ END SUBROUTINE GET_WALL_INDEX
 SUBROUTINE INITIALIZE_GLOBAL_VARIABLES
 
 USE CONTROL_VARIABLES, ONLY: N_CTRL
-INTEGER :: IZERO
+INTEGER :: IZERO, IG
 
 ! Initialize time, printout and plot clocks
 
@@ -2012,6 +2020,8 @@ IF (N_DEVC==0)      DEVC_CLOCK = 1.E10_EB
 IF (N_CTRL==0)      CTRL_CLOCK = 1.E10_EB
 IF (N_PROF==0)      PROF_CLOCK = 1.E10_EB
 IF (N_ISOF==0)      ISOF_CLOCK = 1.E10_EB
+! N_FACE manages the geometry output time GEOM_CLOCK:
+DO IG=1,N_GEOMETRY; N_FACE = N_FACE + GEOMETRY(IG)%N_FACES; ENDDO
 IF (N_FACE==0)      GEOC_CLOCK = 1.E10_EB
 IF (N_FACE==0)      GEOM_CLOCK = 1.E10_EB
 IF (N_FACE==0)      BNDC_CLOCK = 1.E10_EB
@@ -2432,6 +2442,7 @@ IF (EVACUATION_ONLY(NM)) WC%ONE_D%UW = 0._EB
 WC%ONE_D%RHO_F = M%RHO(IIG,JJG,KKG)
 WC%U_TAU = 0._EB
 WC%Y_PLUS = 1._EB
+WC%Z_STAR = 1._EB
 WC%ONE_D%RHO_D_F = 0._EB
 
 IF (.NOT.EVACUATION_ONLY(NM) .AND. (M%SOLID(M%CELL_INDEX(I,J,K)).OR.IW<=M%N_EXTERNAL_WALL_CELLS)) THEN
