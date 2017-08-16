@@ -3487,6 +3487,8 @@ LAGRANGIAN_PARTICLE_CLASS_LOOP: DO N=1,N_LAGRANGIAN_CLASSES
                QP(NPP,NN) = T-LP%T_INSERT
             CASE(440)  ! PARTICLE WEIGHTING FACTOR
                QP(NPP,NN) = LP%PWT
+            CASE(447)  ! PARTICLE DISK AREA
+               QP(NPP,NN) = LP%DA
             CASE(:-1)  ! Any solid phase quantity (assume Z_INDEX=-1 for now)
                QP(NPP,NN) = SOLID_PHASE_OUTPUT(NM,ABS(LPC%QUANTITIES_INDEX(NN)),LPC%QUANTITIES_Y_INDEX(NN),&
                                                LPC%QUANTITIES_Z_INDEX(NN),N,OPT_LP_INDEX=I)
