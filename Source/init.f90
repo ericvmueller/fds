@@ -365,29 +365,29 @@ DO K=0,M%KBP1
    M%W(:,:,K)   = W0*EVALUATE_RAMP(T_BEGIN,DUMMY,I_RAMP_W0_T)*EVALUATE_RAMP(M%ZC(K),DUMMY,I_RAMP_W0_Z)
 ENDDO
 
-IF (ANY(MEAN_FORCING)) THEN
-   DO K=0,M%KBP1
-      DO J=0,M%JBP1
-         DO I=0,M%IBAR
-            IF ( .NOT.(M%MEAN_FORCING_CELL(I,J,K) .AND. M%MEAN_FORCING_CELL(I+1,J,K)) ) M%U(I,J,K)=0._EB
-         ENDDO
-      ENDDO
-   ENDDO
-   DO K=0,M%KBP1
-      DO J=0,M%JBAR
-         DO I=0,M%IBP1
-            IF ( .NOT.(M%MEAN_FORCING_CELL(I,J,K) .AND.  M%MEAN_FORCING_CELL(I,J+1,K)) ) M%V(I,J,K)=0._EB
-         ENDDO
-      ENDDO
-   ENDDO
-   DO K=0,M%KBAR
-      DO J=0,M%JBP1
-         DO I=0,M%IBP1
-            IF ( .NOT.(M%MEAN_FORCING_CELL(I,J,K) .AND.  M%MEAN_FORCING_CELL(I,J,K+1)) ) M%W(I,J,K)=0._EB
-         ENDDO
-      ENDDO
-   ENDDO
-ENDIF
+!IF (ANY(MEAN_FORCING)) THEN
+!   DO K=0,M%KBP1
+!      DO J=0,M%JBP1
+!         DO I=0,M%IBAR
+!            IF ( .NOT.(M%MEAN_FORCING_CELL(I,J,K) .AND. M%MEAN_FORCING_CELL(I+1,J,K)) ) M%U(I,J,K)=0._EB
+!         ENDDO
+!      ENDDO
+!   ENDDO
+!   DO K=0,M%KBP1
+!      DO J=0,M%JBAR
+!         DO I=0,M%IBP1
+!            IF ( .NOT.(M%MEAN_FORCING_CELL(I,J,K) .AND.  M%MEAN_FORCING_CELL(I,J+1,K)) ) M%V(I,J,K)=0._EB
+!         ENDDO
+!      ENDDO
+!   ENDDO
+!   DO K=0,M%KBAR
+!      DO J=0,M%JBP1
+!         DO I=0,M%IBP1
+!            IF ( .NOT.(M%MEAN_FORCING_CELL(I,J,K) .AND.  M%MEAN_FORCING_CELL(I,J,K+1)) ) M%W(I,J,K)=0._EB
+!         ENDDO
+!      ENDDO
+!   ENDDO
+!ENDIF
 
 M%US    = M%U
 M%VS    = M%V
