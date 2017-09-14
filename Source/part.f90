@@ -633,9 +633,10 @@ END SUBROUTINE INSERT_VENT_PARTICLES
 
 SUBROUTINE INSERT_FIREBRANDS
 
+USE MATH_FUNCTIONS, ONLY : AFILL2
 TYPE(WALL_TYPE), POINTER :: WC=>NULL()
-INTEGER :: I
-REAL :: GPR
+INTEGER :: I,IIX,JJY,KKZ
+REAL(EB) :: GPR,X_WGT,Y_WGT,Z_WGT
 
 ! Loop through all boundary cells and insert particles if appropriate
 
@@ -731,9 +732,18 @@ WALL_INSERT_LOOP: DO IW=1,N_EXTERNAL_WALL_CELLS+N_INTERNAL_WALL_CELLS
 
          
          CALL GET_IJK(LP%X,LP%Y,LP%Z,NM,XI,YJ,ZK,LP%ONE_D%IIG,LP%ONE_D%JJG,LP%ONE_D%KKG)
-         !II=LP%ONE_D%IIG
-         !JJ=LP%ONE_D%JJG
-         !KK=LP%ONE_D%KKG
+         IIX  = FLOOR(XI+.5_EB)
+         JJY  = FLOOR(YJ+.5_EB)
+         KKZ  = FLOOR(ZK+.5_EB)
+         X_WGT = XI+.5_EB-IIX
+         Y_WGT = YJ+.5_EB-JJY
+         Z_WGT = ZK+.5_EB-KKZ
+         IF (X_WGT>=0.5_EB .AND. WALL_INDEX(IC,-1)>0) X_WGT = 1._EB
+         IF (X_WGT< 0.5_EB .AND. WALL_INDEX(IC, 1)>0) X_WGT = 0._EB
+         IF (Y_WGT>=0.5_EB .AND. WALL_INDEX(IC,-2)>0) Y_WGT = 1._EB
+         IF (Y_WGT< 0.5_EB .AND. WALL_INDEX(IC, 2)>0) Y_WGT = 0._EB
+         IF (Z_WGT>=0.5_EB .AND. WALL_INDEX(IC,-3)>0) Z_WGT = 1._EB
+         IF (Z_WGT< 0.5_EB .AND. WALL_INDEX(IC, 3)>0) Z_WGT = 0._EB
 
          SELECT CASE(IOR)
             CASE( 1)
@@ -753,9 +763,9 @@ WALL_INSERT_LOOP: DO IW=1,N_EXTERNAL_WALL_CELLS+N_INTERNAL_WALL_CELLS
                LP%V =  WALL(IW)%ONE_D%UW
                LP%W = SF%VEL_T(2)
             CASE( 3)
-               LP%U = U(IIG,JJG,KKG)
-               LP%V = V(IIG,JJG,KKG)
-               LP%W = W(IIG,JJG,KKG)
+               LP%U = AFILL2(U,IIG-1,JJY,KKZ,(LP%X-X(IIG-1))*RDX(IIG),Y_WGT,Z_WGT)
+               LP%V = AFILL2(V,IIX,JJG-1,KKZ,X_WGT,(LP%Y-Y(JJG-1))*RDY(JJG),Z_WGT)
+               LP%W = AFILL2(W,IIX,JJY,KKG-1,X_WGT,Y_WGT,(LP%Z-Z(KKG-1))*RDZ(KKG))
             CASE(-3)
                LP%U = SF%VEL_T(1)
                LP%V = SF%VEL_T(2)
@@ -1932,7 +1942,7 @@ DRAG_LAW_SELECT: SELECT CASE (LPC%DRAG_LAW)
       LP%RE  = RHO_G*QREL*2._EB*R_D/MU_AIR
       IF (SF%GEOMETRY==SURF_CARTESIAN) THEN
          !D_HY = 4*SF%LENGTH*SF%WIDTH/(2*(SF%LENGTH+SF%WIDTH))
-         D_HY  = SQRT(LP%DA/PI)
+         D_HY  = SQRT(LP%DA)
          LP%RE = RHO_G*QREL*D_HY/MU_AIR
       ENDIF   
       C_DRAG = DRAG(LP%RE,LPC%DRAG_LAW)
