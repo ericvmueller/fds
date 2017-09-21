@@ -679,7 +679,7 @@ WALL_INSERT_LOOP: DO IW=1,N_EXTERNAL_WALL_CELLS+N_INTERNAL_WALL_CELLS
    IOR = WC%ONE_D%IOR
    MASS_SUM = 0._EB
 
-   GPR=DX(II)*DY(JJ)*WC%ONE_D%MASSFLUX_SPEC(REACTION(1)%FUEL_SMIX_INDEX)*DT
+   GPR=1000._EB*DX(II)*DY(JJ)*WC%ONE_D%MASSFLUX_SPEC(REACTION(1)%FUEL_SMIX_INDEX)*DT
    SF%NPPC=FLOOR(GPR)
    CALL RANDOM_NUMBER(RN)
    IF (RN<(GPR-SF%NPPC)) THEN
@@ -1609,6 +1609,12 @@ PARTICLE_LOOP: DO IP=1,NLP
 
          IF (LP%ONE_D%IOR/=0 .AND. .NOT.ALLOW_SURFACE_PARTICLES) THEN
             LP%ONE_D%X(1) = 0.9_EB*LPC%KILL_RADIUS
+            CYCLE PARTICLE_LOOP
+         ENDIF
+
+         ! Remove firebrands that have hit a solid surface
+         IF (LP%ONE_D%IOR/=0 .AND. HIT_SOLID .AND. FBRAND) THEN
+            LP%ONE_D%BURNAWAY = .TRUE.
             CYCLE PARTICLE_LOOP
          ENDIF
 
@@ -3027,6 +3033,10 @@ PARTICLE_LOOP: DO IP=1,NLP
       ! Remove particles that are too small
 
       IF (LPC%SOLID_PARTICLE .AND. SF%THERMALLY_THICK .AND. LP%ONE_D%BURNAWAY) THEN
+         ! Write final location if particle is a firebrand
+         IF (FBRAND) THEN
+            WRITE(LU_FBRAND(NM),'(5(F10.2,A))') T,',',LP%X,',',LP%Y,',',LP%Z,',',LP%DA,','
+         ENDIF
          CALL PARTICLE_ORPHANAGE
          CYCLE WEED_LOOP
       ENDIF
