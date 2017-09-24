@@ -1557,6 +1557,13 @@ PARTICLE_LOOP: DO IP=1,NLP
       IF (LP%Z<ZS .AND. WALL(WALL_INDEX(IC,-3))%BOUNDARY_TYPE/=SOLID_BOUNDARY) CYCLE PARTICLE_LOOP
       IF (LP%Z>ZF .AND. WALL(WALL_INDEX(IC, 3))%BOUNDARY_TYPE/=SOLID_BOUNDARY) CYCLE PARTICLE_LOOP
 
+      ! Remove firebrands that have landed - still needs much improvement
+      IF (FBRAND .AND. LP%Z<0.05) THEN
+         !HIT_SOLID=.TRUE.
+         LP%ONE_D%BURNAWAY = .TRUE.
+         CYCLE PARTICLE_LOOP
+      ENDIF
+
       ! If PARTICLE hits an obstacle, change its properties
 
       AIR_TO_SOLID: IF (IIG/=IIN .OR. JJG/=JJN .OR. KKG/=KKN) THEN
@@ -1612,11 +1619,6 @@ PARTICLE_LOOP: DO IP=1,NLP
             CYCLE PARTICLE_LOOP
          ENDIF
 
-         ! Remove firebrands that have hit a solid surface
-         IF (LP%ONE_D%IOR/=0 .AND. HIT_SOLID .AND. FBRAND) THEN
-            LP%ONE_D%BURNAWAY = .TRUE.
-            CYCLE PARTICLE_LOOP
-         ENDIF
 
          ! Get the wall index of the surface
 
