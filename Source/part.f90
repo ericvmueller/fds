@@ -766,6 +766,9 @@ WALL_INSERT_LOOP: DO IW=1,N_EXTERNAL_WALL_CELLS+N_INTERNAL_WALL_CELLS
                LP%U = AFILL2(U,IIG-1,JJY,KKZ,(LP%X-X(IIG-1))*RDX(IIG),Y_WGT,Z_WGT)
                LP%V = AFILL2(V,IIX,JJG-1,KKZ,X_WGT,(LP%Y-Y(JJG-1))*RDY(JJG),Z_WGT)
                LP%W = AFILL2(W,IIX,JJY,KKG-1,X_WGT,Y_WGT,(LP%Z-Z(KKG-1))*RDZ(KKG))
+               ! Random noise to prevent infinite drag (RE=0)
+               CALL RANDOM_NUMBER(RN)
+               LP%W = LP%W*(1+(0.1_EB*RN-0.05_EB))
             CASE(-3)
                LP%U = SF%VEL_T(1)
                LP%V = SF%VEL_T(2)
@@ -1558,10 +1561,12 @@ PARTICLE_LOOP: DO IP=1,NLP
       IF (LP%Z>ZF .AND. WALL(WALL_INDEX(IC, 3))%BOUNDARY_TYPE/=SOLID_BOUNDARY) CYCLE PARTICLE_LOOP
 
       ! Remove firebrands that have landed - still needs much improvement
-      IF (FBRAND .AND. LP%Z<0.05) THEN
-         !HIT_SOLID=.TRUE.
-         LP%ONE_D%BURNAWAY = .TRUE.
-         CYCLE PARTICLE_LOOP
+      IF (FBRAND .AND. LP%Z<0.01_EB) THEN
+         !IF (LP%U==0._EB .AND. LP%V==0._EB .AND. LP%W==0._EB) THEN
+            !HIT_SOLID=.TRUE.
+            LP%ONE_D%BURNAWAY = .TRUE.
+            CYCLE PARTICLE_LOOP
+         !ENDIF
       ENDIF
 
       ! If PARTICLE hits an obstacle, change its properties
