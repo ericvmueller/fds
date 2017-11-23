@@ -2468,11 +2468,12 @@ SELECT CASE(DRAG_LAW)
       ENDIF
 
    CASE(DISK_DRAG)
-      IF (RE<=130._EB) THEN
-         DRAG = (64/PI/RE)*(1+0.138*RE**0.792)
-      ELSE
-         DRAG = 1.17_EB
-      ENDIF
+      DRAG=(24._EB/RE)*(1._EB+0.4531_EB*RE**0.4484_EB)+1.945_EB/(1._EB+101.178_EB/RE)
+      !IF (RE<=130._EB) THEN
+         !DRAG = (64/PI/RE)*(1+0.138*RE**0.792)
+      !ELSE
+         !DRAG = 1.17_EB
+      !ENDIF
 
    CASE(USER_DRAG)
       DRAG = 1._EB ! PC%DRAG_COEFFICIENT set elsewhere
