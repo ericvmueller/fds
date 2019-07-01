@@ -23,6 +23,8 @@ PROCESS()
   fi
   if [ $nfds -gt 0 ]; then
     echo "$case: cases=$nfds finished=$nout successful=$nsuccess status=$status"
+  else
+    echo "$case: No cases run"
   fi
   cd $curdir
 }
@@ -35,8 +37,10 @@ PROCESS()
 
 PROCESS Arup_Tunnel
 PROCESS ATF_Corridors
+PROCESS Atmospheric_Dispersion
 PROCESS Backward_Facing_Step
 PROCESS Beyler_Hood
+PROCESS Bittern_Sprinkler_Experiments
 PROCESS Bouchair_Solar_Chimney
 PROCESS BRE_Spray
 PROCESS Bryant_Doorway
@@ -48,11 +52,14 @@ PROCESS DelCo_Trainers
 PROCESS FAA_Cargo_Compartments
 PROCESS FAA_Polymers
 PROCESS Fleury_Heat_Flux
+PROCESS FM_Burner
 PROCESS FM_FPRF_Datacenter
 PROCESS FM_Parallel_Panels
 PROCESS FM_SNL
+PROCESS FM_Vertical_Wall_Flames
 PROCESS Hamins_Gas_Burners
 PROCESS Harrison_Spill_Plumes
+PROCESS Heated_Channel_Flow
 PROCESS Heskestad_Flame_Height
 PROCESS LEMTA_Spray
 PROCESS LLNL_Enclosure
@@ -61,10 +68,12 @@ PROCESS McCaffrey_Plume
 PROCESS Moody_Chart
 PROCESS MPI_Scaling_Tests
 PROCESS NBS_Multi-Room
+PROCESS NIST_Composite_Beam
 PROCESS NIST_Douglas_Firs
 PROCESS NIST_FSE_2008
 PROCESS NIST_He_2009
 PROCESS NIST_NRC
+PROCESS NIST_NRC_Corner_Effects
 PROCESS NIST_RSE_1994
 PROCESS NIST_RSE_2007
 PROCESS NIST_Smoke_Alarms
@@ -83,14 +92,19 @@ PROCESS SP_AST
 PROCESS Steckler_Compartment
 PROCESS Turbulent_Jet
 PROCESS UL_NFPRF
+PROCESS UL_NIJ_Houses
 PROCESS UL_NIST_Vents
 PROCESS Ulster_SBI
-PROCESS UMD_Polymers
 PROCESS UMD_Line_Burner
+PROCESS UMD_Polymers
 PROCESS USCG_HAI
+PROCESS USFS_Catchpole
 PROCESS USN_Hangars
+PROCESS UWO_Wind_Tunnel
+PROCESS Vegetation
 PROCESS Vettori_Flat_Ceiling
 PROCESS Vettori_Sloped_Ceiling
 PROCESS VTT
 PROCESS VTT_Sprays
+PROCESS Waterloo_Methanol
 PROCESS WTC

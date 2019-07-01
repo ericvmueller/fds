@@ -11,25 +11,36 @@ if [ ! -e .verification_script_dir ]; then
 fi
 
 QUEUE=batch
+QUEUEBENCH=batch
 DEBUG=
-IB=
+SINGLE=
 nthreads=1
 resource_manager=
 walltime=
 RUNOPTION=
 CURDIR=`pwd`
-BACKGROUND=
-BACKGROUND_DELAY=2
-BACKGROUND_LOAD=75
-JOBPREFIX=
+QFDS_COUNT=/tmp/qfds_count_`whoami`
+if [ "$BACKGROUND_PROG" == "" ]; then
+  export BACKGROUND_PROG=background
+fi
+if [ "$BACKGROUND_DELAY" == "" ]; then
+  BACKGROUND_DELAY=2
+fi
+if [ "$BACKGROUND_LOAD" == "" ]; then
+  export BACKGROUND_LOAD=75
+fi
 REGULAR=1
 BENCHMARK=1
 OOPT=
 POPT=
-
-if [ "$FDSNETWORK" == "infiniband" ] ; then
-  IB=ib
-fi
+INTEL=i
+INTEL2="-I"
+GEOMCASES=1
+WAIT=
+EXE=
+CHECKCASES=
+RERUN=
+DELAY=
 
 function usage {
 echo "Run_FDS_Cases.sh [ -d -h -m max_iterations -o nthreads -q queue_name "
@@ -39,13 +50,18 @@ echo ""
 echo "Options"
 echo "-b - run only benchmark cases"
 echo "-d - use debug version of FDS"
+echo "-D n - delay the submission of each case by n seconds"
+echo "-e exe - run using exe"
+echo "      Note: environment must be defined to use this executable"
+echo "-F - rerun 'regular' cases that failed with 'BAD TERMINATION' errors"
+echo "-g - run only geometry cases"
 echo "-h - display this message"
 echo "-j - job prefix"
+echo "-J - use Intel MPI version of FDS"
 echo "-m max_iterations - stop FDS runs after a specifed number of iterations (delayed stop)"
 echo "     example: an option of 10 would cause FDS to stop after 10 iterations"
 echo "-o nthreads - run FDS with a specified number of threads [default: $nthreads]"
-echo "-O - pass through -O option to qfds.sh"
-echo "-P - pass through -P option to qfds.sh"
+echo "-O - use OpenMPI version of FDS"
 echo "-q queue_name - run cases using the queue queue_name"
 echo "     default: batch"
 echo "     other options: fire70s, vis"
@@ -57,7 +73,41 @@ echo "-s - stop FDS runs"
 echo "-w time - walltime request for a batch job"
 echo "     default: empty"
 echo "     format for PBS: hh:mm:ss, format for SLURM: dd-hh:mm:ss"
+echo "-W - wait for cases to complete before returning"
 exit
+}
+
+function get_full_path {
+  filepath=$1
+
+  if [[ $filepath == /* ]]; then
+    full_filepath=$filepath
+  else
+    dir_filepath=$(dirname  "${filepath}")
+    filename_filepath=$(basename  "${filepath}")
+    curdir=`pwd`
+    cd $dir_filepath
+    full_filepath=`pwd`/$filename_filepath
+    cd $curdir
+  fi
+}
+
+wait_cases_end()
+{
+   if [[ "$QUEUE" == "none" ]]
+   then
+     while [[ `ps -u $USER -f | fgrep .fds | grep -v grep` != '' ]]; do
+        JOBS_REMAINING=`ps -u $USER -f | fgrep .fds | grep -v grep | wc -l`
+        echo "Waiting for ${JOBS_REMAINING} cases to complete."
+        sleep 15
+     done
+   else
+     while [[ `qstat -a | awk '{print $2 $4}' | grep $(whoami) | grep $JOBPREFIX` != '' ]]; do
+        JOBS_REMAINING=`qstat -a | awk '{print $2 $4}' | grep $(whoami) | grep $JOBPREFIX | wc -l`
+        echo "Waiting for ${JOBS_REMAINING} cases to complete."
+        sleep 15
+     done
+   fi
 }
 
 cd ..
@@ -66,34 +116,49 @@ cd $SVNROOT
 export SVNROOT=`pwd`
 cd $CURDIR
 
-while getopts 'bB:c:dD:hj:L:m:o:O:P:q:r:Rsw:' OPTION
+while getopts 'bB:c:CdD:e:D:Fghj:JL:m:o:Oq:Q:r:RsS:w:W' OPTION
 do
 case $OPTION in
   b)
    BENCHMARK=1
+   GEOMCASES=
    REGULAR=
+   RERUN=
    ;;
-  R)
-   BENCHMARK=
-   REGULAR=1
+  C)
+   CHECKCASES="1"
    ;;
   d)
    DEBUG=_db
-   ;;
-  B)
-   BACKGROUND="$OPTARG"
+   SINGLE="1"
    ;;
   D)
-   BACKGROUND_DELAY="$OPTARG"
+   DELAY="-D $OPTARG"
+   ;;
+  e)
+   EXE="$OPTARG"
+   ;;
+  F)
+   BENCHMARK=
+   GEOMCASES=
+   REGULAR=
+   RERUN=1
+   ;;
+  g)
+   BENCHMARK=
+   GEOMCASES=1
+   REGULAR=
+   RERUN=
    ;;
   h)
    usage;
    ;;
   j)
-   JOBPREFIX="-j $OPTARG"
+   JOBPREFIX="$OPTARG"
    ;;
-  L)
-   BACKGROUND_LOAD="$OPTARG"
+  J)
+   INTEL=i
+   INTEL2="-I"
    ;;
   m)
    export STOPFDSMAXITER="$OPTARG"
@@ -102,16 +167,23 @@ case $OPTION in
    nthreads="$OPTARG"
    ;;
   O)
-   OOPT="$OPTARG"
-   ;;
-  P)
-   POPT="$OPTARG"
+   INTEL=
+   INTEL2=
    ;;
   q)
    QUEUE="$OPTARG"
    ;;
+  Q)
+   QUEUEBENCH="$OPTARG"
+   ;;
   r)
    resource_manager="$OPTARG"
+   ;;
+  R)
+   BENCHMARK=
+   GEOMCASES=1
+   REGULAR=1
+   RERUN=
    ;;
   s)
    export STOPFDS=1
@@ -119,8 +191,16 @@ case $OPTION in
   w)
    walltime="-w $OPTARG"
    ;;
+  W)
+   WAIT="1"
+   ;;
 esac
 done
+
+if [ "$JOBPREFIX" == "" ]; then
+  JOBPREFIX=FB_
+fi
+export JOBPREFIX
 
 size=_64
 
@@ -137,14 +217,14 @@ if [ "$POPT" != "" ]; then
   POPT="-O $POPT"
 fi
 
-IB=
-if [ "$FDSNETWORK" == "infiniband" ]; then
-  IB=ib
+if [ "$EXE" == "" ]; then
+  export FDSMPI=$SVNROOT/fds/Build/${INTEL}mpi_intel_$PLATFORM$DEBUG/fds_${INTEL}mpi_intel_$PLATFORM$DEBUG
+else
+  get_full_path $EXE
+  export FDSMPI=$full_filepath
 fi
 
-export FDS=$SVNROOT/fds/Build/${OPENMP}intel_$PLATFORM$DEBUG/fds_${OPENMP}intel_$PLATFORM$DEBUG
-export FDSMPI=$SVNROOT/fds/Build/mpi_intel_$PLATFORM$IB$DEBUG/fds_mpi_intel_$PLATFORM$IB$DEBUG
-export QFDSSH="$SVNROOT/fds/Utilities/Scripts/qfds.sh $RUNOPTION"
+export QFDSSH="$SVNROOT/fds/Utilities/Scripts/qfds.sh $RUNOPTION $DELAY"
 
 if [ "$resource_manager" == "SLURM" ]; then
    export RESOURCE_MANAGER="SLURM"
@@ -153,31 +233,77 @@ else
 fi
 if [ "$QUEUE" != "" ]; then
    if [ "$QUEUE" == "none" ]; then
-      if [ "$BACKGROUND" == "" ]; then
-         BACKGROUND=background
-      fi
-      BACKGROUND="-B $BACKGROUND"
-      export BACKGROUND_DELAY
-      export BACKGROUND_LOAD
-      JOBPREFIX=
+      echo 0 > $QFDS_COUNT
    fi
    QUEUE="-q $QUEUE"
 fi
 
 export BASEDIR=`pwd`
 
-export QFDS="$QFDSSH $BACKGROUND $walltime -n $nthreads $JOBPREFIX -e $FDSMPI $QUEUE $OOPT $POPT" 
+export QFDS="$QFDSSH $walltime -n $nthreads $INTEL2 -e $FDSMPI $QUEUE $OOPT $POPT" 
+if [ "$QUEUEBENCH" != "" ]; then
+   QUEUEBENCH="-q $QUEUEBENCH"
+   export QFDS="$QFDSSH $walltime -n $nthreads $INTEL2 -e $FDSMPI $QUEUEBENCH $OOPT $POPT" 
+fi
 
 cd ..
 if [ "$BENCHMARK" == "1" ]; then
-  ./FDS_Benchmark_Cases.sh
-  echo FDS benchmark cases submitted
+  if [ "$CHECKCASES" == "1" ]; then
+    export QFDS="$SVNROOT/fds/Utilities/Scripts/Check_FDS_Cases.sh"
+  fi
+  if [ "$SINGLE" == "" ]; then
+    ./FDS_Benchmark_Cases.sh
+  else
+    ./FDS_Benchmark_Cases_single.sh
+  fi
+  if [ "$CHECKCASES" == "" ]; then
+    echo FDS benchmark cases submitted
+  fi
+fi
+
+export QFDS="$QFDSSH $walltime -n $nthreads $INTEL2 -e $FDSMPI $QUEUE $OOPT $POPT" 
+if [ "$CHECKCASES" == "1" ]; then
+  export QFDS="$SVNROOT/fds/Utilities/Scripts/Check_FDS_Cases.sh"
 fi
 
 cd $CURDIR
 cd ..
 if [ "$REGULAR" == "1" ]; then
   ./FDS_Cases.sh
-  echo FDS non-benchmark cases submitted
+  if [ "$CHECKCASES" == "" ]; then
+    echo FDS non-benchmark cases submitted
+  fi
+fi
+cd $CURDIR
+cd ..
+if [ "$GEOMCASES" == "1" ]; then
+  ./GEOM_Cases.sh
+  if [ "$CHECKCASES" == "" ]; then
+    echo FDS geometry cases submitted
+  fi
+fi
+
+cd $CURDIR
+cd ..
+if [ "$RERUN" == "1" ]; then
+  grep 'BAD TERMINATION' */*.log | awk -F':' '{print($1)}' | sort -u | awk -F'/' '{print($2)}' | awk -F'.' '{print($1".fds")}' > badcaselist
+  echo "#!/bin/bash" > RERUN_Cases.sh
+  grep -f badcaselist FDS_Cases.sh >> RERUN_Cases.sh
+  nlines=`cat RERUN_Cases.sh | wc -l`
+  if [ $nlines -gt 1 ]; then
+    echo warning the following cases failed with BAD TERMINATION errors. They were rerun
+    grep 'BAD TERMINATION' -A 2 */*.log 
+    chmod +x RERUN_Cases.sh
+    ./RERUN_Cases.sh
+    if [ "$CHECKCASES" == "" ]; then
+      echo "FDS cases that failed with BAD TERMINATION errors re-submitted"
+    fi
+  fi
+fi
+
+if [ "$CHECKCASES" == "" ]; then
+  if [ "$WAIT" == "1" ]; then
+    wait_cases_end
+  fi
 fi
 cd $CURDIR
