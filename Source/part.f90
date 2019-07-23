@@ -699,7 +699,7 @@ WALL_INSERT_LOOP: DO IW=1,N_EXTERNAL_WALL_CELLS+N_INTERNAL_WALL_CELLS
       IF (.NOT.CONTROL(LPC%CTRL_INDEX)%CURRENT_STATE) CYCLE WALL_INSERT_LOOP
    ENDIF
    IF (T < SF%PARTICLE_INSERT_CLOCK(NM)) CYCLE WALL_INSERT_LOOP
-   IF (WC%ONE_D%UW >= -0.0001_EB) CYCLE WALL_INSERT_LOOP
+   IF (WC%ONE_D%U_NORMAL >= -0.0001_EB) CYCLE WALL_INSERT_LOOP
 
    II = WC%ONE_D%II
    JJ = WC%ONE_D%JJ
@@ -790,20 +790,20 @@ WALL_INSERT_LOOP: DO IW=1,N_EXTERNAL_WALL_CELLS+N_INTERNAL_WALL_CELLS
 
          SELECT CASE(IOR)
             CASE( 1)
-               LP%U = -WALL(IW)%ONE_D%UW
+               LP%U = -WALL(IW)%ONE_D%U_NORMAL
                LP%V = SF%VEL_T(1)
                LP%W = SF%VEL_T(2)
             CASE(-1)
-               LP%U =  WALL(IW)%ONE_D%UW
+               LP%U =  WALL(IW)%ONE_D%U_NORMAL
                LP%V = SF%VEL_T(1)
                LP%W = SF%VEL_T(2)
             CASE( 2)
                LP%U = SF%VEL_T(1)
-               LP%V = -WALL(IW)%ONE_D%UW
+               LP%V = -WALL(IW)%ONE_D%U_NORMAL
                LP%W = SF%VEL_T(2)
             CASE(-2)
                LP%U = SF%VEL_T(1)
-               LP%V =  WALL(IW)%ONE_D%UW
+               LP%V =  WALL(IW)%ONE_D%U_NORMAL
                LP%W = SF%VEL_T(2)
             CASE( 3)
                LP%U = AFILL2(U,IIG-1,JJY,KKZ,(LP%X-X(IIG-1))*RDX(IIG),Y_WGT,Z_WGT)
@@ -815,7 +815,7 @@ WALL_INSERT_LOOP: DO IW=1,N_EXTERNAL_WALL_CELLS+N_INTERNAL_WALL_CELLS
             CASE(-3)
                LP%U = SF%VEL_T(1)
                LP%V = SF%VEL_T(2)
-               LP%W =  WALL(IW)%ONE_D%UW
+               LP%W =  WALL(IW)%ONE_D%U_NORMAL
          END SELECT
 
          !LP%ONE_D%IIG = IIG
