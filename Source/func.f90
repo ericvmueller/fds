@@ -903,7 +903,7 @@ ONE_D%CHANGE_THICKNESS => OS%LOGICALS(LC+2,STORAGE_INDEX) ; IF (NEW) ONE_D%CHANG
 
 ONE_D%AREA            => OS%REALS(RC+ 1,STORAGE_INDEX) ; IF (NEW) ONE_D%AREA            = 0._EB
 ONE_D%HEAT_TRANS_COEF => OS%REALS(RC+ 2,STORAGE_INDEX) ; IF (NEW) ONE_D%HEAT_TRANS_COEF = 0._EB
-ONE_D%Q_CON_F           => OS%REALS(RC+ 3,STORAGE_INDEX) ; IF (NEW) ONE_D%Q_CON_F           = 0._EB
+ONE_D%Q_CON_F         => OS%REALS(RC+ 3,STORAGE_INDEX) ; IF (NEW) ONE_D%Q_CON_F         = 0._EB
 IF (RADIATION) THEN
    ONE_D%Q_RAD_IN          => OS%REALS(RC+ 4,STORAGE_INDEX) ; IF (NEW) ONE_D%Q_RAD_IN          = SF%EMISSIVITY*SIGMA*TMPA4
    ONE_D%Q_RAD_OUT         => OS%REALS(RC+ 5,STORAGE_INDEX) ; IF (NEW) ONE_D%Q_RAD_OUT         = SF%EMISSIVITY*SIGMA*TMPA4
@@ -916,8 +916,8 @@ ONE_D%AREA_ADJUST     => OS%REALS(RC+ 7,STORAGE_INDEX) ; IF (NEW) ONE_D%AREA_ADJ
 ONE_D%T_IGN           => OS%REALS(RC+ 8,STORAGE_INDEX) ; IF (NEW) ONE_D%T_IGN           = T_BEGIN
 ONE_D%TMP_F           => OS%REALS(RC+ 9,STORAGE_INDEX) ; IF (NEW) ONE_D%TMP_F           = SF%TMP_FRONT
 ONE_D%TMP_B           => OS%REALS(RC+10,STORAGE_INDEX) ; IF (NEW) ONE_D%TMP_B           = SF%TMP_INNER(SF%N_LAYERS)
-ONE_D%U_NORMAL              => OS%REALS(RC+11,STORAGE_INDEX) ; IF (NEW) ONE_D%U_NORMAL              = 0._EB
-ONE_D%U_NORMAL_S             => OS%REALS(RC+12,STORAGE_INDEX) ; IF (NEW) ONE_D%U_NORMAL_S             = 0._EB
+ONE_D%U_NORMAL        => OS%REALS(RC+11,STORAGE_INDEX) ; IF (NEW) ONE_D%U_NORMAL        = 0._EB
+ONE_D%U_NORMAL_S      => OS%REALS(RC+12,STORAGE_INDEX) ; IF (NEW) ONE_D%U_NORMAL_S      = 0._EB
 ONE_D%U_NORMAL_0      => OS%REALS(RC+13,STORAGE_INDEX) ; IF (NEW) ONE_D%U_NORMAL_0      = 0._EB
 ONE_D%RSUM_G          => OS%REALS(RC+14,STORAGE_INDEX) ; IF (NEW) ONE_D%RSUM_G          = RSUM0
 ONE_D%TMP_G           => OS%REALS(RC+15,STORAGE_INDEX) ; IF (NEW) ONE_D%TMP_G           = TMPA
@@ -930,6 +930,7 @@ ONE_D%K_G             => OS%REALS(RC+21,STORAGE_INDEX) ; IF (NEW) ONE_D%K_G     
 ONE_D%U_TAU           => OS%REALS(RC+22,STORAGE_INDEX) ; IF (NEW) ONE_D%U_TAU           = 0._EB
 ONE_D%Y_PLUS          => OS%REALS(RC+23,STORAGE_INDEX) ; IF (NEW) ONE_D%Y_PLUS          = 1._EB
 ONE_D%Z_STAR          => OS%REALS(RC+24,STORAGE_INDEX) ; IF (NEW) ONE_D%Z_STAR          = 1._EB
+ONE_D%PHI_NLS         => OS%REALS(RC+25,STORAGE_INDEX) ; IF (NEW) ONE_D%PHI_NLS         = -1._EB
 
 I1 = RC+1+N_ONE_D_SCALAR_REALS ; I2 = I1 + SF%ONE_D_REALS_ARRAY_SIZE(1) - 1
 ONE_D%MASSFLUX_SPEC(1:I2-I1+1) => OS%REALS(I1:I2,STORAGE_INDEX)
@@ -1312,14 +1313,16 @@ SUBROUTINE ASSIGN_PRESSURE_ZONE(NM,XX,YY,ZZ,I_ZONE,I_ZONE_OVERLAP)
 
 ! Given the point (XX,YY,ZZ) within Mesh NM, determine all mesh cells within the same pressure zone
 
+USE COMP_FUNCTIONS, ONLY : SHUTDOWN
 REAL(EB), INTENT(IN) :: XX,YY,ZZ
 REAL(EB) :: XI,YJ,ZK
 INTEGER, INTENT(IN) :: NM,I_ZONE
 INTEGER, INTENT(OUT) :: I_ZONE_OVERLAP
-INTEGER :: NN,IOR,IC,II,JJ,KK,III,JJJ,KKK,Q_N,IIO,JJO,KKO,NOM
+INTEGER :: NN,IOR,IC,IC_OLD,II,JJ,KK,III,JJJ,KKK,Q_N
 INTEGER, ALLOCATABLE, DIMENSION(:) :: Q_I,Q_J,Q_K
-TYPE (MESH_TYPE), POINTER :: M=>NULL()
-TYPE (OBSTRUCTION_TYPE), POINTER :: OB=>NULL()
+CHARACTER(MESSAGE_LENGTH) :: MESSAGE
+TYPE (MESH_TYPE), POINTER :: M
+TYPE (OBSTRUCTION_TYPE), POINTER :: OB
 
 M=>MESHES(NM)
 I_ZONE_OVERLAP = 0
@@ -1340,6 +1343,13 @@ ZK  = MAX( 1._EB , MIN( REAL(M%KBAR,EB)+ALMOST_ONE , M%CELLSK(NINT((ZZ-M%ZS)*M%R
 II  = FLOOR(XI)
 JJ  = FLOOR(YJ)
 KK  = FLOOR(ZK)
+IC  = M%CELL_INDEX(II,JJ,KK)
+
+IF (M%SOLID(IC)) THEN
+   WRITE(MESSAGE,'(A,I3,A)')  'ERROR: XYZ point for ZONE ',I_ZONE,' is inside a solid obstruction. Choose another XYZ.'
+   CALL SHUTDOWN(MESSAGE,PROCESS_0_ONLY=.FALSE.)
+   RETURN
+ENDIF
 
 ! Add the first entry to "queue" of cells that need a pressure zone number
 
@@ -1359,53 +1369,46 @@ SORT_QUEUE: DO
    III = Q_I(Q_N)
    JJJ = Q_J(Q_N)
    KKK = Q_K(Q_N)
-   IC  = M%CELL_INDEX(III,JJJ,KKK)
    Q_N = Q_N - 1
 
    SEARCH_LOOP: DO IOR=-3,3
 
       IF (IOR==0) CYCLE SEARCH_LOOP
 
+      IC  = M%CELL_INDEX(III,JJJ,KKK)
+
       SELECT CASE(IOR)
          CASE(-1)
-            IF (III==0) CYCLE SEARCH_LOOP
+            IF (III==1) CYCLE SEARCH_LOOP
             II = III-1
             JJ = JJJ
             KK = KKK
          CASE( 1)
-            IF (III==M%IBP1) CYCLE SEARCH_LOOP
+            IF (III==M%IBAR) CYCLE SEARCH_LOOP
             II = III+1
             JJ = JJJ
             KK = KKK
          CASE(-2)
-            IF (JJJ==0) CYCLE SEARCH_LOOP
+            IF (JJJ==1) CYCLE SEARCH_LOOP
             II = III
             JJ = JJJ-1
             KK = KKK
          CASE( 2)
-            IF (JJJ==M%JBP1) CYCLE SEARCH_LOOP
+            IF (JJJ==M%JBAR) CYCLE SEARCH_LOOP
             II = III
             JJ = JJJ+1
             KK = KKK
          CASE(-3)
-            IF (KKK==0) CYCLE SEARCH_LOOP
+            IF (KKK==1) CYCLE SEARCH_LOOP
             II = III
             JJ = JJJ
             KK = KKK-1
          CASE( 3)
-            IF (KKK==M%KBP1) CYCLE SEARCH_LOOP
+            IF (KKK==M%KBAR) CYCLE SEARCH_LOOP
             II = III
             JJ = JJJ
             KK = KKK+1
       END SELECT
-
-      ! If the cell is outside the computational domain, check if it is in another mesh
-
-      IF (II<1 .OR. II>M%IBAR .OR. JJ<1 .OR. JJ>M%JBAR .OR. KK<1 .OR. KK>M%KBAR) THEN
-         CALL SEARCH_OTHER_MESHES(M%XC(II),M%YC(JJ),M%ZC(KK),NOM,IIO,JJO,KKO)
-         IF (NOM>0) M%PRESSURE_ZONE(II,JJ,KK) = I_ZONE
-         CYCLE SEARCH_LOOP
-      ENDIF
 
       ! Look for thin obstructions bordering the current cell
 
@@ -1427,33 +1430,34 @@ SORT_QUEUE: DO
          END SELECT
       ENDDO
 
-      ! If an obstruction is found, assign its cells the current ZONE, just in case the obstruction is removed
+      ! If the last cell was solid and the current cell is not solid, stop the current directional march.
 
+      IC_OLD = IC
       IC = M%CELL_INDEX(II,JJ,KK)
-      IF (M%SOLID(IC) .AND. M%OBST_INDEX_C(IC)>0) THEN
-         OB => M%OBSTRUCTION(M%OBST_INDEX_C(IC))
-         M%PRESSURE_ZONE(OB%I1+1:OB%I2,OB%J1+1:OB%J2,OB%K1+1:OB%K2) = I_ZONE
-         CYCLE SEARCH_LOOP
-      ENDIF
 
-      ! If the neighboring cell is not solid, assign the pressure zone
+      IF (M%SOLID(IC_OLD) .AND. .NOT.M%SOLID(IC)) CYCLE SEARCH_LOOP
+
+      ! If the current cell is not solid, but it is assigned another ZONE index, mark it as an overlap error and return
 
       IF (.NOT.M%SOLID(IC) .AND. M%PRESSURE_ZONE(II,JJ,KK)>0 .AND.  M%PRESSURE_ZONE(II,JJ,KK)/=I_ZONE) THEN
          I_ZONE_OVERLAP = M%PRESSURE_ZONE(II,JJ,KK)
          RETURN
       ENDIF
 
-      IF (.NOT.M%SOLID(IC) .AND. M%PRESSURE_ZONE(II,JJ,KK)<1) THEN
+      ! If the current cell is unassigned, assign the cell the ZONE index, I_ZONE, and then add this cell to the
+      ! queue so that further searches might originate from it.
+
+      IF (M%PRESSURE_ZONE(II,JJ,KK)<1) THEN
+         M%PRESSURE_ZONE(II,JJ,KK) = I_ZONE
          Q_N      = Q_N+1
          Q_I(Q_N) = II
          Q_J(Q_N) = JJ
          Q_K(Q_N) = KK
-         M%PRESSURE_ZONE(II,JJ,KK) = I_ZONE
       ENDIF
 
    ENDDO SEARCH_LOOP
 
-END DO SORT_QUEUE
+ENDDO SORT_QUEUE
 
 DEALLOCATE(Q_I)
 DEALLOCATE(Q_J)
@@ -3235,7 +3239,7 @@ SUBROUTINE MONIN_OBUKHOV_SIMILARITY(Z,Z_0,L,U_STAR,THETA_STAR,THETA_0,U,TMP)
 
 REAL(EB), INTENT(IN) :: Z,Z_0,L,U_STAR,THETA_STAR,THETA_0
 REAL(EB), INTENT(OUT) :: U,TMP
-REAL(EB), PARAMETER :: KAPPA=0.41_EB,P_0=100000._EB
+REAL(EB), PARAMETER :: KAPPA=0.41_EB,P_REF=100000._EB,RHO_REF=1.2_EB
 REAL(EB) :: ZETA,PSI_M,PSI_H,THETA
 
 IF (L>=0._EB) THEN
@@ -3248,7 +3252,7 @@ ELSE
 ENDIF
 U = (U_STAR/KAPPA)*(LOG(Z/Z_0)-PSI_M)
 THETA = THETA_0 + (THETA_STAR/KAPPA)*(LOG(Z/Z_0)-PSI_H)
-TMP = THETA*(P_0/(P_0-RHOA*GRAV*Z))**(-0.286_EB)
+TMP = THETA*(P_REF/(P_REF-RHO_REF*GRAV*Z))**(-0.286_EB)
 
 END SUBROUTINE MONIN_OBUKHOV_SIMILARITY
 
