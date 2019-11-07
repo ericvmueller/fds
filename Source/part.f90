@@ -1272,7 +1272,7 @@ IF (LPC%SOLID_PARTICLE) THEN
    IF(FBRAND) THEN
       CALL RANDOM_NUMBER(RN)
       !inverse of modified exponential CDF for ember area
-      LP%DA=(-LOG((1-RN)/1.661)/1446)**1.43
+      LP%DA=(-LOG((1-RN)/8.25)/54)**3.63
    ENDIF
 
    LP%MASS = 0._EB
@@ -3147,7 +3147,7 @@ PARTICLE_LOOP: DO IP=1,NLP
       IF (LPC%SOLID_PARTICLE .AND. SF%THERMALLY_THICK .AND. LP%ONE_D%BURNAWAY) THEN
          ! Write final location if particle is a firebrand
          IF (FBRAND) THEN
-            WRITE(LU_FBRAND(NM),'(4(F10.2,A),E10.2)') T,',',LP%X,',',LP%Y,',',LP%Z,',',LP%DA
+            WRITE(LU_FBRAND(NM),'(5(F10.2,A),E10.2)') T,',',(T-LP%T_INSERT),',',LP%X,',',LP%Y,',',LP%Z,',',LP%DA
          ENDIF
          CALL PARTICLE_ORPHANAGE
          CYCLE WEED_LOOP
