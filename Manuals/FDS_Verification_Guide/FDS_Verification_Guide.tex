@@ -18,7 +18,7 @@
 {\input{../Bibliography/gitrevision}}
 {\newcommand{\gitrevision}{unknown} }
 
-\externaldocument{FDS_User_Guide}
+\externaldocument[UG-]{FDS_User_Guide}
 
 \begin{document}
 
@@ -155,6 +155,8 @@ The following individuals contributed to the verification process of FDS.
 \item Chao Zhang of Tongji University provided the finite-element analysis for the HT3D I-beam test case.
 \item Salah Benkorichi of Ulster University, Belfast, developed the HT3D sphere test case.
 \item Kiyoung Moon and Jung-il Choi of Yonsei University, Seoul, South Korea, provided the Heat Channel Flow case.
+\item Jesus Alberto Mejias Tuni of Politecnico di Torino provided the 1-D tunnel cases with heat release.
+\item Morteza Gholami Haghighi Fard of Aalto University, Finland, contributed the PYRO3D ``Parallel Solid Phase Reactions'' case.
 \end{itemize}
 
 
@@ -1378,6 +1380,7 @@ The initial conditions and final results are shown in Fig.~\ref{fig:bound_test_2
 
 \subsection{Isothermal Helium Wave (\texorpdfstring{\textct{helium\_1d\_isothermal}}{helium\_1d\_isothermal})}
 \label{helium_1d_isothermal}
+\label{helium_2d_isothermal}
 
 This is a test of isothermal advection and mixing of gases with different molecular weights using the default algorithm.  A companion case using a simplified algorithm for {\ct CONSTANT\_SPECIFIC\_HEAT\_RATIO} is given below in Sec.~\ref{helium_1d_const_gamma}.  In the present case, a wave of helium propagates in one dimension down the length of a square duct with frictionless walls.  The initial and inlet temperatures are 25 \si{\degreeCelsius} and should remain so throughout the course of the simulation. In Fig.~\ref{fig_helium_1d_isothermal} we plot the simulation results for temperature, sensible enthalpy, and velocity.  The temperature should remain constant at 25 \si{\degreeCelsius}.  The sensible enthalpy, which is referenced to 25 \si{\degreeCelsius}, should remain at 0 \si{kJ/m^3}.  And the velocity should level off at 1 m/s and hold steady.  This output is checked to make sure that no boundary effects manage to pollute the simulation.
 
@@ -1506,6 +1509,93 @@ This test case is a replica of {\ct water\_evaporation\_1} in Sec.~\ref{water_ev
 \label{water_evap_1_const_gamma_plots}
 \end{figure}
 
+\FloatBarrier
+
+\section{Tunnel Flow}
+
+\textbf{Jesus Alberto Mejias Tuni, Politecnico di Torino}
+
+\subsection{1-D Flow in a Tunnel (\texorpdfstring{\textct{tunnel\_const\_gamma}}{tunnel\_const\_gamma})}
+\label{tunnel_const_gamma}
+
+Consider a long tube with rectangular cross section. Air with density $\rho_\infty=1.16455$~kg/m$^3$, temperature $T_\infty=293.15$~K, and pressure $p_\infty=101325$~Pa, is blown at a constant rate, $u_\infty=1$~m/s, through the tube. A steady volumetric heat source is located in the middle of the tube. Ignoring wall friction, gravity, radiation transport, thermal conductivity, viscosity, and assuming that the heat source uniformly spans the cross section of the tube, a set of 1-D equations can be derived for the steady-state velocity, $u(x)$, density, $\rho(x)$, perturbation pressure, $\tp(x)$, and temperature, $T(x)$:
+\begin{eqnarray}
+   \rho u = \rho_\infty u_\infty   \quad &;& \quad \frac{\d}{\d x} \left( \frac{u^2}{2} \right) + \frac{1}{\rho} \frac{\d \tp}{\d x} = 0 \label{mom1d} \\[.1in]
+   p_\infty = \R \rho T            \quad &;& \quad \frac{\d u}{\d x} = \frac{1}{\rho c_p T} \left( \dq''' - u \, \frac{\d}{\d x} (\rho h_{\rm s}) - (c_p T - h_{\rm s}) u \frac{\d \rho}{\d x}  \right)  \label{div1d}
+\end{eqnarray}
+Note that $\R=296.8$~J/kg/K and the sensible enthalpy, $h_{\rm s}=\int_{T_\infty}^T c_p(T') \, \d T'$. The tube is 10~cm long, 1~mm wide and 4~mm tall, and discretized with 1~mm grid cells. A vertical column of cells contains a volumetric heat source that introduces heat at a rate of $\dq'''=2.5133 \times 10^8$~W/m$^3$ within each 1~mm cell. The velocity, density, pressure and temperature are constant starting at the inlet, and at the heat source, the velocity and temperature jump up, and the density and pressure drop down over the span of a single cell and remain steady until the outlet is reached, where the perturbation pressure is set to zero.
+
+For the case where the ratio of specific heats are constant, $c_p=\gamma \, \R/(\gamma-1)=1038.8$~J/kg/K and $\rho c_p T=\gamma \, p_\infty / (\gamma-1)$. In the second equation of (\ref{div1d}), the second two terms on the right hand side are identically zero; thus, the jump in velocity can be computed
+\be
+   \Delta u = \frac{\gamma-1}{\gamma \, p_\infty} \, \dq''' \, \Delta x \approx 0.7087 \; \hbox{m/s}
+\ee
+Using the first equations of (\ref{mom1d}) and (\ref{div1d}), the density and temperature downstream of the heat source are computed to be 0.6815~kg/m$^3$ and 500.94~K, respectively. To determine the drop in pressure, Eq.~(\ref{mom1d}) must be written in discretized form. Assume that the subscript 0 refers to the cell containing the heat source, 1 to the first cell downstream, and -1 to the first cell upstream. The velocity in cell 0 is the average of the velocity upstream and downstream, $u_0=1.3544$~m/s.
+\begin{eqnarray}
+   \tp_1 - \tp_0    &=& - \frac{u_1^2 - u_0^2}{2}   \rho_1     \approx -0.3698 \; \hbox{Pa} \\
+   \tp_0 - \tp_{-1} &=& - \frac{u_0^2 - u_{-1}^2}{2}\rho_0  \approx -0.3850 \; \hbox{Pa}
+\end{eqnarray}
+Summing the two equations yields $\Delta \tp \equiv \tp_1-\tp_{-1} \approx -0.7548$~Pa. The jump in energy across the heat source is
+\be
+   \frac{\d}{\d x} (u \rho c_p T) \approx 2.5129 \times 10^8 \; \hbox{W/m}^3
+\ee
+Plots of $u(x)$, $\rho(x)$, $\tp(x)$, and $T(x)$ are shown in Fig.~\ref{tunnel_const_gamma_plots}.
+
+\begin{figure}[ht!]
+\noindent
+\begin{tabular*}{\textwidth}{l@{\extracolsep{\fill}}r}
+\includegraphics[height=2.2in]{SCRIPT_FIGURES/tunnel_const_gamma_p} &
+\includegraphics[height=2.2in]{SCRIPT_FIGURES/tunnel_const_gamma_u} \\
+\includegraphics[height=2.2in]{SCRIPT_FIGURES/tunnel_const_gamma_rho} &
+\includegraphics[height=2.2in]{SCRIPT_FIGURES/tunnel_const_gamma_T}
+\end{tabular*}
+\caption[Sample case \textct{tunnel\_const\_gamma}]{Output of the \textct{tunnel\_const\_gamma} test case.}
+\label{tunnel_const_gamma_plots}
+\end{figure}
+
+\FloatBarrier
+
+\subsection{1-D Flow in a Tunnel (\texorpdfstring{\textct{tunnel\_linear\_cp}}{tunnel\_linear\_cp})}
+\label{tunnel_linear_cp}
+
+Considering the same layout and the same environmental conditions of the previous case. Air is blown at a constant rate, $u_\infty=1$~m/s, through a 10~cm long, 1~mm wide and 4~mm tall tube. A steady heat source is located in the middle of the tube, composed of a vertical column of cells containing a volumetric heat source that introduces heat at a rate of $\dq'''=2.5133 \times 10^8$~W/m$^3$ within each 1~mm cell . Ignoring wall friction, gravity, radiation transport, thermal conductivity, viscosity, and assuming that the heat source uniformly spans the cross section of the tube, a set of 1-D equations can be derived for the steady-state velocity, $u(x)$, density, $\rho(x)$, perturbation pressure, $\tp(x)$, and temperature, $T(x)$. This equations are the same used in the previous example in (\ref{mom1d}) and (\ref{div1d}).
+
+Remembering that $\R=296.8$~J/kg/K and the sensible enthalpy, $h_{\rm s}=\int_{T_\infty}^T c_p(T') \, \d T'$. The velocity, density, pressure and temperature are constant starting at the inlet, until the heat source, where the velocity and temperature jump up, and the density and pressure drop down over the span of a single cell and remain steady until the outlet is reached, where the perturbation pressure is set to zero.
+
+For the case where the specific heat varies as a function of the temperature. In the second equation of (\ref{div1d}), using the first equation of (\ref{mom1d}) and (\ref{div1d}), and some relationships among the variables is possible to arrive to a simpler expression.
+\begin{eqnarray}
+   \rho c_p T \frac{\d u}{\d x}  &=& \dq''' - u \rho \, \frac{\d}{\d x} (h_{\rm s}) - u h_{\rm s} \, \frac{\d}{\d x} (\rho) - c_p T u \frac{\d \rho}{\d x}  + h_{\rm s} u \frac{\d \rho}{\d x} \\
+   c_p \rho_\infty u_\infty \frac{\d T}{\d x} &=& \dq'''  - u \rho \, \frac{\d}{\d x} (h_{\rm s}) + c_p u \rho \frac{\d T}{\d x}  \\
+  \dq''' &=&   u \rho \, \frac{\d}{\d x} (h_{\rm s}) \\
+  \frac{ \dq'''}{\rho_\infty u_\infty} &=&  \frac{\d}{\d x} (h_{\rm s})  \label{1stLaw}
+\end{eqnarray}
+
+Through the steps, the continuity, in (\ref{mom1d}), and state equation, in (\ref{div1d}), are used to make the temperature the only variable and simplifying equivalent terms until the equation (\ref{1stLaw}) is obtained. Equation (\ref{1stLaw}) corresponds to a 1D form of the first law of thermodynamics, prooving the divergence equation as a consistent energy balance. Then, for the case where the cp is a linear function of the temperature, $c_p=aT +b$.
+\begin{eqnarray}
+  \frac{ \dq'''}{\rho_\infty u_\infty} \Delta x &=&  T^2 \frac{a}{2} +bT -  (T_\infty^2 \frac{a}{2} +bT_\infty) \label{LinearCP}
+\end{eqnarray}
+
+ Calculating in equation (\ref{LinearCP}) for a= 0.1584 J/kg/K$^2$ and b=992.3565 J/kg/K the temperature downstream of the heat source is computed to be 497.71~K. Correspondingly, the velocity and density are, $u_1= 1.6978$~m/s and $\rho$= 0.6859~kg/m$^3$. To determine the drop in pressure, Eq.~(\ref{mom1d}) is written in discretized form as in the previous verification. Then assuming that the subscript 0 refers to the cell containing the heat source, 1 to the first cell downstream, and -1 to the first cell upstream. The velocity in cell 0 is the approximated as the average of the velocity upstream and downstream, $u_0=1.3489$~m/s.
+\begin{eqnarray}
+   \tp_1 - \tp_0    &=& - \frac{u_1^2 - u_0^2}{2}   \rho_1    \approx -0.3646 \; \hbox{Pa} \\
+   \tp_0 - \tp_{-1} &=& - \frac{u_0^2 - u_{-1}^2}{2}  \rho_0  \approx -0.3791 \; \hbox{Pa}
+\end{eqnarray}
+Summing both of the equations yields $\Delta \tp \equiv \tp_1-\tp_{-1} \approx -0.7437$~Pa. The jump in energy across the heat source is
+\be
+   \frac{\d}{\d x} (u \rho c_p T) \approx 2.6625 \times 10^8 \; \hbox{W/m}^3
+\ee
+Plots of $u(x)$, $\rho(x)$, $\tp(x)$, and $T(x)$ are shown in Fig.~\ref{tunnel_linear_cp_plots}.
+
+\begin{figure}[ht!]
+\noindent
+\begin{tabular*}{\textwidth}{l@{\extracolsep{\fill}}r}
+\includegraphics[height=2.2in]{SCRIPT_FIGURES/tunnel_linear_cp_p} &
+\includegraphics[height=2.2in]{SCRIPT_FIGURES/tunnel_linear_cp_u} \\
+\includegraphics[height=2.2in]{SCRIPT_FIGURES/tunnel_linear_cp_rho} &
+\includegraphics[height=2.2in]{SCRIPT_FIGURES/tunnel_linear_cp_T}
+\end{tabular*}
+\caption[Sample case \textct{tunnel\_linear\_cp}]{Output of the \textct{tunnel\_linear\_cp} test case.}
+\label{tunnel_linear_cp_plots}
+\end{figure}
 
 \chapter{Turbulence}
 
@@ -2081,8 +2171,17 @@ In order for species mass fractions to be physically realizable they must all be
 \label{fig:realizable_mass_fractions}
 \end{figure}
 
+\subsection{Integral Mass Test for Complex Geometry (\texorpdfstring{\textct{geom\_mass\_file\_test}}{geom\_mass\_file\_test})}
+\label{geom_mass_file_test}
 
+A 1 m$^3$ box contains AIR at ambient conditions and has a sphere of radius 0.5 m leaving a volume of 0.4764 $m^3$.  The FDS {\ct MASS\_FILE} output is tested to ensure the correct cut cell volumes are being computed and the primitive species for AIR are correctly output.  The results are shown below in Fig.~\ref{fig:geom_mass_file_test}.
 
+\begin{figure}[ht]
+\centering
+\includegraphics[height=2.2in]{SCRIPT_FIGURES/geom_mass_file_test}
+\caption[The \textct{geom\_mass\_file\_test} test case]{Results of the \textct{geom\_mass\_file\_test} test case.}
+\label{fig:geom_mass_file_test}
+\end{figure}
 
 \section{Energy Conservation}
 
@@ -2100,7 +2199,7 @@ Here $\rho$ is the mass density, $h_{\rm s}$ is the sensible enthalpy, $\bar{p}$
 
 For the purpose of verifying that the basic FDS algorithm is energy conserving, it is useful to think of a single compartment as a control volume into which energy is generated by a fire and out of which energy either flows via openings or is conducted through the walls. If the fire's heat release rate (HRR) is steady, eventually the system will reach a quasi-steady state (in an LES calculation, there is never a true ``steady state''). Two simple cases, called \textct{energy\_budget\_adiabatic\_walls} and \textct{energy\_budget\_cold\_walls}, illustrate that in the quasi-steady state, the energy generated by the fire is conserved. For the case with adiabatic walls, a 1200~kW fire is simulated within a compartment that is 10~m by 10~m by 5~m tall. There is a single door and a single horizontal vent in the ceiling. The walls are assumed to be adiabatic; that is, there is no net heat flux through them. Another way to look at it is that the walls are perfect insulators. To simplify the case even further, the radiation transport algorithm is turned off. It is expected that in this case 1200~kW ought to flow out of the compartment either via the door or ceiling vent. The plot in Fig.~\ref{energy_budget_adiabatic_walls_fig} shows both the HRR and enthalpy flow out of the compartment converging to 1200~kW. During the warm up phase, the enthalpy flow is less than the HRR because energy is consumed heating up the air within the room.
 
-Next, the same compartment with the same fire is now assumed to have cold (20~\si{\degree C}) walls, and the radiation is switched back on. After a few minutes of simulation, the net enthalpy outflow is approximately 470~kW and the heat losses to the wall (both radiative and convective) are approximately 730~kW. The plot is shown in Fig.~\ref{energy_budget_cold_walls_fig}.
+Next, the same compartment with the same fire is now assumed to have cold (20~\si{\degree C}) walls, and the radiation is switched back on. After a few minutes of simulation, the net enthalpy outflow is approximately 470~kW and the heat losses to the wall (both radiative and convective) are approximately 730~kW, summing to 1200~kW, the HRR of the fire. Fig.~\ref{energy_budget_cold_walls_fig} displays the HRR, the sum of the losses (radiation, convection, conduction, species diffusion), and the net enthalpy change in the compartment. Note that energy losses are expressed as negative quantities. In steady state, the enthalpy added to the compartment by the fire is offset by losses to the walls and opening.
 
 \begin{figure}[ht]
 \centering
@@ -2445,7 +2544,11 @@ The test cases called {\ct Miscellaneous/layer\_1mesh.fds} and {\ct layer\_4mesh
 
 There are numerous examples in the heat transfer literature of exact solutions, for simple configurations of hot and cold objects, of the radiation transport equation. This chapter presents a number of these examples, plus others aimed at assessing the influence of absorptive media.
 
-\section{Radiation View Factors (\texorpdfstring{\textct{plate\_view\_factor}}{plate\_view\_factor}) }
+\section{Radiation View Factors}
+
+The examples in this section test the basic radiation transport solver against exact solutions derived for simple geometric shapes.
+
+\subsection{Hot Plate (\texorpdfstring{\textct{plate\_view\_factor}}{plate\_view\_factor}) }
 \label{plate_view_factor}
 
 These verification cases test the computation of radiative heat flux from a hot plate to a target surface 1~m away in different coordinate systems. The radiating surface is at 1000~\si{\degree C} and has an emissivity of 1.0.  The exact values are calculated using the analytical expressions for the view factors.
@@ -2463,6 +2566,34 @@ A comparison of exact values and FDS predictions at three different angular reso
 \includegraphics[height=2.2in]{SCRIPT_FIGURES/plate_view_factor}
 \caption[The {\ct plate\_view\_factor} test case]{Convergence study showing increased accuracy of radiative transport equation with increasing number of angles.}
 \label{fig_plate_view_factor}
+\end{figure}
+
+\subsection{Plates at a Right Angle (\texorpdfstring{\textct{geom\_rad}}{geom\_rad}) }
+\label{geom_rad}
+
+In this case, two flat rectangular obstructions (0.98~m by 0.98~m, $A=0.9604$~m$^2$) abut at a right angle. The view factor $F_{12}=0.20004$. The vertical plate has a surface temperature of $T_{\rm hot}=1273.15$~K and the horizontal plate has a temperature of $T_{\rm cold}=293.15$~K. The emissivity of each surface is 1, and the convective heat transfer coefficient is assumed to be 0. Two cases are considered. The first is where the plates are input as conventional rectangular {\ct OBST}s, and the second where the plates are immersed boundary {\ct GEOM}s. There should be no difference in the total energy radiated from hot to cold plates, Fig.~\ref{geom_rad_fig} (left), or the incident heat flux in the center of the cold plate, Fig.~\ref{geom_rad_fig} (right). The exact solution for the integrated incident (i.e. incoming) heat flux to the surface of the cold plate is $F_{12} \sigma T_{\rm hot}^4 A= 28.62$~kW. The purpose of this exercise is to ensure that both types of obstructions behave the same way.
+
+\begin{figure}[!ht]
+\begin{tabular*}{\textwidth}{lr}
+\includegraphics[height=2.2in]{SCRIPT_FIGURES/geom_rad_energy} &
+\includegraphics[height=2.2in]{SCRIPT_FIGURES/geom_rad_flux}
+\end{tabular*}
+\caption[Results of the {\ct geom\_rad} test case]{A hot wall radiates onto a cold floor. At left is the total rate of energy transfer, and at right is the heat flux to the center of the floor.}
+\label{geom_rad_fig}
+\end{figure}
+
+\subsection{Plates at a Right Angle, Part 2 (\texorpdfstring{\textct{geom\_rad\_2}}{geom\_rad\_2}) }
+\label{geom_rad_2}
+
+The case in the previous section is repeated, only now the two plates are not aligned with the Cartesian grid. Figure~\ref{geom_rad_2_fig} displays the comparison of exact and computed solutions for the integrated incident heat flux to the cold plate.
+
+\begin{figure}[!ht]
+\begin{tabular*}{\textwidth}{lr}
+\includegraphics[height=2.2in]{SCRIPT_FIGURES/geom_rad_2_energy} &
+\includegraphics[height=2.2in]{SCRIPT_FIGURES/geom_rad_2_flux}
+\end{tabular*}
+\caption[Results of the {\ct geom\_rad\_2} test case]{The integrated (left) and point (right) heat flux from a hot plate to a cold plate at a right angle.}
+\label{geom_rad_2_fig}
 \end{figure}
 
 
@@ -2614,6 +2745,20 @@ Tests similar to those in Section~\ref{droplet_absorption} are performed for sol
 \label{particle_absorption_figures}
 \end{figure}
 
+
+\section{Consistency of Particle Absorbed Energy and the Radiative Loss Term}
+\label{particle_isotropic_radiation}
+\label{particle_anisotropic_radiation}
+
+Small spherical, cylindrical and planar particles with black (emissivity = 1) surfaces are placed in radiation field. Radiation is coming from black surfaces, and the gas is pure Nitrogen, i.e. non-participating. The amount of energy removed from the intensity field is measured by a device calculating spatial and temporal integrals of radiation loss term (Q\_w).  The reference solution (E\_w) is the wall enthalpy increase, as observed by the one-dimensional heat conduction solver. 
+In {\ct particle\_isotropic\_radiation}, the radiation field isotropic, i.e. all surfaces are black and constant temperature. In {\ct particle\_anisotropic\_radiation}, an anistropic intensity field is geated by specifying one hot wall, one cold wall, and four other fields being mirrors. 
+
+\begin{figure}[ht]
+\includegraphics[height=2.2in]{SCRIPT_FIGURES/particle_isotropic_radiation}
+\includegraphics[height=2.2in]{SCRIPT_FIGURES/particle_anisotropic_radiation}
+\caption[The {\ct particle\_isotropic\_radiation} and {\ct particle\_anisotropic\_radiation} test cases]{Absorbed energy of spherical, cylindrical and cartesian particles in isotropic (left) and anisotropic (right) radiation field.}
+\label{particle_an_isotropic_radiation_figs}
+\end{figure}
 
 
 \section{Radiation Attenuation by Scattering Particles (\texorpdfstring{\textct{part\_attenuation}}{part\_attenuation}) }
@@ -2786,6 +2931,18 @@ a conductivity of 0.01~\si{W/(m.K)}, and a specific heat of 1~\si{kJ/(kg.K)}. Th
    \end{tabular}
    \caption[Results of the {\ct species\_props} cases]{Results of the {\ct species\_props} cases.}
    \label{fig_species_props}
+\end{figure}
+
+\section{Humidity (\texorpdfstring{\textct{humidity}}{humidity})}
+\label{humidity}
+
+This is a test of the relative humidity computation. A simple case is run with the ambient temperature set to 70~$^{\circ}$C and the ambient humidity set to 30~\%. The figure compares  the FDS initial mass fraction of water vapor against a hand calculation.
+
+\begin{figure}[ht]
+	\centering
+	\includegraphics[height=2.2in]{SCRIPT_FIGURES/humidity}
+	\caption[Test of 30~\% relative humidity at 70~$^{\circ}$C.]{Test of 30~\% relative humidity at 70~$^{\circ}$C. }
+	\label{fig_humidity}
 \end{figure}
 
 \section{Product Yields (\texorpdfstring{\textct{methane\_flame}}{methane\_flame})}
@@ -3511,7 +3668,7 @@ Figure~\ref{fig:deposition_mass} shows the time evolution of soot in the gas pha
 
 This verification case consists of two test cases.
 
-The first case to be discussed consists of a box 10~cm on side with adiabatic, free-slip side walls. The box is filled with two gas species each having a molecular weight of 28.8~g/mol, a viscosity of 0.00002~\si{kg/(m.s}, a thermal conductivity of 0.025~\si{W/(m.K}, and specific heat of 1~\si{kJ/(kg.K}, and zero diffusivity. One of the gas species is defined as an aerosol with two particle size bins with a minimum diameter of 1~$\mu$m and a maximum diameter of 10~$\mu$m, a solid phase density of 2000~kg/m$^3$, and a solid phase conductivity of 1~\si{W/(m.K}. The initial mass fraction of the first size bin of the aerosol is 0.00001. {\ct STRATIFICATION}, {\ct NOISE}, and all aerosol behaviors except for {\ct AGGLOMERATION} are turned off. In this case the only mechanisms operating are Brownian and gravitational agglomeration. The case is run for 60 s.
+The first case to be discussed consists of a box 10~cm on side with adiabatic, free-slip side walls. The box is filled with two gas species each having a molecular weight of 28.8~g/mol, a viscosity of 0.00002~\si{kg/(m.s)}, a thermal conductivity of 0.025~\si{W/(m.K)}, and specific heat of 1~\si{kJ/(kg.K)}, and zero diffusivity. One of the gas species is defined as an aerosol with two particle size bins with a minimum diameter of 1~$\mu$m and a maximum diameter of 10~$\mu$m, a solid phase density of 2000~kg/m$^3$, and a solid phase conductivity of 1~\si{W/(m.K)}. The initial mass fraction of the first size bin of the aerosol is 0.00001. {\ct STRATIFICATION}, {\ct NOISE}, and all aerosol behaviors except for {\ct AGGLOMERATION} are turned off. In this case the only mechanisms operating are Brownian and gravitational agglomeration. The case is run for 60 s.
 
 \begin{figure}[ht]
 	\centering
@@ -3535,6 +3692,22 @@ In the second case three pairs of small (3~mm by 3~mm) vents are placed on oppos
 	\label{fig:agglomeration_2}
 \end{figure}
 
+
+\subsection{Scrubbing of Aerosols (\texorpdfstring{\textct{aerosol\_scrubbing}}{aerosol\_scrubbing})}
+\label{aerosol_scrubbing}
+
+This verification case tests the scrubbing of aerosols by droplet. The case consists of a box that is 0.4~m on a side with 4 cells in each direction. The box is initially filled with pure water vapor with a soot mass fraction of 0.0001. The soot has a mean diameter of 1~$\mu$m. The calculation is initialized with a 100~$\mu$m droplet in every cell with an initial downward velocity of 0.1~m/s. Gravity and drag is disabled so the drops do not change velocity. The drops are given an initial weight so that the total projected area is 25~\% of the cell area. Since every cell always has a single drop of the same diameter and velocity, the result is a constant decay of the soot mass fraction with a decay constant of 0.0000666. After 5000~s, the case should predict a 28~\% drop in soot mass fraction.
+
+\begin{figure}[ht]
+	\centering
+	\begin{tabular}{c}
+		\includegraphics[height=2.2in]{SCRIPT_FIGURES/aerosol_scrubbing}
+	\end{tabular}
+	\caption[Gas phase soot mass fractions the \textct{aerosol\_scrubbing} cases]{Time evolution of soot mass fraction in the gas for the \textct{aerosol\_scrubbing} case.}
+	\label{fig:scrubbing}
+\end{figure}
+
+
 \subsection{Oxidation of Soot on Surfaces (\texorpdfstring{\textct{soot\_oxidation\_wall}}{soot\_oxidation\_wall})}
 \label{soot_oxidation_wall}
 
@@ -3550,6 +3723,51 @@ This verification case checks the routine for oxidizing soot on a surface. The c
 	\end{tabular}
 	\caption[Results of the \textct{soot\_oxidation\_wall} case]{Time evolution the accumulated wall mass of soot (upper left), energy release due to soot combustion (upper right), and mass of CO$_2$ (lower left) and H$_2$O (lower right) in the gas for the \textct{soot\_oxidation\_wall} case.}
 	\label{fig:soot_oxidation}
+\end{figure}
+
+\section{Condensation}
+\subsection{Condensation and Evaporation in the Gas Phase\\(\texorpdfstring{\textct{condesnation\_1} and \textct{condensation\_2}}{condensation\_1 and condensation\_2})}
+	\label{condensation_evaporation}
+This pair of verification cases test the condensation and evaporation of water vapor. Both cases use 1~m$^3$ box. Case \textct{condensation\_1} has an initial temperature of 200~$^\circ$C and contains an initial mass fraction of condensed water vapor of 0.01~kg/kg. At equilibirum all the condensed vapor will evaporate resulting in a temperature drop of 27~$^\circ$C and a pressure drop of 5800~Pa. Case \textct{condensation\_2} has an initial temperature of -100~$^\circ$C and contains an initial mass fraction of water vapor of 0.01~kg/kg. At equilibirum 99.9~\% of the vapor will condense resulting in a temperature rise of 36~$^\circ$C and a pressure rise of 21,000~Pa.
+
+\begin{figure}[ht]
+	\centering
+	\begin{tabular}{c}
+		\includegraphics[height=2.2in]{SCRIPT_FIGURES/condensation_1_T}
+		\includegraphics[height=2.2in]{SCRIPT_FIGURES/condensation_1_P} \\
+		\includegraphics[height=2.2in]{SCRIPT_FIGURES/condensation_2_T}
+		\includegraphics[height=2.2in]{SCRIPT_FIGURES/condensation_2_P}
+	\end{tabular}
+	\caption[Results of the \textct{condensation\_1} (top) and \textct{condensation\_2} (bottom) cases]{Temperature change (left) and pressure change (right) due to the evaporation (top) and condensation (bottom) of water vapor for the \textct{condensation\_1} (top) and \textct{condensation\_2} (bottom) cases.}
+	\label{fig:condensation_gas}
+\end{figure}
+
+\subsection{Condensation and Evaporation in the Solid Phase\\(\texorpdfstring{\textct{wall\_cond}}{wall\_cond})}
+	\label{wall_condensation_evaporation}
+This verification cases tests the condenensation and evaporation of water vapor onto and from solid surfaces. The case uses 1~m$^3$ box. The case has an initial temperature of 100~$^\circ$C and contains an initial mass fraction of water vapor of 0.05~kg/kg. The walls are 1~mm thick with a density of 1000~kg/m$^3$, a specific heat of 1~\si{kJ/(kg.K)}, and a conductivity of 100~\si{W/(m.K)}. At equilibirum the wall and gas temperature will be equal at 32~$^\circ$C and the pressure drop will be -20000~Pa. Note that \textct{NUCLEATION\_SITES} on \textct{MISC} was set to zero to turn off condensation in the gas phase.
+
+\begin{figure}[ht]
+	\centering
+	\begin{tabular}{c}
+		\includegraphics[height=2.2in]{SCRIPT_FIGURES/wall_cond_T}
+		\includegraphics[height=2.2in]{SCRIPT_FIGURES/wall_cond_P}
+	\end{tabular}
+	\caption[Results of the \textct{wall\_cond}  case]{Temperature (left) and pressure change (right) for the \textct{wall\_cond} case.}
+	\label{fig:wall_condensation}
+\end{figure}
+
+
+\subsection{Radiation for Condensed Phase (\texorpdfstring{\textct{condesnation\_3}} {condensation\_3})}
+\label{condensation_radiation}
+This verification case tests that the radiation absorption of condensed vapor is equilvalent to the absorption of an equivalent set of Lagrangian particles. The case contains two 1~m$^3$ boxes filled with dry air at 0~$^\circ$C. One box is initialized with an 0.001 mass fraction of condensed water vapor with a droplet size of 1 micron. The other box is filled with one particle per cell with the same diameter and total mass of dropletsf. One wall of each box is set to 1000~$^\circ$C. The radiative heat flux on the opposite face should be the same in both cases.
+
+\begin{figure}[ht]
+\centering
+\begin{tabular}{c}
+\includegraphics[height=2.2in]{SCRIPT_FIGURES/condensation_3}
+\end{tabular}
+\caption[Radiative heat flux for the \textct{condensation\_3} case]{Radiative heat flux for the \textct{condensation\_3} case}
+\label{fig:condensation_3}
 \end{figure}
 
 \chapter{Heat Conduction}
@@ -4590,6 +4808,21 @@ This case compares mass loss rates and material thickness for pyrolysis of black
 	\label{fig:pyro3d_vs_pyro1d}
 \end{figure}
 
+\subsection{Parallel Solid Phase Reactions (\texorpdfstring{\textct{pyro3d\_vs\_pyro1d\_wood\_moist}}{pyro3d\_vs\_pyro1d\_wood\_moist})}
+\label{pyro3d_vs_pyro1d_wood_moist}
+
+\textbf{Morteza Gholami Haghighi Fard, Aalto University}\\
+
+\noindent This case compares the mass conservation results between the 3D pyrolysis solver and 1D solver for a solid which undergoes a more complicated pyrolysis reaction than a solid with single virgin material. A wooden sample composed of 10 \% moisture content and 90 \% birch material (by mass) is heated up with an external flux of 50 \si{kW/m^2} from the top in both solvers. The moisture content evaporates into water vapor completely. Diversely, half of the birch material pyrolyzes into gaseous fuel while the other half converts to char residue. For the sake of comparability of 1D and 3D solvers, geometry and grid resolutions are set the same as the {\ct pyro3d\_vs\_pyro1d} verification case. Fig.~\ref{fig:pyro3d_vs_pyro1d_wood_moist} compares the gas production and solid phase material exchange for two solvers. As one can see, both algorithms generate similar results.
+
+\begin{figure}[!htb]
+	\centering
+	\includegraphics[height=2.2in]{SCRIPT_FIGURES/pyro3d_vs_pyro1d_wood_moist_gas} \\
+	\includegraphics[height=2.2in]{SCRIPT_FIGURES/pyro3d_vs_pyro1d_wood_moist_solid}
+	\caption[PYRO3D parallel solid phase reactions (the {\ct pyro3d\_vs\_pyro1d\_wood\_moist} case)]{Comparison of mass conservation results of 3D and 1D pyrolysis solvers for a wooden sample with parallel pyrolysis reactions. The top plot compares the gas production and the lower plot compares the solid phase material exchange. Verification targets are mass curves.}
+	\label{fig:pyro3d_vs_pyro1d_wood_moist}
+\end{figure}
+
 \subsection{Mass Transport (\texorpdfstring{\textct{pyro3d\_transport}}{pyro3d\_transport})}
 \label{pyro3d_transport}
 
@@ -4600,6 +4833,18 @@ This case is a 3D version of the {\ct FAA\_Polymers\_PMMA} validation case.  A b
     \includegraphics[height=2.2in]{SCRIPT_FIGURES/pyro3d_transport}
     \caption[PYRO3D with mass transport of fuel gas (the {\ct pyro3d\_transport} case)]{Check of mass conservation in conversion of solid (PMMA) to fuel gas (methane) with burn away using the 3D pyrolysis mass transport algorithm.}
     \label{fig:pyro3d_transport}
+\end{figure}
+
+\section{Cone Data Extrapolation Model (\texorpdfstring{\textct{cone\_demo\_2}}{cone\_demo\_2})}
+\label{cone_demo_2}
+
+This section tests a model for extrapolating heat release rate data from a cone calorimeter to heat fluxes other than the one used during the cone test. In the case a surface is assigned an {\ct HRRPUA} and {\ct RAMP\_Q} from a cone test performed at 50~\si{kW/m^2}. The surface is given an {\ct IGNITION\_TEMPERATURE} of 0~$^\circ$C so it ignites immediately. The surface is exposed to a sawtooth {\ct EXTERNAL\_FLUX} that varies between 10~\si{kW/m^2} and 110~\si{kW/m^2}. The results are shown below in Fig~\ref{fig:cone_demo_2}.
+
+\begin{figure}[!ht]
+	\centering
+	\includegraphics[height=2.2in]{SCRIPT_FIGURES/cone_demo_2}
+	\caption[Cone data extrapolation model (the {\ct cone\_demo\_2} case)]{Check of the cone data extrapolation model.}
+	\label{fig:cone_demo_2}
 \end{figure}
 
 \chapter{Lagrangian Particles}
@@ -4876,21 +5121,38 @@ Figure~\ref{flat_fire_plots} compares the first and second order accurate FDS so
 
 \clearpage
 
-\section{Radiation Absorption by Particles}
+\section{Solid Particle Mass and Energy Transfer}
 
 \subsection{Radiation Absorption by Vegetation}
 \label{vegetation_absorb}
 
-In this example, six channels, each measuring 4~m by 1~m by 1~m, are filled with various amounts of particles that represent vegetation---shrubbery, for example. The vegetation occupies exactly one cubic meter within each channel. One end of each channel is a solid wall with temperature $T_{\rm hot}= 1273$~K, and the opposite end is a wall with temperature $T_{\rm cold}=0$~K. Each wall has an emissivity of 1 and a heat transfer coefficient of 0. The side walls of the channels are ``mirror'' boundaries which essentially means that the end walls and vegetation layer are infinitely wide, rendering the configuration one-dimensional. With no particles present, the radiative intensity, or {\em radiance}, in the axial direction at the hot wall is $I_0=\sigma T_{\rm hot}^4/\pi \approx 47.4$~kW/(m$^2 \cdot$sr). With particles present, the radiance is expected to attenuate according to the following:
+In this example, six channels, each measuring 4~m by 1~m by 1~m, are filled with various amounts of particles that represent vegetation. The vegetation occupies exactly one cubic meter within each channel. One end of each channel is a solid wall with temperature $T_{\rm hot}= 1273$~K, and the opposite end is a wall with temperature $T_{\rm cold}=0$~K. Each wall has an emissivity of 1 and a heat transfer coefficient of 0. The side walls of the channels are ``mirror'' boundaries which essentially means that the end walls and vegetation layer are infinitely wide, rendering the configuration one-dimensional. With no particles present, the radiative intensity, or {\em radiance}, in the axial direction at the hot wall is $I_0=\sigma T_{\rm hot}^4/\pi \approx 47.4$~kW/(m$^2 \cdot$sr). With particles present, the radiance is expected to attenuate according to the following:
 \be
-   I = I_0 \, \hbox{e}^{-C_{\rm s} \beta \sigma_{\rm p} L}
+   I = I_0 \, \hbox{e}^{-0.25 \, \beta \sigma_{\rm p} L}
 \ee
-where $C_{\rm s}$ is the particle shape factor, $\beta$ is the ``packing ratio,'' $\sigma_{\rm p}$ is the particle surface area to volume ratio, and $L=1$~m is the depth of the vegetation layer. It is assumed that the vegetation in this case consists of uniformly sized cylinders that are 1~mm in diameter and 2~cm long. The shape factor is taken to be the ratio of the cylinder's cross sectional area to surface area when oriented normal to the central axis of the channel, or $1/\pi$. The packing ratio is $m'''/\rho_{\rm p}$, the vegetation mass per unit volume, or bulk density, divided by the density of the vegetation itself. $\rho_{\rm p}=500$~kg/m$^3$ in this example. The surface area to volume ratio of the cylinder is $2/r=4000$~m$^{-1}$, where $r$ is the radius of the cylinder. Figure~\ref{vegetation_absorb_fig} displays the comparison of the expected radiative heat flux versus that calculated by FDS.
+$\beta=m'''/\rho_{\rm p}$ is the ``packing ratio,'' the vegetation mass per unit volume, or ``bulk density,'' divided by the density of the vegetation itself, $\rho_{\rm p}=500$~kg/m$^3$. $\sigma_{\rm p}=4000$~m$^{-1}$ is the particle surface area to volume ratio, and $L=1$~m is the depth of the vegetation layer. Figure~\ref{vegetation_absorb_fig} displays the comparison of the expected radiative heat flux versus that calculated by FDS.
 \begin{figure}[!ht]
 \centering
 \includegraphics[height=2.2in]{SCRIPT_FIGURES/vegetation_absorb}
 \caption[Results of the \textct{vegetation\_absorb} test case.]{Decrease in radiance caused by layers of vegetation of various densities.}
 \label{vegetation_absorb_fig}
+\end{figure}
+
+
+\subsection{Heating a Metal Sphere via Radiation and Convection}
+\label{particle_heating_convection}
+\label{particle_heating_radiation}
+
+A small metal sphere with mass, $m_{\rm s}=0.005$~kg, is suspended in a 1~m cube filled with $m_{\rm g}=0.318$~kg nitrogen with a specified specific heat, $c_p=1$~kJ/(kg$\cdot$K), and initial temperature, $T_{\rm g,i}=1073.15$~K. The metal has a specified specific heat, $c_{\rm s}=1$~kJ/(kg$\cdot$K), and initial temperature, $T_{\rm s,i}=293.15$~K. The walls of the box are adiabatic. In the first case, {\ct particle\_heating\_convection}, the sphere is heated via convection only and there is no radiation heat transfer. In the second case, {\ct particle\_heating\_radiation}, the sphere is heated via radiation only. The initial heat flux in both cases is approximately 75~kW/m$^2$, and the final temperature in both cases, $T_{\rm f}$, is found from solving an equation that equates the internal energy gained by the solid with the internal energy lost by the gas:
+\be
+   m_{\rm s} \, c_{\rm s} \, (T_{\rm f}-T_{\rm s,i}) = m_{\rm g} \, c_{v} \, (T_{\rm g,i}-T_{\rm f})  \quad ; \quad  c_v = c_p - \frac{R}{W} = 1 - \frac{8.3145}{28} \approx 0.703 \; \hbox{kJ/(kg}\cdot\hbox{K})
+\ee
+The final temperature, $T_{\rm f}=1056.1$~K or 782.9~$^\circ$C, as shown in Fig.~\ref{particle_heating_figs}.
+\begin{figure}[ht]
+\includegraphics[height=2.2in]{SCRIPT_FIGURES/particle_heating_convection}
+\includegraphics[height=2.2in]{SCRIPT_FIGURES/particle_heating_radiation}
+\caption[The {\ct particle\_heating} test cases]{Temperature of a small cold sphere and surrounding hot gas when the sphere is heated by convection only (left) and radiation only (right).}
+\label{particle_heating_figs}
 \end{figure}
 
 
@@ -5004,19 +5266,17 @@ Figure~\ref{water_evaporation_4_plot}, left, displays the time history of the en
 \label{water_evaporation_4_plot}
 \end{figure}
 
-%\subsection{Case 5}
-%\label{water_evaporation_5}
+\subsection{Case 5}
+\label{water_evaporation_5}
 
-%This test involves a single evaporating water droplet in relatively dry air. The comparison is made with an actual measurement~\cite{Ranz} where a 1~mm water droplet
-%shrinks to approximately 0.3~mm in approximately 10~min (see Fig.~\ref{water_evaporation_5_plot}, right).
-%As opposed to the other cases above, this case tests the predicted rate of evaporation, not the final steady state.
+This case is based upon one of the Ranz and Marshall experiments~\cite{Ranz} contained in the FDS Validation Guide~\cite{FDS_Validation_Guide}. The test involves a single evaporating water droplet in relatively dry air. In the FDS Validation Guide, the experiment is modeled using a thermally thin (isothermal) liquid droplet. The purpose of this verification test is to demonstrate that equivalent results are obtained with model the drop as a thermally-thick sphere using the liquid evaporation model for a solid surface with a temperature dependent heat of reaction (in this case vaporization) inputs. Fig.~\ref{water_evaporation_5_plot} compares the thermally-thick and thermally-thin results. The experimental data is also shown for reference.
 
-%\begin{figure}[h!]
-%\centering
-%\includegraphics[height=2.2in]{SCRIPT_FIGURES/water_evaporation_5_diameter}
-%\caption[Sample case \textct{water\_evaporation\_5}]{Output of \textct{water\_evaporation\_5} test case.}
-%\label{water_evaporation_5_plot}
-%\end{figure}
+\begin{figure}[h!]
+\centering
+\includegraphics[height=2.2in]{SCRIPT_FIGURES/water_evaporation_5}
+\caption[Sample case \textct{water\_evaporation\_5}]{Output of \textct{water\_evaporation\_5} test case.}
+\label{water_evaporation_5_plot}
+\end{figure}
 
 \subsection{Case 6}
 \label{water_evaporation_6}
@@ -5061,7 +5321,9 @@ The sum of all the terms, \textct{Q\_TOTAL}, is expected to be zero. The three o
 \subsection{Case 8}
 \label{water_evaporation_8}
 
-In this case, we compare FDS predictions against a 1D spherical heat transfer model evaporation using the FDS properties for water and air. This case replicates Fig.~6 of the Li and Chow paper in Ref.~\cite{LiChow:2008}.  The simulation consists of an injection of a 100~$\mu$m droplet at 10~$^\circ$C into 60~$^\circ$C air with an initial water vapor mass fraction of 10~\%. The initial speed of the droplet is 3 m/s in the negative $z$ direction (downward with gravity turned on).  Results for droplet position are shown on the left in Fig.~\ref{water_evaporation_8_plots}.  Results for the droplet diameter are shown on the right.
+In this case, we compare FDS predictions against a 1D spherical heat transfer model evaporation using the FDS properties for water and air. This case replicates Fig.~6 of the Li and Chow paper in Ref.~\cite{LiChow:2008}.  The simulation consists of an injection of a 100~$\mu$m droplet at 10~$^\circ$C into 60~$^\circ$C air with an initial water vapor mass fraction of 10~\%. The initial speed of the droplet is 3 m/s in the negative $z$ direction (downward with gravity turned on).
+
+% Two sets of FDS results are shown for droplet position (left in Fig.~\ref{water_evaporation_8_plots}) and droplet diameter (right).  The circle markers show results from the FDS thermally thin (isothermal) droplet model. The squares show results using the liquid pyrolysis model for a blowing sphere and the thermally thick (spherically symmetric) heat transfer solution using about 10 cells along the radius of the droplet.
 
 \begin{figure}[h!]
 \noindent
@@ -5072,6 +5334,32 @@ In this case, we compare FDS predictions against a 1D spherical heat transfer mo
 \caption[Sample case \textct{water\_evaporation\_8}]{Output of \textct{water\_evaporation} case 8.}
 \label{water_evaporation_8_plots}
 \end{figure}
+
+
+\section{Water Droplets on Solid Surfaces}
+
+\subsection{Basic Flow and Mass Conservation (\texorpdfstring{{\textct{geom\_sprk\_mass}}}{geom\_sprk\_mass}) }
+\label{geom_sprk_mass}
+
+In the test case called {\ct Sprinklers\_and\_Sprays/geom\_sprk\_mass.fds}, two identical sprinklers pour water on two identical obstructions, one of which is created using the traditional {\ct OBST} input parameters, the other is created using the immersed boundary {\ct GEOM} parameters. The objective is simply to ensure that the droplets behave the same way in both cases. The sprinklers operate for 4~s, each discharging 10.5~L of water. The {\ct HORIZONTAL\_VELOOCITY} of the droplets on the solid surfaces is set to a low value of 0.05~m/s to allow for all of the water to pool before dripping over the edge. Figure~\ref{geom_sprk_mass_fig} displays the accumulated mass of water on each obstruction as a function of time, demonstrating equivalent behavior by both types of solid obstructions.
+\begin{figure}[h!]
+\centering
+\includegraphics[height=2.2in]{SCRIPT_FIGURES/geom_sprk_mass}
+\caption[The {\ct geom\_sprk\_mass} test case]{Mass of water pooled on two solid obstructions.}
+\label{geom_sprk_mass_fig}
+\end{figure}
+
+\subsection{Water Cooling in Adiabatic Surface Temperature (\texorpdfstring{{\textct{adiabatic\_surface\_temperature\_spray}}}{adiabatic\_surface\_temperature\_spray}) }
+\label{AST_spray}
+
+This test case is a modified version of {\ct Radiation/adiabatic\_surface\_temperature}. A thin metal plate with insulated backing is heated for 100 s. Adiabatic surface temperature (AST) is measured from the surface of the plate. Figure~\ref{adiabatic_surf_temp_spray} shows that after about 40 s, the plate temperature and AST match each other. At 50 s, a water spray is turned on and it starts to cool down the surface. At 100 s, the heater is turned off, and the plate cools down even more. AST and plate temperatures should match each other in the end of every 50 s period.
+\begin{figure}[h!]
+\centering
+\includegraphics[height=2.2in]{SCRIPT_FIGURES/adiabatic_surface_temperature_spray}
+\caption[The {\ct adiabatic\_surface\_temperature\_spray} test case]{Adiabatic and true surface temperatures under radiative heating (0 - 50 s), heating and spray  cooling (50-100 s) and only spray cooling (100-150 s).}
+\label{adiabatic_surf_temp_spray}
+\end{figure}
+
 
 
 \section{Flow Rate and Pipe Networks (\texorpdfstring{{\textct{flow\_rate\_2}}}{flow\_rate\_2}) }
@@ -5287,6 +5575,43 @@ This case starts with the same input as \textct{leak\_test}.  A second leakage v
    \label{fig_HVAC_leak_fan}
 \end{figure}
 
+\subsection{Leakage through Immersed Boundary Wall (\texorpdfstring{\textct{leak\_test\_3}}{leak\_test\_3})}
+\label{leak_test_3}
+
+This case is intended to ensure that an immersed boundary obstruction ({\ct GEOM}) handles leakage in the same way as a simple grid-conforming obstruction ({\ct OBST}). Two rooms are separated by a wall specified via either an {\ct OBST} line or a {\ct GEOM} line. Air is pumped into the room on one side of the wall at a rate of $\dot{V}=0.02$~m$^3$/s, and the wall is assigned a leakage area $A_{\rm L}=0.001$~m$^2$. The room on the other side of the wall leaks to the outside through a hole of equal area. The pressure rise in rooms 1 and 2, $\Delta p_1$ and $\Delta p_2$, are found by solving:
+\be
+   \dot{V} = A_{\rm L} \sqrt{ \frac{2 |\Delta p_1-\Delta p_2|}{\rho_0} } \quad ; \quad \dot{V} = A_{\rm L} \sqrt{ \frac{2 |\Delta p_2|}{\rho_0} }
+\ee
+The solution is that $\Delta p_1=480$~Pa and $\Delta p_2=240$~Pa, as shown in Fig.~\ref{fig_leak_test_3}.
+
+
+\begin{figure}[ht]
+   \begin{tabular*}{\textwidth}{l@{\extracolsep{\fill}}r}
+      \scalebox{1.0}{ \includegraphics[height=2.2in]{SCRIPT_FIGURES/leak_test_3_obst} } &
+      \scalebox{1.0}{ \includegraphics[height=2.2in]{SCRIPT_FIGURES/leak_test_3_geom} }
+   \end{tabular*}
+   \caption[The \textct{leak\_test\_3} test case]{Pressure rise in adjacent compartments separated by an {\ct OBST} (left) and {\ct GEOM} (right) wall.}
+   \label{fig_leak_test_3}
+\end{figure}
+
+\subsection{Leakage through Immersed Boundary Compartment (\texorpdfstring{\textct{leak\_test\_4}}{leak\_test\_4})}
+\label{leak_test_4}
+
+This case is intended to ensure that a simple compartment constructed of immersed boundary obstructions ({\ct GEOM}) handles leakage in the same way as a simple grid-conforming compartment. Air is pumped into the compartment via a small rotated cube inside at a rate of $\dot{V}=0.024$~m$^3$/s, and the walls are assigned a total leakage area $A_{\rm L}=0.001$~m$^2$. The pressure rise, $\Delta p$ is found by solving:
+\be
+   \dot{V} = A_{\rm L} \sqrt{ \frac{2 |\Delta p|}{\rho_0} } \quad ; \quad \rho_0=1.195 \; \hbox{kg/m}^3
+\ee
+The solution is that $\Delta p=344.16$~Pa, as shown in Fig.~\ref{fig_leak_test_4}.
+
+
+\begin{figure}[ht]
+  \centering
+      \scalebox{1.0}{ \includegraphics[height=2.2in]{SCRIPT_FIGURES/leak_test_4} }
+   \caption[The \textct{leak\_test\_4} test case]{Pressure rise in a compartment constructed of immersed boundary obstructions.}
+   \label{fig_leak_test_4}
+\end{figure}
+
+
 \subsection{Multiple Zone, Multiple Mesh Leakage (\texorpdfstring{\textct{zone\_shape\_2}}{zone\_shape\_2})}
 \label{zone_shape_2}
 
@@ -5472,23 +5797,621 @@ h_{\mbox{\tiny CFD}} = c_p \frac{V(T_{\mbox{\tiny left}}}{2} \rho_{\mbox{\tiny l
 \label{fig_HVAC_mass_transport_energy}
 \end{figure}
 
-%\chapter{Unstructured Geometry}
-%
-%%\section{Fluid-Structure Interaction}
-%
-%\section{Cut-cell Algorithm (\texorpdfstring\textct{tri\_cube\_cut\_cell\_test}{tri\_cube\_cut\_cell\_test})}
-%
-%A cut-cell algorithm is developed for calculating the intersection area between a triangle and a bounding box (e.g., Cartesian grid cell). It is difficult to directly calculate the intersection area, because the intersection shape is generally an irregular polygon. The area calculation can be divided into three steps. The first step is to obtain the points that the triangle-determined plane intersects with the bounding box edges. These points are sorted to give an intermediate polygon. Note that this intermediate polygon is in the same plane as the blue-edge triangle. The second step is to determine all vertices of the final intersection polygon, by checking whether the triangle edges are intersecting with the edges of the intermediate polygon. Lastly, the area can be easily calculated for the final polygon, which is always convex in this study.
-%
-%\IfFileExists{SCRIPT_FIGURES/cutcell_area.tex}{\input{SCRIPT_FIGURES/cutcell_area.tex}}{\typeout{Error: Missing file SCRIPT_FIGURES/cutcell_area.tex}}
-%
-% Twelve examples in which different triangles intersect with a bounding box are summarized in Table \ref{tab_cutcell_areas}.  NXP represents the vertices of the intersection polygon, whose area is calculated as shown. Examples (1) through (4) and (6) through (8) have a regular triangle intersection. Examples (5) and (9) have a point and line intersection, both with zero area. Examples (10), (11), and (12) are more complicated cases. The intersection polygon has six (6), seven (7), and nine (9) vertices, respectively.
-%
+
+% Unstructured geometry verification tests:
+
+\ifcompgeom
+
+\chapter{Unstructured Geometry}
+
+This section describes some of the test cases used to verify that FDS and Smokeview are computing
+and visualizing unstructured geometric objects correctly. Also here , the behavior of the different
+algorithms used to include unstructured geometries whithin FDS is tested. Several test cases that showcase
+and test the use of the \&GEOM line are presented, followed by accuracy and conservation tests.
+
+
+\section{Verification of setup checks on broken geometries}
+
+This subsection describes some of the test cases used to verify that FDS correctly enforces on geometries
+the quality rules described in Section \texttt{User Guide : Triangulated Surfaces quality}.
+
+The following verification cases contain specific broken geometries in an otherwise correctly
+formatted FDS input file:
+
+\begin{itemize}
+  \item {\ct geom\_bad\_inconsistent\_normals.fds}: a cube with only one face normal inverted;
+  \item {\ct geom\_bad\_inverted\_normals.fds}: a cube with all face normals inverted;
+  \item {\ct geom\_bad\_non\_manifold\_edge.fds}: a cube and a box sharing the same non manifold edge;
+  \item {\ct geom\_bad\_non\_manifold\_vert.fds}: two cubes sharing the same non manifold vertex; % FIXME currently not enforced
+  \item {\ct geom\_bad\_open\_surface.fds}: a cube missing one face, that is an open surface;
+  \item {\ct geom\_bad\_self\_intersection.fds}: a cube whose faces were extruded to obtain a simple self-intersection;
+  \item {\ct geom\_bad\_intersection.fds}: two intersecting cubes. % FIXME remove when boolean ops available
+\end{itemize}
+
+To allow Firebot to consider the test successful if it catches the error condition,
+each of the above input files contain the following parameter in the {\ct MISC}\ line:
+
+{\ct POSITIVE\_ERROR\_TEST = .TRUE.}\
+
+The effect of this parameter is replacing the {\ct ERROR}\ label of the message with a {\ct SUCCESS}\ label.
+
+After Firebot is run, the {\ct geom\_positive\_errors.m}\ Matlab script checks the existence
+of the planned error condition in the {\ct CHID.err}\ file, reporting in cases where the condition
+is not met.
+
+\section{Simple geometry and properties definitions}
+
+\subsection{geom\_simple.fds}
+Figure \ref{fig:geom_simple} was created using the following GEOM namelist.
+The {\ct VERTS}\ keyword is used to specify 3 vertices and the {\ct FACES}\ keyword
+is used to specify the indices of the triangular face.
+
+{\small
+\begin{verbatim}
+&GEOM ID='geom1',
+VERTS=0.0,0.0,0.0,1.0,0.5,0.0,1.0,1.0,1.0,
+FACES=1,2,3,
+SURF_ID='surf1'/
+\end{verbatim}
+}
+
+\begin{figure}
+\begin{center}
+\begin{tabular}{c}
+ \includegraphics[width=4.0in]{../FDS_User_Guide/SCRIPT_FIGURES/geom_simple.png}
+  \end{tabular}
+\end{center}
+ \caption{A triangle created using 3 vertices and 1 face. Case: geom\_simple}
+\label{fig:geom_simple}
+\end{figure}
+
+
+\subsection{geom\_obst.fds}
+Figure \ref{fig:geom_obst} was created using the following GEOM namelist.
+The {\ct XB}\ keyword is used the same way to specify a block as on
+a {\ct OBST}\ or {\ct VENT}\ line.
+
+{\scriptsize
+\begin{verbatim}
+&GEOM ID='obst',SURF_ID='surf1', XB=-0.6,0.6,-0.6,0.6,-0.2,0.2,AZIM=90.0,ELEV=30.0 /
+\end{verbatim}
+}
+
+\begin{figure}
+\begin{center}
+\begin{tabular}{c}
+ \includegraphics[height=2.75in]{../FDS_User_Guide/SCRIPT_FIGURES/geom_obst.png}
+  \end{tabular}
+\end{center}
+ \caption{A block generated using the {\ct XB}\ keyword.  The block is refined automatically to be consistent with the underlying grid resolution. Case: geom\_obst.fds}
+\label{fig:geom_obst}
+\end{figure}
+
+\subsection{geom\_sphere1a.fds,...,geom\_sphere3f.fds}
+Figure \ref{fig:geom_sphere} was created using {\ct LEVEL=n}\
+in the following GEOM namelist
+where {\ct n}\ ranges from 0 to 5.
+
+{\scriptsize
+\begin{verbatim}
+&GEOM ID='sphere',SURF_ID='surf1',SPHERE_RADIUS=0.5,N_LEVELS=n,SPHERE_ORIGIN=0.0,0.0,0.0 /
+\end{verbatim}
+}
+
+The {\ct N\_LEVELS}\ keyword is used
+to specify the resolution of the sphere, larger {\ct N\_LEVELS}\ values result
+in a more highly resolved sphere.{\ct LEVEL=0} produces a 20 sided sphere approximation, an icosahedron .
+{\ct LEVEL=n} produces a sphere approximation with four times as many triangles as the
+sphere produced with {\ct LEVEL=n-1}.
+The {\ct SPHERE\_RADIUS}\ and {\ct SPHERE\_ORIGIN}\ keywords are used to specify
+the size and location of the sphere.  This discretization technique results in equilateral triangles at each recursion level {(\em check to make sure this statement is true - when verified remove this comment)}.
+
+\begin{figure}
+\begin{center}
+\begin{tabular}{cc}
+ \includegraphics[width=3.5in]{../FDS_User_Guide/SCRIPT_FIGURES/geom_sphere1a.png}&
+ \includegraphics[width=3.5in]{../FDS_User_Guide/SCRIPT_FIGURES/geom_sphere1b.png}\\
+ LEVEL=0&LEVEL=1\\
+ \includegraphics[width=3.5in]{../FDS_User_Guide/SCRIPT_FIGURES/geom_sphere1c.png}&
+ \includegraphics[width=3.5in]{../FDS_User_Guide/SCRIPT_FIGURES/geom_sphere1d.png}\\
+ LEVEL=2&LEVEL=3\\
+ \includegraphics[width=3.5in]{../FDS_User_Guide/SCRIPT_FIGURES/geom_sphere1e.png}&
+ \includegraphics[width=3.5in]{../FDS_User_Guide/SCRIPT_FIGURES/geom_sphere1f.png}\\
+ LEVEL=4&LEVEL=5\\
+  \end{tabular}
+\end{center}
+ \caption{Recursive sphere discretizations.  A sphere at a given level is
+ obtained by splitting each triangle from the previous level into four parts and renormalizing added vertices. Cases: geom\_sphere1a.fds,...,geom\_sphere1f.fds}
+\label{fig:geom_sphere}
+\end{figure}
+
+Figure \ref{fig:geom_sphere2a} was created by using {\ct N\_LAT}\ and {\ct N\_LONG}\ keywords in a {\ct GEOM}\ namelist
+to split a sphere in latitudinal (north/south) and longitudinal (east/west) directions respectively. The minimum values of {\ct N\_LAT}\ and {\ct N\_LONG} permitted are 3 and 6.  This discretization technique results in triangles with high aspect ratios near the poles at higher discretization levels.
+
+\begin{figure}
+\begin{center}
+\begin{tabular}{cc}
+ \includegraphics[width=3.5in]{../FDS_User_Guide/SCRIPT_FIGURES/geom_sphere3a.png}&
+ \includegraphics[width=3.5in]{../FDS_User_Guide/SCRIPT_FIGURES/geom_sphere3b.png}\\
+ N\_LAT=3,N\_LONG=6&N\_LAT=6,N\_LONG=12\\
+ \includegraphics[width=3.5in]{../FDS_User_Guide/SCRIPT_FIGURES/geom_sphere3c.png}&
+ \includegraphics[width=3.5in]{../FDS_User_Guide/SCRIPT_FIGURES/geom_sphere3d.png}\\
+ N\_LAT=12,N\_LONG=24&N\_LAT=24,N\_LONG=48\\
+ \includegraphics[width=3.5in]{../FDS_User_Guide/SCRIPT_FIGURES/geom_sphere3e.png}&
+ \includegraphics[width=3.5in]{../FDS_User_Guide/SCRIPT_FIGURES/geom_sphere3f.png}\\
+ N\_LAT=48,N\_LONG=96&N\_LAT=96,N\_LONG=192\\
+  \end{tabular}
+\end{center}
+ \caption{Latitude/Longitude sphere discretizations.  Spheres are
+ split in longitudinal (east/west) and latitudinal (north/south) directions using the {\ct N\_LAT}\ and {\ct N\_LONG} keywords. Cases: geom\_sphere3a.fds,...,geom\_sphere3f.fds}
+\label{fig:geom_sphere2a}
+\end{figure}
+
+%\geominput{geom_terrain.fds}
+\subsection{geom\_terrain.fds}
+Figure \ref{fig:geom_terrain} was created using the {\ct ZVALS}\ keyword.
+
+\begin{figure}
+\begin{center}
+\begin{tabular}{c}
+ \includegraphics[height=2.75in]{../FDS_User_Guide/SCRIPT_FIGURES/geom_terrain.png}
+  \end{tabular}
+\end{center}
+ \caption{Elevations are defined on a rectangular array of grid points using the {\ct ZVALUES}\ keyword.  Case: gridgeom\_terrain.fds}
+\label{fig:geom_terrain}
+\end{figure}
+
+\subsection{geom\_texture.fds}
+Figure \ref{fig:geom_texture} was created using the following SURF and GEOM namelists.
+The {\ct TEXTURE\_MAP}\ keyword on the {\ct SURF}\ is used to specify the name of the image
+file used to texture map the geometric object.
+
+{\small
+\begin{verbatim}
+&SURF ID='surf1',TEXTURE_MAP='nistleft.jpg',TEXTURE_WIDTH=0.6,
+                 TEXTURE_HEIGHT=0.2,COLOR='BLUE' /
+
+&GEOM ID='texture',
+VERTS=0.0,0.0,0.0, 1.0,0.0,0.0, 1.0,1.0,0.0,
+FACES=1,2,3,SURF_ID='surf1'/
+\end{verbatim}
+}
+
+\begin{figure}
+\begin{center}
+\begin{tabular}{c}
+ \includegraphics[width=4.0in]{../FDS_User_Guide/SCRIPT_FIGURES/geom_texture.png}
+  \end{tabular}
+\end{center}
+ \caption{A texture is applied to a triangle. Case: geom\_texture.fds}
+\label{fig:geom_texture}
+\end{figure}
+
+\subsection{geom\_texture2.fds}
+Figure \ref{fig:geom_texture2} was created using the following SURF and GEOM namelists.
+The {\ct TEXTURE\_MAP}\ keyword on the {\ct SURF}\ is used to specify the name of the image
+file used to texture map the geometric object. This example has two textures.
+
+{\small
+\begin{verbatim}
+&SURF ID='surf1' TEXTURE_MAP='nistleft.jpg',
+      TEXTURE_WIDTH=0.6,TEXTURE_HEIGHT=0.2,COLOR='BLUE' /
+&SURF ID='surf2',TEXTURE_MAP='grass.jpg',
+      TEXTURE_WIDTH=0.6,TEXTURE_HEIGHT=0.2,COLOR='GREEN' /
+
+&GEOM ID='texture',
+VERTS=0.0,0.0,0.0, 1.0,0.0,0.0, 1.0,1.0,0.0,
+FACES=1,2,3,SURF_ID='surf1'/
+
+&GEOM ID='texture2',
+VERTS=0.0,0.0,0.0, 1.0,1.0,0.0, 0.0,1.0,0.0,
+FACES=1,2,3,SURF_ID='surf2'/
+\end{verbatim}
+}
+
+\begin{figure}
+\begin{center}
+\begin{tabular}{c}
+ \includegraphics[width=4.0in]{../FDS_User_Guide/SCRIPT_FIGURES/geom_texture2.png}
+  \end{tabular}
+\end{center}
+ \caption{Two texture maps are applied to two separate triangles.  Case: geom\_texture2.fds}
+\label{fig:geom_texture2}
+\end{figure}
+
+\subsection{geom\_texture3a.fds, geom\_texture3b.fds, geom\_texture4a.fds, geom\_texture4b.fds}
+The spheres in Figure \ref{fig:geom_texture3} were created using SURF and GEOM namelists similar to the following.
+
+{\small
+\begin{verbatim}
+&SURF ID='surf1',TEXTURE_MAP='sphere_cover_03.png'COLOR='BLUE',
+      TEXTURE_WIDTH=1.0,TEXTURE_HEIGHT=1.0/
+
+&GEOM ID='sphere1',SURF_ID='surf1',
+      N_LAT=50,N_LONG=50,SPHERE_RADIUS=0.25,SPHERE_ORIGIN=0.25,0.5,0.5,
+      TEXTURE_ORIGIN=0.25,0.5,0.5,TEXTURE_MAPPING='SPHERICAL' /
+
+&GEOM ID='sphere2',SURF_ID='surf3',
+      N_LEVELS=3,SPHERE_RADIUS=0.25,SPHERE_ORIGIN=0.75,0.5,0.5,
+      TEXTURE_ORIGIN=0.75,0.5,0.5,TEXTURE_MAPPING='SPHERICAL' /
+\end{verbatim}
+}
+
+The {\ct TEXTURE\_MAP}\ keyword is used to specify the name of the image
+file applied to the geometric object. The {\ct SPHERICAL}\ setting indicates that that the texture map image
+is applied to the object using spherical coordinates.
 
 
 
+\begin{figure}
+\begin{center}
+\begin{tabular}{cc}
+ \includegraphics[width=3.5in]{../FDS_User_Guide/SCRIPT_FIGURES/geom_texture3a.png}&
+ \includegraphics[width=3.5in]{../FDS_User_Guide/SCRIPT_FIGURES/geom_texture3b.png}\\
+ \includegraphics[width=3.5in]{../FDS_User_Guide/SCRIPT_FIGURES/geom_texture4a.png}&
+ \includegraphics[width=3.5in]{../FDS_User_Guide/SCRIPT_FIGURES/geom_texture4b.png}\\
+ lat/long discretization&recursive discretization
+  \end{tabular}
+\end{center}
+ \caption{Texture maps applied to spheres discretized using two different methods.
+ The two sphere on the left are discretized by splitting the sphere along longitudinal (east/west) and latitudinal (north/south) directions.
+ The two spheres on the right are discretized recursively starting with an icosahedron ( 20 sided polyhedron).  Texture maps applied to the top two sphere have 8 segments. Texture map applied to the bottom two spheres have 5 segments.  Cases: geom\_texture3a.fds, geom\_texture3b.fds, geom\_texture4a.fds, geom\_texture4b.fds}
+\label{fig:geom_texture3}
+\end{figure}
+
+\subsection{geom\_arch.fds}
+Figure \ref{fig:geom_arch} was created using VERTS and FACES keywords.
+
+\begin{figure}
+\begin{center}
+\begin{tabular}{c}
+ \includegraphics[width=4.0in]{../FDS_User_Guide/SCRIPT_FIGURES/geom_arch.png}
+  \end{tabular}
+\end{center}
+ \caption{An arch structure created with FACES and VERTS keywords.
+ Case: geom\_arch.fds . }
+\label{fig:geom_arch}
+\end{figure}
 
 
+\section{Computational geometry}
+
+\subsection{Cut-cell definition around immersed cone: split cells, piercing and alignment}
+\label{cone_test}
+We test the computational geometry algorithm on its treatment of degenerate cases~\cite{Berger:2017}, namely, split cells within a cartesian cell, cartesian cell piercing, and body surface-grid alignment. These cases are expected to be found in general. A cone of base diameter $D_B$ and height $H=4D_B$ is placed centered in a Cartesian domain of size $x=[-1.5D_B:1.5D_B]$, $y=[-1.5D_B:1.5D_B]$, $z=[-2D_B:6D_B]$, as shown in figure~\ref{Fig:cone_cut_cells}a. The cone is composed of 316 vertices and 628 triangles. A single Cartesian mesh is used with $n_x=5$, $n_y=5$ and $n_z=12$ cells in each corresponding direction.
+
+A center column of cartesian cells and corresponding cut-cells is shown in figure~\ref{Fig:cone_cut_cells}b. The proposed method correctly defines cut-faces and polyhedrons in three situations, namely: Solid piercing a cartesian cell, split cut-cells, and cells defined from the cone base aligned with grid plane $z=0$.
+
+
+ %Figure:
+\begin{figure}[h]
+      \centering
+      \includegraphics[trim = 80mm 10mm 80mm 10mm, clip,
+      width=0.325\linewidth]{./SCRIPT_FIGURES/cone_1mesh_a.png}
+      \includegraphics[trim = 80mm 10mm 80mm 10mm, clip,
+      width=0.325\linewidth]{./SCRIPT_FIGURES/cone_1mesh_b.png}
+      \put(-310,240){(a)}
+      \put(-120,240){(b)}
+      \put(-30,185){$\leftarrow$  pierced cell}
+      \put(-30,90){$\leftarrow$  split cells}
+      \put(-30,40){$\leftarrow$ aligned face}
+      \caption{Polyhedra computation around immersed cone: (a) problem setup and grid on a $y$ plane. (b) Cut-cells on mid cell column along $z$ direction: \textit{(pierced cell)} cut-cell formed by cartesian cell pierced by object; \textit{(split cells)} cartesian cell complement of body defines 4 split cells; and \textit{(aligned face)} cut-cell of same size of regular cell contains boundary cut-faces aligned with $z=0$ grid plane.}
+	\label{Fig:cone_cut_cells}
+\end{figure}
+
+
+Three integral conservation tests are defined for a completely immersed geometry problem. These are namely, relative difference of areas computed from the surface triangulation or from the computed boundary cut-faces $|A_{B,\tau}-A_{B,CF}|/A_{B,\tau}$; relative difference of $G$ region volumes computed from the body triangulation and from the cut-cells and $G$ region regular cells $|V_{GB}-V_{GRC}|/V_{GB}$; and finally, difference on the $G$ region centroid computed from body centroid or cut-cells and $G$ cells centroids $|\mathbf{x}_{GB}-\mathbf{x}_{GRC}|_\infty$. See Appendix~\ref{info:constests} for a formal definition of these tests.
+
+The results of the three tests on this cone problem can be seen on table~\ref{tab:cone_res}. We note that cone area and $G$ region volume computed either through the solid triangulation or through the polyhedra produced by the method match up to relative values of $10^{-15}$, commensurate with the floating point tolerance $\epsilon=10^{-12}L_z$ used. In practice, this level of correspondence guarantees conservation as far as the volume mesh is concerned. The centroid of the $G$ region computed through the two different avenues matches up to $10^{-16}D_B$, and is an excellent integral test of the proposed method to compute both cut-face and cut-cell centroids. Note that centroids along $x$ and $y$ direction are not zero, due to the asymmetry of the geometry triangulation employed.
+
+%
+\begin{table}[h]
+  \begin{tabular}{c|c|c}
+    \hline \hline
+      $A_{B,\tau}$ & $A_{B,CF}$ & $\frac{|A_{B,\tau}-A_{B,CF} |}{A_{B,\tau}}$ \\ \hline
+       \texttt{0.7104E+01} & \texttt{0.7104E+01} & \texttt{0.6252E-15} \\
+    \hline \hline
+      $V_{GB}$ & $V_{GRC}$ & $\frac{|V_{GB}-V_{GRC}|}{V_{GB}}$ \\  \hline
+      \texttt{0.7096E+02} & \texttt{0.7096E+02} & \texttt{0.2212E-14} \\
+    \hline \hline
+    $\mathbf{x}_{GB}$ & $\mathbf{x}_{GRC}$ & $|\mathbf{x}_{GB}-\mathbf{x}_{GRC}|_\infty$ \\
+    \hline \hline
+    \texttt{(-0.306E-6,0.586E-6,0.202E+1)} &
+    \texttt{(-0.306E-6,0.586E-6,0.202E+1)} &
+    \texttt{0.1856E-15} \\
+    \hline
+  \end{tabular}
+  \caption{Computation results for conservation tests on polyhedrons defined on immersed cone problem.}
+  \label{tab:cone_res}
+\end{table}
+%
+
+
+\section{Cut-cell method for scalar transport - Immersed Boundary method}
+
+\subsection{Temporal Error analysis for variable density projection}
+
+\label{sec:saad_cc_temporal_error}
+
+This case is a variation of problem~\ref{sec:saad_temporal_error} for a domain that includes an imposed cut-cell region, where the cut-cells have same geometry as regular cells. The problem allows us to verify the temporal accuracy of our scalar transport implementation for cut-cells. The problem is defined by the advection of a non-reacting mixture of two fluids with different densities (10:1 ratio) in one cartesian direction. Zero diffusivity is prescribed. For the problem definition and temporal error computation details, we refer the reader to problem~\ref{sec:saad_temporal_error}.
+The domain is defined by a mesh containing $N_x=512$ cells in the $x$ direction, where the domain $x=[-1,1]$. Also, four cells are defined in the $y$ direction as required by the FFT Poisson solver. Note that the problem defined is one-dimensional in $x$.
+On this domain, cut-cells with same shape and size of regular cells are defined in the space $x=[-0.5,0.5]$. The test verifies that the implementation details of this cut-cell region does not affect the temporal order of accuracy seen on the default verification case of section~\ref{sec:saad_temporal_error}.
+
+\title{Temporal order of accuracy}
+
+Six cases are defined for this test:
+%
+\begin{enumerate}
+ \item[a]  Three correspond to default FDS DNS flux limiter and default explicit Strong Stability Preserving Runge Kutta (SSPRK2) time integration in cells not covered by cut-cells, plus Godunov flux limiter and explicit SSPRK2 time integration in cut-cell region, for CFL numbers $0.25$, $0.125$, $0.0625$. These cases are defined in {\ct /Complex\_Geometry/saad\_CC\_explicit\_*.fds}.
+
+  \item[b] The other three cases correspond to default flux limiter and time integration in cells not covered by cut-cells, plus Godunov flux limiter and implicit time integration in cut-cell region for the same CFL numbers. The implicit integration on the cut-cell region is done applying an Backward Euler step in the predictor, and Trapezoidal Rule on the corrector step. The imposition of boundary conditions for the implicit region in domain and explicit-implicit (EXIM) boundaries follows the technical notes in section \texttt{sec:exim\_scalar\_transport} of the Technical Reference Guide. These cases are defined in {\ct /Complex\_Geometry/saad\_CC\_implicit\_*.fds}.
+
+\end{enumerate}
+%
+
+Same procedure as explained in section~\ref{sec:saad_temporal_error} is used to define the temporal order of accuracy $p$. As noted there, this procedure filters out the spatial error from the computed temporal convergence. Initial and final fields for temperature and mixture fraction for the smallest integration time step are shown in the top figures of Fig.~\ref{fig:saad_cc_temporal_order}. Fields advect to the right with unitary velocity. The two bottom figures show the order $p$ computed point wise in the $x$ direction for explicit and implicit time integration on the cut-cell region. Deviations from $p \simeq 2$ are dependent on the formula used to compute $p$, as explained in section~\ref{sec:saad_temporal_error}.
+The $l_2$ norm of $p$ computed pointwise for explicit integration in cut-cells is \input{../FDS_Verification_Guide/SCRIPT_FIGURES/saad_CC_explicit_l2_norm}\!, and for implicit time integration of scalars on these is  \input{../FDS_Verification_Guide/SCRIPT_FIGURES/saad_CC_implicit_l2_norm}\!.
+
+% Figure Saad_CC:
+\begin{figure}[ht]
+\centering
+\includegraphics[width=.49\textwidth]{../FDS_Verification_Guide/SCRIPT_FIGURES/saad_CC_explicit_Z.pdf}
+\includegraphics[width=.49\textwidth]{../FDS_Verification_Guide/SCRIPT_FIGURES/saad_CC_explicit_rho.pdf}
+\includegraphics[width=.49\textwidth]{../FDS_Verification_Guide/SCRIPT_FIGURES/saad_CC_explicit_temporal_order_rho.pdf}
+\includegraphics[width=.49\textwidth]{../FDS_Verification_Guide/SCRIPT_FIGURES/saad_CC_implicit_temporal_order_rho.pdf}
+\caption[The {\ct saad CC} temporal order test case]{Temporal order for a variable-density projection on domain including cut-cell region.  (Upper-left) Initial and final field for mixture fraction, explicit time integration on cut-cells.  (Upper-right) Initial and final field for density, explicit time integration on cut-cells.  (Lower-left) $p$ computed pointwise for density at final time, explicit integration on cut-cells. (Lower-right) $p$ computed pointwise for density at final time, implicit time integration on cut-cells.  Fluctuations are due to degenerate points in the formula for $p$.}\label{fig:saad_cc_temporal_order}
+\end{figure}
+
+
+\subsection{Variable-Density manufactured solution}
+
+\label{sec:shunn_cc_mms}
+
+
+We set to test the manufactured solution test case~\ref{sec:shunn_mms} for scalar transport, including an internal region of the two dimensional domain where cut-cells with same shape and size as regular Cartesian cells are artificially defined. This problem allows us to check the overall accuracy (spatial+temporal) of the cut-cell implementation for scalar transport for both explicit and implicit integration on the cut-cell region.
+The parameters of the test follow the ones defined by Shunn et al.~\cite{Shunn:2012} and described in section~\ref{sec:shunn_mms}.
+
+The treatment of sources for scalar transport and momentum equations due to the manufactured solution is essentially the same as defined in section~\ref{sec:shunn_mms}. Therefore, source terms from manufactured solution are treated following the base SSPRK2 integration method defined in FDS.
+The domain is defined on a square of length ($L=2$ m), with periodicity prescribed in its boundaries. A smaller square of length ($L=1$ m) centered on the previous is filled with cut-cells of regular cell geometry. See figure~\texttt{fig:smokeview\_fig}.
+
+
+% Plot of a slice of temperature on the whole domain with the cut-cell edges showing the cut-cell region:
+% Figure:
+
+
+Simulations were performed for $N = \{32, 64, 128, 256, 384\}$, where $N$ is the number of cells in each direction, using an adaptive time step satisfying a CFL number of 0.25. The scalar transport equations for both species defined on section~\ref{sec:shunn_mms}, are solved using the GODUNOV flux limiter and centered interpolation. Figure~\ref{fig:shunn_cc_accuracy_order}, presents the $L_2$ error norm defined on the whole domain (regular+cut-cells) at time $t = 0.9$ as a function of grid spacing, $\Delta x = L/N$. Both explicit and implicit time integration in the cut-cell region produce second-order accurate solutions for density, mixture fraction, and velocity, when centered interpolation is used to define the advective mass flux. As expected, these variables exhibit asymptotic first order accuracy when the GODUNOV flux limiter is used. Note that central differences are used on the diffusive terms of these equations, rendering a second order accurate approximation of diffusion on these regular shaped cells. The pressure $H$ is, in same fashion as seen on section~\ref{sec:shunn_mms}, first order accurate. This is consistent with the projection scheme used for time integration of velocities used by FDS.
+
+
+% Figure Shunn_CC:
+\begin{figure}[ht]
+\centering
+\includegraphics[width=.49\textwidth]{../FDS_Verification_Guide/SCRIPT_FIGURES/shunn_cc_exp_cen_mms_convergence.pdf}
+\includegraphics[width=.49\textwidth]{../FDS_Verification_Guide/SCRIPT_FIGURES/shunn_cc_exp_gdv_mms_convergence.pdf}
+\includegraphics[width=.49\textwidth]{../FDS_Verification_Guide/SCRIPT_FIGURES/shunn_cc_imp_cen_mms_convergence.pdf}
+\includegraphics[width=.49\textwidth]{../FDS_Verification_Guide/SCRIPT_FIGURES/shunn_cc_imp_gdv_mms_convergence.pdf}
+\caption[The {\ct Shunn CC} accuracy order test case]{Overall accuracy for manufactured solution variable-density projection on domain including cut-cell region. The $L_2$ error defined on the whole domain at time $t = 0.9$ s is plotted as a function of grid spacing for $N=\{32,64,128,256,384\}$ points in each direction. Two flux limiting options for scalar advection are used: centered interpolation and Godunov.  (Upper-left) Convergence for explicit scalar time integration and centered interpolation for advection.  (Upper-right) Convergence for explicit scalar time integration and Godunov flux limiter.  (Lower-left) Convergence for implicit scalar time integration (Backward Euler step in predictor and Trapezoidal rule in corrector step), and  centered interpolation for advection. (Lower-right) Convergence for implicit scalar time integration and Godunov flux limiter.  }\label{fig:shunn_cc_accuracy_order}
+\end{figure}
+
+
+\subsection{Immersed boundary method on manufactured solution around rotated cube}
+
+\label{sec:rotcube_cc_mms}
+
+Consider the solution of the following constant density, incompressible flow, momentum and scalar transport equations:
+%
+\begin{eqnarray}
+  \frac{\partial \rho \mathbf{u}(\mathbf{x},t)}{\partial t} &=& -\left[ \mathbf{F_v}(\mathbf{u},\mathbf{x},t) + \boldsymbol{\nabla} p(\mathbf{x},t) + \mathbf{fe_v}(\mathbf{u},p) \right] \label{eq:mmsMom} \\
+  \frac{\partial \rho Z}{\partial t} &=& -\left[  F_z(\mathbf{u},\mathbf{x},t) +  fe_Z(\mathbf{u},Z)   \right]
+  \label{eq:mmsZ}
+\end{eqnarray}
+%
+which are extended by the manufactured solution (MMS) sources $\mathbf{fe_v}(\mathbf{u},p)$ and $fe_Z(\mathbf{u},Z)$ respectively. The vectors $\mathbf{F_v}=-\mu \nabla^2(\mathbf{u}) + \nabla \cdot \left( \rho \mathbf{u} \otimes \mathbf{u} \right)$ and $F_z= \nabla \cdot \left( \rho Z \mathbf{u} - \rho D_z \nabla Z \right) $ contain the corresponding advection and diffusion operators.
+
+Now, consider in figure~\ref{Fig:ManuSoln}, a local set of fixed axes $x',y'$ and a manufactured solution defined on the fluid region $\Omega - \Omega_1$ of the form:
+%
+\begin{eqnarray}
+   u'(\mathbf{x}_{Bp}',t) &=& -\sin(t) \; \sin(kx')^2 \; \sin(2ky') \label{eq:upmf} \\
+   v'(\mathbf{x}_{Bp}',t) &=&   \sin(t) \; \sin(2kx') \; \sin(ky')^2 \label{eq:vpmf} \\
+   p(\mathbf{x}_{Bp}',t) &=& \frac{\sin(t)}{4} \left( 2+\cos(2kx') \right) \left( 2+\cos(2ky') \right) - \sin(t) \label{eq:pmf} \\
+   Z(\mathbf{x}_{Bp}',t) &=& \frac{A_Z \sin(t)}{3} \left[ \left( 1-\cos(2k(x'-\frac{\pi}{2})) \right)
+                                                                                   \left( 1-\cos(2k(y'-\frac{\pi}{2})) \right) - 1 \right] + Z_{mean} \label{eq:qmf}
+\end{eqnarray}
+%
+which is similar on velocities and pressure to the functions given in reference~\cite{E:CMS2003}.  These functions imply zero initial conditions, a divergence free velocity field and the following
+%
+\begin{equation}
+   u'(\mathbf{x}',t)=v'(\mathbf{x}',t)=0, \; \; \frac{\partial p}{\partial n} = \frac{\partial Z}{\partial n}=0, \; \;
+   for \; \; kx'=ky'= m \pi \; ; \; m \in \mathbb{N}
+\end{equation}
+%
+which can be used as \textit{no-slip wall} conditions in square boundaries defined by the integer $m$. Indeed, one could be interested in the flow field inside the square boundaries, or outside.
+
+ The MMS sources $\mathbf{fe_v'}$ and $fe_Z'$ are computed analytically as functions of $(\mathbf{x'},t)$ replacing definitions~\eqref{eq:upmf}-\eqref{eq:qmf} in the governing equations~\eqref{eq:mmsMom}-\eqref{eq:mmsZ} and computing symbolically the corresponding terms. See the Matlab script \texttt{Utilities/Matlab/scripts/source\_mms\_rotcube.m} in the fds repository for said sources derivations.
+
+
+
+We take values $m=0,1$ and wavenumber $k=1$, and consider the external flow to the resulting square immersed body, as seen in figure~\ref{Fig:ManuSoln}. The velocity field function inside the immersed object $\Omega_1$ (i.e. solid region) is assumed zero at all times, consistent with the fixed rigid body hypothesis.
+%
+% figure
+\begin{figure}[h]
+      \centering
+      \includegraphics[trim = 40mm 20mm 40mm 20mm, clip,
+       width=0.6\linewidth]{../../../fig/fds/Geometry_Figures/RotCube_ManuSolnSketch.png}
+      \caption{Reference frames for Eulerian ($E$) and immersed body local system ($B$), and vectors relating a generic point $p$ on the fluid region $\Omega-\Omega_1$.}
+	\label{Fig:ManuSoln}
+\end{figure}
+%
+An angular parameter $\alpha$ defines the orientation of the local axes $x',y'$ respect to the Eulerian frame coordinates $x,y$. The center of $\Omega_1$ in the Eulerian frame is situated in position $\mathbf{x}_{Ec}=(\pi,\pi)$. The rotation matrix from Eulerian $E$ to local frame $B$ coordinates is
+%
+\begin{equation}
+  [\mathbf{T}_{BE}] = \left[ \begin{array}{c c}
+                                          \cos(\alpha) & \sin(\alpha) \\
+                                         -\sin(\alpha)  & \cos(\alpha) \end{array} \right]
+\end{equation}
+%
+In the local system, the center of the square in local coordinates is given by $\mathbf{x}_{Bc}'=(\pi/2,\pi/2)$. Then, the location of a general point $p$ in the local system is:
+%
+\begin{equation}
+    \mathbf{x}_{Bp}'= \mathbf{x}_{Bc}' +\mathbf{x}_{cp}'
+\end{equation}
+%
+The same point $p$ location can be defined in terms of the $E$ frame as $\mathbf{x}_{Ep}= \mathbf{x}_{Ec} +\mathbf{x}_{cp}$ (Eulerian coordinates). Then
+%
+\begin{equation}
+    \mathbf{x}_{cp}'=[\mathbf{T}_{BE}] \mathbf{x}_{cp}=[\mathbf{T}_{BE}] \left( \mathbf{x}_{Ep} - \mathbf{x}_{Ec} \right)
+\end{equation}
+%
+and finally
+%
+\begin{equation}
+    \mathbf{x}_{Bp}'= \mathbf{x}_{Bc}' +[\mathbf{T}_{BE}] \left( \mathbf{x}_{Ep} - \mathbf{x}_{Ec} \right)
+\end{equation}
+%
+This last equation is employed to translate a given point $\mathbf{x}_{Ep}$ in the Eulerian frame (with Eulerian frame coordinates $x,y$) to the local frame coordinates where equations~\eqref{eq:upmf}-\eqref{eq:qmf} are defined. This transformation is used to define the initial conditions in the local frame, for points collocated in the Eulerian frame aligned fluid grid. It is also used to compute the source terms $\mathbf{fe_v'}$ and $fe_Z'$ in local coordinates at different time levels.
+To transform  $\mathbf{fe_v'}$ and $fe_Z'$ to their Eulerian counterparts used in the numerical integration we use:
+%
+\begin{eqnarray}
+  \mathbf{fe_v} &=& [\mathbf{T}_{BE}]^T \mathbf{fe_v'} \\
+  fe_Z &=& fe_Z'
+\end{eqnarray}
+%
+
+Similarly, the manufactured variables can be defined at the final time to define error norms. The velocity components of interest are the ones defined in the Eulerian frame, and can be readily computed as
+%
+\begin{equation}
+  \left\{ \begin{array}{c}  u \\ v \end{array} \right\}_p = [\mathbf{T}_{BE}]^T \left\{ \begin{array}{c}  u' \\ v' \end{array} \right\}_p
+\end{equation}
+%
+We assume periodic boundary conditions on $\partial \Omega$. Then, the size of the domain $\Omega$ depends on the periodicity lengths for a rotated flow field.
+When $\alpha=0$, a domain $\Omega$ of size $L_x=L_y=2\pi$ centered in $\mathbf{x}_{Ec}$ is sufficient for application of periodic boundary conditions. Then, for $\alpha=\arctan(1/r)$, $r=1,2,3,...$ the periodicity lengths on the Eulerian reference frame are $L_x=L_y=2\pi \sqrt{1+r^2}$.
+That is, if $\alpha=\arctan(1)$,  the periodicity length increases to $L_x=L_y=\sqrt{8} \pi$. If $\alpha=\arctan(1/2)$, $L_x=L_y=\sqrt{20} \pi$.
+%See figures~\ref{}a-c.
+
+% Figures showing each case with the geom and velocity field to show rotation:
+
+
+% Figures rotcube_cc:
+\begin{figure}[ht]
+\centering
+\includegraphics[trim = 5mm 2mm 7mm 2mm, clip, width=.365\textwidth]{../FDS_Verification_Guide/SCRIPT_FIGURES/rotated_cube_0deg_exp_mms_connvergence.pdf}
+\includegraphics[trim = 30mm 2mm 7mm 2mm, clip, width=.305\textwidth]{../FDS_Verification_Guide/SCRIPT_FIGURES/rotated_cube_0deg_imp_mms_connvergence.pdf}
+\includegraphics[trim = 30mm 2mm 7mm 2mm, clip, width=.305\textwidth]{../FDS_Verification_Guide/SCRIPT_FIGURES/rotated_cube_0deg_obs_mms_connvergence.pdf}
+\caption[The {\ct Rotated Cube CC} accuracy order test case]{Zero degree rotation. The $L_2$ error defined on the whole domain at time $t = 0.95$ s is plotted as a function of grid spacing for $N=\{32,64,128,256,384\}$ points in each direction.}\label{fig:rotcube_cc_0deg_accuracy_order}
+\end{figure}
+
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=.49\textwidth]{../FDS_Verification_Guide/SCRIPT_FIGURES/rotated_cube_27deg_exp_mms_connvergence.pdf}
+\includegraphics[width=.49\textwidth]{../FDS_Verification_Guide/SCRIPT_FIGURES/rotated_cube_27deg_imp_mms_connvergence.pdf}
+\caption[The {\ct Rotated Cube CC} accuracy order test case]{$\simeq27$ degree rotation. The $L_2$ error defined on the whole domain at time $t = 0.95$ s is plotted as a function of grid spacing for $N=\{32,64,128,256,384\}$ points in each direction.}\label{fig:rotcube_cc_27deg_accuracy_order}
+\end{figure}
+
+
+Although the different orientation angles correspond to different periodicity lengths and domain sizes all cases were run with $N=\{32,64,128,256,384\}$ points in each direction for accuracy testing. The different inclination angles and grids were run with explicit and implicit time integration for scalars in the cut-cell region. The cases with zero inclination were also run with the $\&$OBST functionality for comparison. Calculations were run at constant $CFL=0.1$ and errors were computed on the solution at the first time level after $t=0.95$. The cases input files are found on \texttt{/Complex\_Geometry/rotated\_cube\_*deg\_*\_*.fds}.
+
+Overall the error norm behaves as $\mathcal{O}(\Delta x)$ for the scalar transport equation in cases where the cube is inclined. This is expected as the diffusive flux differences used are of this spatial accuracy. Note that for the non inclined cases of figure~\ref{fig:rotcube_cc_0deg_accuracy_order} the scalar $Z$ presents better accuracy, simply because the two point centroid to centroid difference coincides with a central difference. Note that the Godunov flux limited interpolation does not have a detrimental effect in accuracy, simply because advective fluxes reduce to zero at the boundary.
+The $\mathcal{O}(\Delta x^2)$ accuracy in $Z$ is also seen for $\&$OBSTs in the right figure of~\ref{fig:rotcube_cc_0deg_accuracy_order}, which use central differences for diffusive fluxes.
+For the $\&$OBSTs where the momentum equations are solved on velocity points next to the surface, velocities behave as $\mathcal{O}(\Delta x^2)$, in accordance to the discretization schemes used (right figure~\ref{fig:rotcube_cc_0deg_accuracy_order}). The immersed boundary velocity reconstruction on cut-faces provides spatial accuracies between $\mathcal{O}(\Delta x)$ and $\mathcal{O}(\Delta x^2)$ in $L_2$ norm across the different inclination angles, which are inline with what is expected for immersed boundary methods of this type. Note that pressure spatial accuracy is $\mathcal{O}(\Delta x)$ across all tests, consistent with the fractional step projection method used by FDS.
+
+% Figures for accuracy 27deg:
+\begin{figure}[ht]
+\centering
+\includegraphics[width=.49\textwidth]{../FDS_Verification_Guide/SCRIPT_FIGURES/rotated_cube_45deg_exp_mms_connvergence.pdf}
+\includegraphics[width=.49\textwidth]{../FDS_Verification_Guide/SCRIPT_FIGURES/rotated_cube_45deg_imp_mms_connvergence.pdf}
+\caption[The {\ct Rotated Cube CC} accuracy order test case]{$45$ degree rotation. The $L_2$ error defined on the whole domain at time $t = 0.95$ s is plotted as a function of grid spacing for $N=\{32,64,128,256,384\}$ points in each direction.}\label{fig:rotcube_cc_45deg_accuracy_order}
+\end{figure}
+
+
+
+\subsection{Poiseuille flow in channel created by two GEOMs}
+
+\label{sec:poiseuille_cc}
+
+Consider a gas with density $\rho=1.165$ kg/m$^3$, and molecular viscosity $\mu=0.025$ kg/m/s, being advected through a 2D channel of height $H=1$ m and length $L=10$ m, by means of a constant force field along the channel direction $F_x=1$ N/m$^3$. This force field is equivalent to a pressure drop $dp/dx=-1$ Pa/m. The analytical solution for the friction factor in this laminar flow is:
+%
+\begin{equation}
+   f_{an} = 24/Re_H
+\end{equation}
+%
+where in our case $Re_H= \rho \overline{u} H/ \mu \simeq 155$, being the analytical value for the bulk velocity $\overline{u}=3.\hat{3}$ m/s. The (Moody) friction factor formula for pressure losses is:
+%
+\begin{equation}
+   \Delta p / L = f \frac{L}{H}  \frac{1}{2} \rho \overline{u}^2
+\end{equation}
+%
+which can be used to compute the simulation error in $f$, as a function of the mean velocity evaluated on the numerical mesh. To evaluate the solution quality of the CC-IBM scheme we consider three sets of test cases. See figure~\ref{Fig:PoiseSketch}.
+%
+% figure
+\begin{figure}[h]
+      \centering
+      \includegraphics[trim = 60mm 34mm 60mm 42mm, clip,
+       width=0.75\linewidth]{../../../fig/fds/Geometry_Figures/Poiseuille_cc_Sketch.png}
+      \caption{Poiseuille flow created by two geometries $\Omega_1, \Omega_2$: Location of channel walls respect to Cartesian grid lines (in blue).}
+	\label{Fig:PoiseSketch}
+\end{figure}
+%
+We define as $h$ the distance from the lower geometry wall to the closest grid line within it. The we consider discretizations with ${10,20,40,80}$ cells along the $z$ direction and cases: grid aligned $h=0$, grid dependent $h=\Delta z /3$, and fixed $h=\Delta z_{10}/11$, where $\Delta z_{10}$ is the wall normal cell size in the coarsest discretization used.
+
+Friction factor errors computed as $|f-f_{an}|$ are shown in figures~\ref{Fig:PoiseConvg}a,b. Second order convergence of this error measure in all cases can be seen.
+There is more noise on the fixed geometry case $h=\Delta z_{10}/11$, because the cut-cell size ratios and interpolation coefficients are changing from grid to grid. These error fluctuations are not seen when $h=\Delta z /3$, and cut-cells keep same sizes and interpolation coefficients respect to the Cartesian grids.
+%
+% figure
+\begin{figure}[h]
+      \centering
+      \includegraphics[trim = 5mm 0mm 5mm 0mm, clip,
+       width=0.49\linewidth]{../FDS_Verification_Guide/SCRIPT_FIGURES/geom_poiseuille_convergence_theta0a.pdf}
+      \includegraphics[trim = 5mm 0mm 5mm 0mm, clip,
+       width=0.49\linewidth]{../FDS_Verification_Guide/SCRIPT_FIGURES/geom_poiseuille_convergence_theta0na.pdf}
+      \caption{Poiseuille flow created by two geometries: Convergence trends on friction factor (Moody) for $h=0$, grid dependent $h=\Delta z/3$ and fixed $h=\Delta z_{10}/11$. Fluctuations on the friction factor error in the last case are produced by changes in cut-cell aspect ratios and velocity interpolation stencils as grids are refined.}
+      \label{Fig:PoiseConvg}
+\end{figure}
+%
+
+
+\subsection{Conservation test of isothermal helium plume around sphere}
+
+
+\section{Geometry tests involving heat and mass transfer}
+
+
+\subsection{Conservation tests of heat flux and mass flux specified from sphere surface}
+
+%\subsection{Flow around heated curved pipe or something like that}
+%\subsection{Consistency test for OBST and GEOM of flow around heated cubes}
+
+
+\subsection{Radiating Sphere}
+\label{sphere_radiate}
+
+A sphere with a radius of 1~m and a surface temperature of $T=773.15$~K is centered in a box that is 4~m on a side with a surface temperature of 0~K. The emissivity of all surfaces is 1, and there is no convective heat transfer to or from any surface. The heat flux from the hot sphere to the nearest cold wall surface 1~m away is expected to be $\sigma T^4/4=5.065$~kW/m$^2$. The results are shown in Fig.~\ref{sphere_radiate_fig}.
+\begin{figure}[ht]
+\includegraphics[width=3.2in]{../FDS_User_Guide/SCRIPT_FIGURES/sphere_radiate.png}
+\includegraphics[width=3.2in]{../FDS_User_Guide/SCRIPT_FIGURES/sphere_radiate.pdf}
+\caption[The {\ct sphere\_radiate} test case]{Left: a radiating hot sphere. Right: heat flux to the nearest wall surface.}
+\label{sphere_radiate_fig}
+\end{figure}
+
+
+\subsection{Leaking Sphere}
+\label{sphere_leak}
+
+A hollow sphere with an inner radius of 1~m has a small cube within it that is blowing air into the sphere at a rate of $\dot{V}=0.008$~m$^3$/s. The sphere is assigned a leakage area of $A=0.0001$~m$^2$. It is expected that the pressure rise within the sphere shall be
+\be
+   \Delta p = \frac{\rho_\infty}{2} \left( \frac{\dot{V}}{A} \right)^2 \approx 3840 \; \hbox{Pa}
+\ee
+as shown in Fig.~\ref{sphere_leak_fig}.
+\begin{figure}[ht]
+\centering
+\includegraphics[width=3.2in]{../FDS_User_Guide/SCRIPT_FIGURES/sphere_leak.pdf}
+\caption[The {\ct sphere\_leak} test case]{Pressure rise in a leaking sphere.}
+\label{sphere_leak_fig}
+\end{figure}
+
+
+\section{Geometry tests involving fire}
+
+\fi
 
 
 \chapter{Outputs}
@@ -5592,14 +6515,15 @@ The use of computer software for safety purposes is sometimes regulated under a 
 \begin{tabular}{|l|c|l|l|l|}
 \hline
 Folder                  & Reference                       & Input File                                 & FDS Output File                                  & Expected Results File \\ \hline \hline
-Controls                & \ref{activate_vents}            & activate\_vents.fds                        & activate\_vents\_ctrl.csv                        & activate\_vents.csv \\ \hline
+Controls                & \ref{UG-activate_vents}         & activate\_vents.fds                        & activate\_vents\_ctrl.csv                        & activate\_vents.csv \\ \hline
 Pressure\_Effects       & \ref{isentropic2}               & isentropic2.fds                            & insentropic2\_devc.csv                           & isentropic2.csv \\ \hline
 Energy\_Budget          & \ref{energy_budget_tmix}        & energy\_budget\_tmix.fds                   & energy\_budget\_tmix\_devc.csv                   & energy\_budget\_tmix.csv \\ \hline
 Energy\_Budget          & \ref{energy_budget_walls}       & energy\_budget\_cold\_walls.fds            & energy\_budget\_cold\_walls\_hrr.csv             & energy\_budget\_cold\_walls.csv \\ \hline
-Fires                   & \ref{spray_burner}              & spray\_burner.fds                          & spray\_burner\_hrr.csv                           & spray\_burner.csv \\ \hline
+Fires                   & \ref{UG-spray_burner}           & spray\_burner.fds                          & spray\_burner\_hrr.csv                           & spray\_burner.csv \\ \hline
 Heat\_Transfer          & \ref{heat_conduction_kc}        & heat\_conduction\_kc.fds                   & heat\_conduction\_kc\_devc.csv                   & heat\_conduction\_kc.csv \\ \hline
 HVAC                    & \ref{ashrae7}                   & ashrae7\_table.fds                         & ashrae7\_table\_devc.csv                         & ashrae7\_exp.csv \\ \hline
-Pressure\_Solver        & \ref{duct_flow}                 & duct\_flow.fds                             & duct\_flow\_devc.csv                             & duct\_flow.csv \\ \hline
+Pressure\_Solver        & \ref{UG-duct_flow}              & duct\_flow.fds                             & duct\_flow\_devc.csv                             & duct\_flow.csv \\ \hline
+Pressure\_Solver        & \ref{UG-duct_flow}              & duct\_flow\_uglmat.fds                     & duct\_flow\_uglmat\_devc.csv                     & duct\_flow.csv \\ \hline
 Pyrolysis               & \ref{enthalpy}                  & enthalpy.fds                               & enthalpy\_devc.csv                               & enthalpy.csv \\ \hline
 Pyrolysis               & \ref{shrink_swell}              & shrink\_swell.fds                          & shrink\_swell\_devc.csv                          & shrink\_swell.csv \\ \hline
 Radiation               & \ref{radiation_shield}          & radiation\_shield.fds                      & radiation\_shield\_devc.csv                      & radiation\_shield.csv \\ \hline
@@ -5610,6 +6534,96 @@ Sprinklers\_and\_Sprays & \ref{particle_drag}             & particle\_drag\_U50\
 
 \end{tabular}
 \end{landscape}
+
+% Unstructured geometry Appendix:
+
+\ifcompgeom
+
+\chapter{Unstructured Geometry integral conservation tests}
+\label{info:constests}
+
+Consider an immersed body $B$, with surface defined by $N_\tau$ triangles, completely immersed in a domain $\Omega$ divided in $M$ cartesian mesh blocks.
+Three geometry conservation tests can be defined for the polyhedra definition around this body:
+%
+\begin{enumerate}
+
+    \item Surface area:
+    The total body $B$ surface area can be computed from the triangulation $A_{B,\tau}=\sum_{i_\tau=1}^{N_\tau}{A_{i_\tau}}$, where $N_\tau$ is the number of triangles in the surface and $A_{i_\tau}$ their areas. It can also be calculated from the boundary cut-face areas computed by the cut-cell definition algorithm,  $A_{B,CF}=\sum_{icf=1}^{N_{bcf}}{A_{icf}}$, where $N_{bcf}$ is the number of cut-faces that have been computed on the body surface. These two areas should match.
+    \newline
+
+    \item Gas ($G$) region volume:
+    This is the volume of region $\Omega-\Omega_B$. It can be computed from the solid volume $V_B$ and the domain volume $V_\Omega$ as $V_{GB}=V_\Omega-V_B$. Here:
+    %
+    \begin{equation}
+       V_\Omega=\sum_{nm=1}^M {V_{nm}} \: \: ; \: \: V_{nm}=L_{x,nm} L_{y,nm} L_{z,nm}
+    \end{equation}
+    %
+    where $L_{x,nm}$, $L_{y,nm}$ and $L_{z,nm}$ are the $nm$ mesh sizes in each cartesian direction ($M=1$, $L_{x,1}=3D_B$, $L_{y,1}=3D_B$ and $L_{z,1}=8D_B$ in the cone problem of section~\ref{cone_test}). The discrete volume of the solid can be computed from the triangulation applying the divergence theorem to a field $\mathbf{F}_v=x \mathbf{\hat{i}}$, such that $\nabla \cdot \mathbf{\hat{F}}_v=1$, to the surface triangles:
+    %
+    \begin{equation}
+      V_B = \int_{\Omega _{B}} \nabla \cdot \mathbf{F}_v \; dV =
+      \int_{\partial \Omega _{B}}  \mathbf{F}_v \cdot \hat{n} \; dA =
+      \sum_{i=1}^{N_\tau}{(\mathbf{\hat{i}} \cdot \mathbf{\hat{n}}_i) x_{ci} A_i}
+      \label{eq:Vb}
+    \end{equation}
+    %
+    where $x_{ci}$ is the $i$th triangle centroid position in the $x$ direction, and $A_i$ its area.
+    The $G$ region volume can also be computed from the sum of cut-cells and regular $G$ cells volumes over all $M$ cartesian meshes:
+    %
+    \begin{equation}
+       V_{GRC} = \sum_{icc=1}^{N_{cc}}{V_{icc}} + N_{rg} \Delta x \Delta y \Delta z
+       \label{}
+    \end{equation}
+    %
+    where $N_{rg}$ the number of regular cells in the $G$ region, and $\Delta x,\Delta y,\Delta z$ the uniform grid cell sizes. The  $N_{cc}$ cut-cell volumes $V_{icc}$ are computed in similar manner to equation~\eqref{eq:Vb}:
+    %
+    \begin{equation}
+    V_{icc} = \int_{\partial \Omega _{icc}}  \mathbf{F}_v \cdot \hat{n} \; dA =
+    \sum_{icf=1}^{ncf} (\mathbf{\hat{i}} \cdot \mathbf{\hat{n}}_{icf}) \int_{\Omega _{icf}} x \; dA
+    \label{eq:vol2}
+    \end{equation}
+    %
+    where $ncf$ is the number of faces (cut-face or regular) which are boundary of cut-cell $icc$.
+
+    In this test $V_{GB}$ and $V_{GRC}$ should agree.
+    \newline
+
+    \item $G$ region centroid location:
+    The centroid of the $G$ region can be computed from cut-cells and regular $G$ cells as:
+    %
+    \begin{equation}
+       \mathbf{x}_{GRC} = \frac{1}{V_{GRC}}
+       \left[  \sum_{icc=1}^{N_{cc}}{\mathbf{x}_{c(icc)}V_{icc}} +  \sum_{irg=1}^{N_{rg}}{\mathbf{x}_{c(irg)} \Delta x \Delta y \Delta z} \right]
+    \end{equation}
+    %
+    Where $\mathbf{x}_{c(irg)}$ is the cell center location for regular cell $irg$, and the scalar components in each coordinate direction  $\{\mathbf{\hat{i}},\mathbf{\hat{j}},\mathbf{\hat{k}}\}$ of cut-cell centroids $\mathbf{x}_{c(icc)}$ are obtained from:
+    %
+    \begin{equation}
+    x_{ci(icc)} = \frac{1}{V_{icc}} \int_{\Omega _{icc}} \nabla \cdot \mathbf{F}_{c(i)} \; dV =
+    \frac{1}{V_{icc}} \int_{\partial \Omega _{icc}} \mathbf{F}_{c(i)} \cdot \hat{n} \; dA =
+  \frac{1}{2V_{icc}} \sum_{icf=1}^{ncf} (\mathbf{\hat{e}}_i \cdot \mathbf{\hat{n}}_{icf}) \int_{\Omega _{icf}} x_i^2 \; dA
+    \label{eq:xcen}
+    \end{equation}
+    %
+    where $\mathbf{F}_{c(i)}=1/2 x_i^2 \mathbf{\hat{e}}_i$. Here, $x_i=\{x,y,z\}$ and $\mathbf{\hat{e}}_i=\{\mathbf{\hat{i}},\mathbf{\hat{j}},\mathbf{\hat{k}}\}$.
+
+    The centroid of the domain $\Omega$ is:
+    \begin{equation}
+        \mathbf{x}_\Omega = \frac{1}{V_\Omega} \sum_{nm=1}^M  \mathbf{x}_{nm} V_{nm}
+    \end{equation}
+    where $\mathbf{x}_{nm}=\mathbf{x}_{low,nm}+\frac{1}{2} \left( L_{x,nm},L_{y,nm},L_{z,nm} \right)$, where $\mathbf{x}_{low,nm}$ is the vector of low boundary coordinates for mesh $nm$. In the single mesh cone problem (section~\ref{cone_test}) $\mathbf{x}_{low,1}= \left( -1.5D_B,-1.5D_B,-2D_B \right)$.
+
+    Also, the centroid $\mathbf{x}_B$ of the discretized solid can be computed applying equation~\eqref{eq:xcen} to the surface triangulation $\tau$, in same manner to what was done for cut-faces. From domain and solid the centroid of the $G$ region can be obtained as:
+    %
+    \begin{equation}
+      \mathbf{x}_{GB}=\frac{1}{V_{GB}} \left[ \mathbf{x}_\Omega V_\Omega - \mathbf{x}_B V_B \right]
+    \end{equation}
+    %
+    Consistency of the computed centroids requires that $\mathbf{x}_{GRC}$ and $\mathbf{x}_{GB}$ should correspond.
+
+\end{enumerate}
+
+\fi
 
 
 \end{document}

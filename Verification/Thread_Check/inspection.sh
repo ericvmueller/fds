@@ -6,7 +6,7 @@ cd $CURDIR
 RESULT_DIR=$CURDIR/inspect_results
 PROCESSES=1
 QFDS="$GITROOT/fds/Utilities/Scripts/qfds.sh"
-QUEUE=
+QUEUE=batch
 
 
 function usage {
@@ -16,6 +16,7 @@ function usage {
   echo " -v   - list command that will be used to thread check"
   echo " -d   - select directory to store Inspector results"
   echo " -p   - select number of MPI processes"
+  echo " -q   - select batch queue"
   echo "input_file - input file"
   echo ""
   exit
@@ -53,7 +54,7 @@ case=$1
 # Perform OpenMP thread checking (detect deadlocks and data races)
 
 cd $CURDIR
-$QFDS -q $QUEUE -p $PROCESSES -o 4 -x $RESULT_DIR $case
+$QFDS -q $QUEUE -p $PROCESSES -o 4 -x $RESULT_DIR -f $GITROOT $case
 sleep 5
 
 

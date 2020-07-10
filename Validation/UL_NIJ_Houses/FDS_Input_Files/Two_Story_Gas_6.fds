@@ -41,7 +41,6 @@
 
 &SURF ID = 'DOOR'
       COLOR = 'BLUE'
-      LEAK_PATH = 1,0
       MATL_ID = 'GYPSUM BOARD'
       THICKNESS = 0.05/
 
@@ -50,6 +49,8 @@
       MATL_ID = 'GYPSUM BOARD'
       THICKNESS = 0.004/
 
+&VENT XB=7.4,8.3,0.2,3.4,0.1,0.1, ID='FLOOR LEAK', SURF_ID='WALL', COLOR='FOREST GREEN' /
+&HVAC ID='FLOOR LEAK', TYPE_ID='LEAK', VENT_ID='FLOOR LEAK', VENT2_ID='AMBIENT', AREA=0.18 /
 &VENT SURF_ID='OPEN', MB='ZMAX' / 
 &VENT SURF_ID='OPEN', MB='XMIN' /
 &VENT SURF_ID='OPEN', MB='XMAX' /
@@ -414,18 +415,18 @@
 &OBST XB=2.7,2.7,      3.9,4.0,    2.9,4.9, COLOR='GRAY 40' / 02- Master Bath Door
 &OBST XB=2.8,2.8,      3.7,3.9,    2.9,4.9, COLOR='GRAY 40' / 02- Master Bath Door
 &OBST XB=12.3,12.3,    4.1,4.8,    2.9,4.9, COLOR='GRAY 40' / 02-Bath 2 Door
-&OBST XB=11.6,11.7,    6.4,6.4,    2.9,4.9, COLOR='GRAY 40' / 02-B2 Door
-&OBST XB=11.7,11.8,    6.3,6.3,    2.9,4.9, COLOR='GRAY 40' / 02-B2 Door
-&OBST XB=11.8,11.9,    6.2,6.2,    2.9,4.9, COLOR='GRAY 40' / 02-B2 Door
-&OBST XB=11.9,12.0,    6.1,6.1,    2.9,4.9, COLOR='GRAY 40' / 02-B2 Door
-&OBST XB=12.0,12.1,    6.0,6.0,    2.9,4.9, COLOR='GRAY 40' / 02-B2 Door
-&OBST XB=12.1,12.2,    5.9,5.9,    2.9,4.9, COLOR='GRAY 40' / 02-B2 Door
-&OBST XB=11.7,11.7,    6.3,6.4,    2.9,4.9, COLOR='GRAY 40' / 02-B2 Door
-&OBST XB=11.8,11.8,    6.2,6.3,    2.9,4.9, COLOR='GRAY 40' / 02-B2 Door
-&OBST XB=11.9,11.9,    6.1,6.2,    2.9,4.9, COLOR='GRAY 40' / 02-B2 Door
-&OBST XB=12.0,12.0,    6.0,6.1,    2.9,4.9, COLOR='GRAY 40' / 02-B2 Door
-&OBST XB=12.1,12.1,    5.9,6.0,    2.9,4.9, COLOR='GRAY 40' / 02-B2 Door
-&OBST XB=12.2,12.2,    5.8,5.9,    2.9,4.9, COLOR='GRAY 40' / 02-B2 Door
+OBST XB=11.6,11.7,    6.4,6.4,    2.9,4.9, COLOR='GRAY 40' / 02-B2 Door
+OBST XB=11.7,11.8,    6.3,6.3,    2.9,4.9, COLOR='GRAY 40' / 02-B2 Door
+OBST XB=11.8,11.9,    6.2,6.2,    2.9,4.9, COLOR='GRAY 40' / 02-B2 Door
+OBST XB=11.9,12.0,    6.1,6.1,    2.9,4.9, COLOR='GRAY 40' / 02-B2 Door
+OBST XB=12.0,12.1,    6.0,6.0,    2.9,4.9, COLOR='GRAY 40' / 02-B2 Door
+OBST XB=12.1,12.2,    5.9,5.9,    2.9,4.9, COLOR='GRAY 40' / 02-B2 Door
+OBST XB=11.7,11.7,    6.3,6.4,    2.9,4.9, COLOR='GRAY 40' / 02-B2 Door
+OBST XB=11.8,11.8,    6.2,6.3,    2.9,4.9, COLOR='GRAY 40' / 02-B2 Door
+OBST XB=11.9,11.9,    6.1,6.2,    2.9,4.9, COLOR='GRAY 40' / 02-B2 Door
+OBST XB=12.0,12.0,    6.0,6.1,    2.9,4.9, COLOR='GRAY 40' / 02-B2 Door
+OBST XB=12.1,12.1,    5.9,6.0,    2.9,4.9, COLOR='GRAY 40' / 02-B2 Door
+OBST XB=12.2,12.2,    5.8,5.9,    2.9,4.9, COLOR='GRAY 40' / 02-B2 Door
  OBST XB=1.3,2.0,      5.1,5.1,    2.9,4.9, COLOR='GRAY 40' / 02-Master Bath Toilet Door
 &OBST XB=2.1,2.1,      6.3,7.1,    2.9,4.9, COLOR='GRAY 40' / 02-MB WIC Door
 &OBST XB=12.2,12.3,    6.7,6.9,    0.1,2.1, COLOR='GRAY 40' / DEN Door
@@ -438,13 +439,13 @@
 
 &OBST XB=0.0,15.3,     0.0,10.4,   0.0,0.1, COLOR='FOREST GREEN' / Floor Slab
 
-&ZONE XYZ=1.5,1.0,0.5, LEAK_AREA(0)=0.18  /
-&ZONE XYZ=12.2,7.5,1.5 /
-&ZONE XYZ=0.7,1.0,3.2 /
-&ZONE XYZ=0.7,7.0,3.2 /
-&ZONE XYZ=6.5,1.0,3.2 /
-&ZONE XYZ=14.5,4.0,3.2 /
-&ZONE XYZ=14.5,7.0,3.2 /
+&ZONE XYZ=10.0,5.0,2.0 /
+&ZONE XYZ=0.5,4.0,2.0 /
+&ZONE XYZ=1.0,2.0,4.0 /
+&ZONE XYZ=1.0,8.0,4.0 /
+&ZONE XYZ=6.5,1.0,4.0 /
+&ZONE XYZ=14.0,5.0,4.0 /
+&ZONE XYZ=14.0,8.0,2.0 /
 
 &DUMP DT_HRR=15., DT_DEVC=15., SIG_FIGS=4, SIG_FIGS_EXP=2 /
 

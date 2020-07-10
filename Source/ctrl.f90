@@ -1,6 +1,6 @@
+!> Routines for evaluating control functions
+   
 MODULE CONTROL_FUNCTIONS
-
-! Routines for evaluating control functions
 
 USE PRECISION_PARAMETERS
 USE CONTROL_VARIABLES
@@ -11,9 +11,14 @@ IMPLICIT NONE
 
 CONTAINS
 
-SUBROUTINE UPDATE_CONTROLS(T,DT,CTRL_STOP_STATUS,RUN_START)
+!> Updates the state of all control functions followed by DEVC where QUANTITY is CONTROL or CONTROL VALUE   
+!>
+!> \param T Current time (s)
+!> \param DT Current time step (s)
+!> \param CTRL_STOP_STATUS Flag for a contorl function stopping the FDS calculation
+!> \param RUN_START Flag indicating subroutine call is during initialization
 
-! Update the value of all sensing DEVICEs and associated output quantities
+SUBROUTINE UPDATE_CONTROLS(T,DT,CTRL_STOP_STATUS,RUN_START)
 
 REAL(EB), INTENT(IN) :: T,DT
 INTEGER :: NC,N
@@ -37,14 +42,19 @@ CONTROL_LOOP_2: DO NC=1,N_CTRL
    CALL EVALUATE_CONTROL(T,NC,DT,CTRL_STOP_STATUS)
 END DO CONTROL_LOOP_2
 
-! Update devices that are used to print out control function results only for devices that require an 'INSTANT VALUE'; 
+! Update devices that are used to print out control function results only for devices that require an 'INSTANT VALUE';
 ! that is, a value from this current time step.
 
 IF (UPDATE_DEVICES_AGAIN) THEN
    DEVICE_LOOP: DO N=1,N_DEVC
       DV => DEVICE(N)
+      IF (DV%NO_UPDATE_DEVC_INDEX>0) THEN
+         IF (DEVICE(DV%NO_UPDATE_DEVC_INDEX)%CURRENT_STATE) CYCLE DEVICE_LOOP
+      ELSEIF (DV%NO_UPDATE_CTRL_INDEX>0) THEN
+         IF (CONTROL(DV%NO_UPDATE_CTRL_INDEX)%CURRENT_STATE) CYCLE DEVICE_LOOP
+      ENDIF
       IF (DV%TEMPORAL_STATISTIC/='INSTANT VALUE') CYCLE DEVICE_LOOP
-      SELECT CASE(DV%QUANTITY)
+      SELECT CASE(DV%QUANTITY(1))
          CASE('CONTROL VALUE')
             DV%VALUE = CONTROL(DV%CTRL_INDEX)%INSTANT_VALUE * DV%CONVERSION_FACTOR
             DV%TIME_INTERVAL = 1._EB
@@ -58,9 +68,15 @@ ENDIF
 
 END SUBROUTINE UPDATE_CONTROLS
 
-RECURSIVE SUBROUTINE EVALUATE_CONTROL(T,ID,DT,CTRL_STOP_STATUS)
 
-! Update the value of all sensing DEVICEs and associated output quantities
+!> \brief Recursive function that updates a single control function
+!>
+!> \param T Current time (s)
+!> \param ID Index in the array CONTROL for the function being evaluated
+!> \param DT Current time step (s)
+!> \param CTRL_STOP_STATUS Flag for a control function stopping the FDS calculation
+
+RECURSIVE SUBROUTINE EVALUATE_CONTROL(T,ID,DT,CTRL_STOP_STATUS)
 
 USE MATH_FUNCTIONS, ONLY: EVALUATE_RAMP
 USE GLOBAL_CONSTANTS, ONLY: RESTART_CLOCK
@@ -636,21 +652,23 @@ CONTROL_SELECT: SELECT CASE (CF%CONTROL_INDEX)
     CASE (CF_MIN)
       CF%INSTANT_VALUE=HUGE(TWO_EPSILON_EB)
 
-      SELECT CASE (CF%INPUT_TYPE(1))
-         CASE (DEVICE_INPUT)
-            DV => DEVICE(CF%INPUT(1))
-            CF%INSTANT_VALUE = MIN(DV%SMOOTHED_VALUE,CF%INSTANT_VALUE)
-            CF%MESH = DV%MESH
-         CASE (CONTROL_INPUT)
-            IF (.NOT. CONTROL(CF%INPUT(1))%UPDATED) THEN
-               CALL EVALUATE_CONTROL(T,CF%INPUT(1),DT,CTRL_STOP_STATUS)
-               CF => CONTROL(ID)
-            ENDIF
-            CF%INSTANT_VALUE = MIN(CF%INSTANT_VALUE,CONTROL(CF%INPUT(1))%INSTANT_VALUE)
-            CF%MESH=CONTROL(CF%INPUT(1))%MESH
-         CASE (CONSTANT_INPUT)
-            CF%INSTANT_VALUE = MIN(CF%INSTANT_VALUE,CF%CONSTANT)
-      END SELECT
+      DO NC = 1, CF%N_INPUTS
+         SELECT CASE (CF%INPUT_TYPE(1))
+            CASE (DEVICE_INPUT)
+               DV => DEVICE(CF%INPUT(NC))
+               CF%INSTANT_VALUE = MIN(DV%SMOOTHED_VALUE,CF%INSTANT_VALUE)
+               CF%MESH = DV%MESH
+            CASE (CONTROL_INPUT)
+               IF (.NOT. CONTROL(CF%INPUT(NC))%UPDATED) THEN
+                  CALL EVALUATE_CONTROL(T,CF%INPUT(NC),DT,CTRL_STOP_STATUS)
+                  CF => CONTROL(ID)
+               ENDIF
+               CF%INSTANT_VALUE = MIN(CF%INSTANT_VALUE,CONTROL(CF%INPUT(NC))%INSTANT_VALUE)
+               CF%MESH=CONTROL(CF%INPUT(NC))%MESH
+            CASE (CONSTANT_INPUT)
+               CF%INSTANT_VALUE = MIN(CF%INSTANT_VALUE,CF%CONSTANT)
+         END SELECT
+      ENDDO
 
       IF (CF%INSTANT_VALUE > CF%SETPOINT(1) .AND. CF%TRIP_DIRECTION > 0) THEN
          STATE2 = .TRUE.
@@ -662,21 +680,23 @@ CONTROL_SELECT: SELECT CASE (CF%CONTROL_INDEX)
     CASE (CF_MAX)
       CF%INSTANT_VALUE=-HUGE(TWO_EPSILON_EB)
 
-      SELECT CASE (CF%INPUT_TYPE(1))
-         CASE (DEVICE_INPUT)
-            DV => DEVICE(CF%INPUT(1))
-            CF%INSTANT_VALUE = MAX(DV%SMOOTHED_VALUE,CF%INSTANT_VALUE)
-            CF%MESH = DV%MESH
-         CASE (CONTROL_INPUT)
-            IF (.NOT. CONTROL(CF%INPUT(1))%UPDATED) THEN
-               CALL EVALUATE_CONTROL(T,CF%INPUT(1),DT,CTRL_STOP_STATUS)
-               CF => CONTROL(ID)
-            ENDIF
-            CF%INSTANT_VALUE = MAX(CF%INSTANT_VALUE,CONTROL(CF%INPUT(1))%INSTANT_VALUE)
-            CF%MESH=CONTROL(CF%INPUT(1))%MESH
-         CASE (CONSTANT_INPUT)
-            CF%INSTANT_VALUE = MAX(CF%INSTANT_VALUE,CF%CONSTANT)
-      END SELECT
+      DO NC = 1, CF%N_INPUTS
+         SELECT CASE (CF%INPUT_TYPE(1))
+            CASE (DEVICE_INPUT)
+               DV => DEVICE(CF%INPUT(NC))
+               CF%INSTANT_VALUE = MAX(DV%SMOOTHED_VALUE,CF%INSTANT_VALUE)
+               CF%MESH = DV%MESH
+            CASE (CONTROL_INPUT)
+               IF (.NOT. CONTROL(CF%INPUT(NC))%UPDATED) THEN
+                  CALL EVALUATE_CONTROL(T,CF%INPUT(NC),DT,CTRL_STOP_STATUS)
+                  CF => CONTROL(ID)
+               ENDIF
+               CF%INSTANT_VALUE = MAX(CF%INSTANT_VALUE,CONTROL(CF%INPUT(NC))%INSTANT_VALUE)
+               CF%MESH=CONTROL(CF%INPUT(NC))%MESH
+            CASE (CONSTANT_INPUT)
+               CF%INSTANT_VALUE = MAX(CF%INSTANT_VALUE,CF%CONSTANT)
+         END SELECT
+      ENDDO
 
       IF (CF%INSTANT_VALUE > CF%SETPOINT(1) .AND. CF%TRIP_DIRECTION > 0) THEN
          STATE2 = .TRUE.

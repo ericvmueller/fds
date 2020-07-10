@@ -31,6 +31,7 @@ addpath 'scripts'
 
 % Scripts that run prior to dataplot
 
+NIST_deposition_gauge
 flame_height
 NIST_RSE
 sippola_aerosol_deposition
@@ -43,6 +44,8 @@ FM_Vertical_Wall_Flames
 umd_line_burner_process
 UWO_Wind_Tunnel
 FM_Burner
+Crown_Fires
+ranz_marshall
 
 % Dataplot and scatplot options
 
