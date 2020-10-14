@@ -22,8 +22,10 @@ $QFDS -d Aerosols soot_oxidation_wall.fds
 $QFDS -d Atmospheric_Effects lee_waves.fds
 $QFDS -d Atmospheric_Effects stack_effect.fds
 $QFDS -d Atmospheric_Effects lapse_rate.fds
-$QFDS -p  8 -d Atmospheric_Effects wind_example.fds
+$QFDS -p 8 -d Atmospheric_Effects wind_example.fds
 $QFDS -p 32 -n 8 -d Atmospheric_Effects wind_example_32.fds
+$QFDS -d Atmospheric_Effects MO_velocity_profile_stable.fds
+$QFDS -d Atmospheric_Effects MO_velocity_profile_unstable.fds
 
 $QFDS -d Complex_Geometry geom_extruded_poly.fds
 $QFDS -d Complex_Geometry geom_intersection.fds
@@ -236,8 +238,6 @@ $QFDS -d Flowfields species_conservation_4.fds
 $QFDS -d Flowfields hot_layer_360.fds
 $QFDS -d Flowfields realizable_mass_fractions.fds
 $QFDS -d Flowfields mean_forcing_hole.fds
-$QFDS -d Flowfields mass_flux_wall_yindex.fds
-$QFDS -d Flowfields mass_flux_wall_zindex.fds
 $QFDS -p 4 -d Flowfields parabolic_profile.fds
 $QFDS -p 5 -d Flowfields simple_duct.fds
 $QFDS -p 8 -d Flowfields symmetry_test_mpi.fds
@@ -576,9 +576,12 @@ $QFDS -d Species condensation_2.fds
 $QFDS -d Species condensation_3.fds
 $QFDS -d Species wall_cond.fds
 $QFDS -d Species humidity.fds
+$QFDS -d Species mass_flux_wall_yindex.fds
+$QFDS -d Species mass_flux_wall_zindex.fds
+$QFDS -p 8 -d Species mass_balance_reac.fds
 
 $QFDS -d Sprinklers_and_Sprays activate_sprinklers.fds
-$QFDS -d Sprinklers_and_Sprays adiabatic_surface_temperature_spray.fds
+$QFDS -d Sprinklers_and_Sprays adiabatic_surf_temp_spray.fds
 $QFDS -d Sprinklers_and_Sprays bucket_test_1.fds
 $QFDS -d Sprinklers_and_Sprays bucket_test_2.fds
 $QFDS -d Sprinklers_and_Sprays bucket_test_3.fds
@@ -591,8 +594,8 @@ $QFDS -d Sprinklers_and_Sprays droplet_distributions_2.fds
 $QFDS -d Sprinklers_and_Sprays flow_rate.fds
 $QFDS -d Sprinklers_and_Sprays flow_rate_2.fds
 $QFDS -p 2 -d Sprinklers_and_Sprays geom_sprk_mass.fds
-$QFDS -d Sprinklers_and_Sprays particle_anisotropic_radiation.fds
-$QFDS -d Sprinklers_and_Sprays particle_isotropic_radiation.fds
+$QFDS -d Sprinklers_and_Sprays particle_anisotropic_radi.fds
+$QFDS -d Sprinklers_and_Sprays particle_isotropic_radi.fds
 $QFDS -d Sprinklers_and_Sprays particle_colors.fds
 $QFDS -d Sprinklers_and_Sprays particle_drag_U10_N16.fds
 $QFDS -d Sprinklers_and_Sprays particle_drag_U50_N16.fds

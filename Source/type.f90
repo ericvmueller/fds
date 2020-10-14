@@ -37,8 +37,10 @@ TYPE LAGRANGIAN_PARTICLE_CLASS_TYPE
    REAL(EB) :: KILL_RADIUS                !< Radius (m) below which particle is killed (removed)
    REAL(EB) :: TMP_INITIAL                !< Initial temperature (K) of the particles
    REAL(EB) :: SIGMA                      !< Parameter in Rosin-Rammler distribution
-   REAL(EB) :: VERTICAL_VELOCITY          !< Speed (m/s) of liquid droplet stuck to a vertical surface
-   REAL(EB) :: HORIZONTAL_VELOCITY        !< Speed (m/s) of liquid droplet stuck to a horizontal surface
+   REAL(EB) :: VERTICAL_VELOCITY          !< Vertical velocity component (m/s) of particle stuck to a solid surface
+   REAL(EB) :: HORIZONTAL_VELOCITY        !< Horizontal velocity component (m/s) of particle stuck to a solid surface
+   REAL(EB) :: MASS_TRANSFER_COEFFICIENT        !< Mass transfer coefficient from gas to liquid droplet (kg/m2/s)
+   REAL(EB) :: HEAT_TRANSFER_COEFFICIENT_GAS    !< Heat transfer coefficient from gas to liquid droplet (W/m2/K)
    REAL(EB) :: HEAT_TRANSFER_COEFFICIENT_SOLID  !< Heat transfer coefficient from solid surface to liquid droplet (W/m2/K)
    REAL(EB) :: DRAG_COEFFICIENT(3)        !< Drag coefficient in 3 coordinate directions
    REAL(EB) :: SURFACE_DIAMETER           !< Effective liquid droplet diameter (m) on a solid surface
@@ -116,6 +118,7 @@ TYPE LAGRANGIAN_PARTICLE_CLASS_TYPE
    LOGICAL :: SECOND_ORDER_PARTICLE_TRANSPORT=.FALSE. !< Flag indicating second-order accurate particle position update
    LOGICAL :: DUCT_PARTICLE=.FALSE.         !< Flag indicating if particles can pass through a duct
    LOGICAL :: EMBER_PARTICLE=.FALSE.        !< Flag indicating if particles can become flying embers
+   LOGICAL :: ADHERE_TO_SOLID=.FALSE.       !< Flag indicating if particles can stick to a solid
 
 END TYPE LAGRANGIAN_PARTICLE_CLASS_TYPE
 
@@ -138,7 +141,7 @@ END TYPE BAND_TYPE
 
 ! Note: If you change the number of scalar variables in ONE_D_M_AND_E_XFER_TYPE, adjust the numbers below
 
-INTEGER, PARAMETER :: N_ONE_D_SCALAR_REALS=35,N_ONE_D_SCALAR_INTEGERS=12,N_ONE_D_SCALAR_LOGICALS=1
+INTEGER, PARAMETER :: N_ONE_D_SCALAR_REALS=36,N_ONE_D_SCALAR_INTEGERS=12,N_ONE_D_SCALAR_LOGICALS=1
 
 !> \brief Variables associated with a WALL, PARTICLE, or CFACE boundary cell
 
@@ -215,7 +218,7 @@ TYPE ONE_D_M_AND_E_XFER_TYPE
    REAL(EB), POINTER :: BURN_DURATION   !< Duration of a specified fire (s)
    REAL(EB), POINTER :: T_SCALE         !< Scaled time for a surface with CONE_HEAT_FLUX (s)
    REAL(EB), POINTER :: Q_SCALE         !< Scaled integrated heat release for a surface with CONE_HEAT_FLUX
-
+   REAL(EB), POINTER :: L_OBUKHOV       !< Obukhov length (m)
 
    LOGICAL, POINTER :: BURNAWAY         !< Indicater if cell can burn away when fuel is exhausted
 
@@ -462,7 +465,7 @@ TYPE (MATERIAL_TYPE), DIMENSION(:), ALLOCATABLE, TARGET :: MATERIAL
 TYPE SURFACE_TYPE
    REAL(EB) :: AREA_MULTIPLIER=1._EB                     !< Factor for manual surface area adjustment
    REAL(EB) :: TMP_FRONT=-1._EB,TMP_BACK=-1._EB,VEL,VEL_GRAD,PLE, &
-               Z0,CONVECTIVE_HEAT_FLUX,NET_HEAT_FLUX, &
+               Z0,Z_0,CONVECTIVE_HEAT_FLUX,NET_HEAT_FLUX, &
                VOLUME_FLOW,HRRPUA,MLRPUA,T_IGN,SURFACE_DENSITY,CELL_SIZE_FACTOR, &
                E_COEFFICIENT,TEXTURE_WIDTH,TEXTURE_HEIGHT,THICKNESS,EXTERNAL_FLUX, &
                DXF,DXB,MASS_FLUX_TOTAL,PARTICLE_MASS_FLUX,EMISSIVITY,MAX_PRESSURE, &
@@ -503,7 +506,7 @@ TYPE SURFACE_TYPE
    LOGICAL :: BURN_AWAY,ADIABATIC,INTERNAL_RADIATION,USER_DEFINED=.TRUE., &
               FREE_SLIP=.FALSE.,NO_SLIP=.FALSE.,SPECIFIED_NORMAL_VELOCITY=.FALSE.,SPECIFIED_TANGENTIAL_VELOCITY=.FALSE., &
               SPECIFIED_NORMAL_GRADIENT=.FALSE.,CONVERT_VOLUME_TO_MASS=.FALSE.,SPECIFIED_HEAT_SOURCE=.FALSE.,&
-              IMPERMEABLE=.FALSE.,BOUNDARY_FUEL_MODEL=.FALSE.,BLOWING=.FALSE.
+              IMPERMEABLE=.FALSE.,BOUNDARY_FUEL_MODEL=.FALSE.,BLOWING=.FALSE.,ABL_MODEL=.FALSE.
    INTEGER :: GEOMETRY,BACKING,PROFILE,HEAT_TRANSFER_MODEL=0
    CHARACTER(LABEL_LENGTH) :: PART_ID,RAMP_Q,RAMP_V,RAMP_T,RAMP_EF,RAMP_PART,RAMP_V_X,RAMP_V_Y,RAMP_V_Z,RAMP_T_B,RAMP_T_I
    CHARACTER(LABEL_LENGTH), ALLOCATABLE, DIMENSION(:) :: RAMP_MF
@@ -535,13 +538,14 @@ TYPE OMESH_TYPE
               I_MIN_S=-10,I_MAX_S=-10,J_MIN_S=-10,J_MAX_S=-10,K_MIN_S=-10,K_MAX_S=-10,NIC_S=0,N_EXPOSED_WALL_CELLS=0
    INTEGER, DIMENSION(7) :: INTEGER_SEND_BUFFER,INTEGER_RECV_BUFFER
    REAL(EB), ALLOCATABLE, DIMENSION(:) :: &
-         REAL_SEND_PKG1,REAL_SEND_PKG2,REAL_SEND_PKG3,REAL_SEND_PKG4,REAL_SEND_PKG5,REAL_SEND_PKG6,REAL_SEND_PKG7,&
-         REAL_RECV_PKG1,REAL_RECV_PKG2,REAL_RECV_PKG3,REAL_RECV_PKG4,REAL_RECV_PKG5,REAL_RECV_PKG6,REAL_RECV_PKG7
+         REAL_SEND_PKG1,REAL_SEND_PKG2,REAL_SEND_PKG3,REAL_SEND_PKG4,REAL_SEND_PKG5,REAL_SEND_PKG6,REAL_SEND_PKG7,REAL_SEND_PKG8,&
+         REAL_RECV_PKG1,REAL_RECV_PKG2,REAL_RECV_PKG3,REAL_RECV_PKG4,REAL_RECV_PKG5,REAL_RECV_PKG6,REAL_RECV_PKG7,REAL_RECV_PKG8
+   INTEGER :: N_EXTERNAL_OBST=0,N_INTERNAL_OBST=0
    TYPE (STORAGE_TYPE), ALLOCATABLE, DIMENSION(:) :: ORPHAN_PARTICLE_STORAGE,ADOPT_PARTICLE_STORAGE
    TYPE (EXPOSED_WALL_TYPE), ALLOCATABLE, DIMENSION(:) :: EXPOSED_WALL
 
    ! CC_IBM data exchange arrays:
-   INTEGER :: NICC_S(2)=0, NICC_R(2)=0, NFCC_S(2)=0, NFCC_R(2)=0, NCC_INT_R=0, NFEP_R(3)=0, NFEP_R_G=0
+   INTEGER :: NICC_S(2)=0, NICC_R(2)=0, NFCC_S(2)=0, NFCC_R(2)=0, NCC_INT_R=0, NFEP_R(4)=0, NFEP_R_G=0
    REAL(EB), ALLOCATABLE, DIMENSION(:) ::                &
          REAL_SEND_PKG11,REAL_SEND_PKG12,REAL_SEND_PKG13,&
          REAL_RECV_PKG11,REAL_RECV_PKG12,REAL_RECV_PKG13
@@ -551,7 +555,7 @@ TYPE OMESH_TYPE
    ! Face variables data (velocities):
    INTEGER, ALLOCATABLE, DIMENSION(:) :: IIO_FC_R,JJO_FC_R,KKO_FC_R,AXS_FC_R,IIO_FC_S,JJO_FC_S,KKO_FC_S,AXS_FC_S
    INTEGER, ALLOCATABLE, DIMENSION(:) :: IIO_CC_R,JJO_CC_R,KKO_CC_R,IIO_CC_S,JJO_CC_S,KKO_CC_S
-   INTEGER, ALLOCATABLE, DIMENSION(:,:) :: IFEP_R_1, IFEP_R_2, IFEP_R_3
+   INTEGER, ALLOCATABLE, DIMENSION(:,:) :: IFEP_R_1, IFEP_R_2, IFEP_R_3, IFEP_R_4
 
    ! Level Set
    REAL(EB), ALLOCATABLE, DIMENSION(:,:) :: PHI_LS,PHI1_LS,U_LS,V_LS,Z_LS
@@ -618,6 +622,8 @@ TYPE OBSTRUCTION_TYPE
    LOGICAL :: REMOVABLE=.FALSE.                 !< The obstruction can be removed from the simulation
    LOGICAL :: HOLE_FILLER=.FALSE.               !< The obstruction fills a HOLE
    LOGICAL :: OVERLAY=.TRUE.                    !< The obstruction can have another obstruction overlap a surface
+   LOGICAL :: SCHEDULED_FOR_REMOVAL=.FALSE.     !< The obstruction is scheduled for removal during the current time step
+   LOGICAL :: SCHEDULED_FOR_CREATION=.FALSE.    !< The obstruction is scheduled for creation during the current time step
 
    ! 3D pyrolysis:
    LOGICAL :: PYRO3D=.FALSE.
@@ -708,8 +714,8 @@ TYPE IBM_CUTEDGE_TYPE
    INTEGER,  ALLOCATABLE, DIMENSION(:)             ::NOD_PERM  ! Permutation array for INSERT_FACE_VERT.
 END TYPE IBM_CUTEDGE_TYPE
 
-! REGC_EDGE type, used for computation of wall model turbulent viscosity, shear stress, vorticity.
-TYPE IBM_RCEDGE_TYPE
+! IBM_EDGE type, used for computation of wall model turbulent viscosity, shear stress, vorticity.
+TYPE IBM_EDGE_TYPE
    INTEGER,  DIMENSION(MAX_DIM+1)                  ::     IJK  ! [ i j k X1AXIS]
    INTEGER :: IE
    ! Here: VIND=IAXIS:KAXIS, EP=1:INT_N_EXT_PTS,
@@ -725,7 +731,9 @@ TYPE IBM_RCEDGE_TYPE
    REAL(EB), ALLOCATABLE, DIMENSION(:,:)      :: INT_XN,INT_CN  ! (0:INT_N_EXT_PTS,IEDGE)
    REAL(EB), ALLOCATABLE, DIMENSION(:,:)      :: INT_FVARS      ! (1:N_INT_FVARS,INT_NPE_LO+1:INT_NPE_LO+INT_NPE_HI)
    INTEGER,  ALLOCATABLE, DIMENSION(:,:)      :: INT_NOMIND     ! (LOW_IND:HIGH_IND,INT_NPE_LO+1:INT_NPE_LO+INT_NPE_HI)
-END TYPE IBM_RCEDGE_TYPE
+   REAL(EB), ALLOCATABLE, DIMENSION(:)        :: XB_IB
+   INTEGER,  ALLOCATABLE, DIMENSION(:)        :: SURF_INDEX
+END TYPE IBM_EDGE_TYPE
 
 ! Cartesian Faces Cut-Faces data structure:
 INTEGER, PARAMETER :: IBM_MAXVERTS_FACE  =3072 ! Size definition parameter. Max number of vertices per Cartesian Face.

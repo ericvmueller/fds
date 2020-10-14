@@ -421,6 +421,10 @@ IMPLICIT NONE
 
 CONTAINS
 
+!> \brief Constructs an error message if there was an error during allocatiion of an array
+!> \param CodeSect Character string containing the subroutine or function the allocation statement is in
+!> \param VarName Character string containing the name of the array being allocated
+!> \param IZERO Error value returned by the ALLOCATE statment where 0 is no error
 
 SUBROUTINE ChkMemErr(CodeSect,VarName,IZERO)
 
@@ -438,6 +442,10 @@ CALL SHUTDOWN(MESSAGE,PROCESS_0_ONLY=.FALSE.)
 END SUBROUTINE ChkMemErr
 
 
+!> \brief Changes the allocation of an array with DIMENSION 1
+!> \param P Original array
+!> \param N1 Lower bound of new allocation
+!> \param N2 Upper bound of new allocation
 
 FUNCTION REALLOCATE(P,N1,N2)
 
@@ -459,6 +467,11 @@ DEALLOCATE(P)
 
 END FUNCTION REALLOCATE
 
+!> \brief Changes the allocation of a string array
+!> \param P Original array
+!> \param CLEN Length of string
+!> \param N1 Lower bound of new allocation
+!> \param N2 Upper bound of new allocation
 
 FUNCTION REALLOCATE_CHARACTER_ARRAY(P,CLEN,N1,N2)
 
@@ -480,6 +493,13 @@ DEALLOCATE(P)
 
 END FUNCTION REALLOCATE_CHARACTER_ARRAY
 
+
+!> \brief Changes the allocation of an array with DIMENSION 2
+!> \param P Original array
+!> \param M1 Lower bound of first dimension of new allocation
+!> \param M2 Upper bound of first dimension of new allocation
+!> \param N1 Lower bound of second dimension of new allocation
+!> \param N2 Upper bound of second dimension of new allocation
 
 FUNCTION REALLOCATE2D(P,M1,M2,N1,N2)
 
@@ -521,6 +541,8 @@ DEALLOCATE(DUMMY)
 END SUBROUTINE RE_ALLOCATE_STRINGS
 
 
+!> \brief Determines the size of the ONE_D_M_AND_E_XFER type structure for a surface type
+!> \param SURF_INDEX Index the to array of surface types
 
 SUBROUTINE COMPUTE_ONE_D_STORAGE_DIMENSIONS(SURF_INDEX)
 
@@ -561,6 +583,9 @@ SF%N_ONE_D_STORAGE_LOGICALS = N_ONE_D_SCALAR_LOGICALS
 END SUBROUTINE COMPUTE_ONE_D_STORAGE_DIMENSIONS
 
 
+!> \brief Determines the size of the WALL type structure for a surface type
+!> \param SURF_INDEX Index the to array of surface types
+
 SUBROUTINE COMPUTE_WALL_STORAGE_DIMENSIONS(SURF_INDEX)
 
 INTEGER, INTENT(IN) :: SURF_INDEX
@@ -575,6 +600,9 @@ SF%N_WALL_STORAGE_LOGICALS = N_WALL_SCALAR_LOGICALS + SF%N_ONE_D_STORAGE_LOGICAL
 END SUBROUTINE COMPUTE_WALL_STORAGE_DIMENSIONS
 
 
+!> \brief Determines the size of the CFACE type structure for a surface type
+!> \param SURF_INDEX Index the to array of surface types
+
 SUBROUTINE COMPUTE_CFACE_STORAGE_DIMENSIONS(SURF_INDEX)
 
 INTEGER, INTENT(IN) :: SURF_INDEX
@@ -588,6 +616,9 @@ SF%N_CFACE_STORAGE_LOGICALS = N_CFACE_SCALAR_LOGICALS + SF%N_ONE_D_STORAGE_LOGIC
 
 END SUBROUTINE COMPUTE_CFACE_STORAGE_DIMENSIONS
 
+
+!> \brief Determines the size of the LAGRAGIAN_PARTICLE type structure for a particle type
+!> \param LPC_INDEX Index the to array of surface types
 
 SUBROUTINE COMPUTE_PARTICLE_STORAGE_DIMENSIONS(LPC_INDEX)
 
@@ -604,6 +635,16 @@ LPC%N_STORAGE_LOGICALS = N_PARTICLE_SCALAR_LOGICALS + SF%N_ONE_D_STORAGE_LOGICAL
 
 END SUBROUTINE COMPUTE_PARTICLE_STORAGE_DIMENSIONS
 
+
+!> \brief Allocates storage for data associated with a single wall cell or Lagrangian particle
+!> \param NM Index to the current mesh
+!> \param SURF_INDEX Surface type. Used if WALL_INDEX or CFACE_INDEX is set
+!> \param LPC_INDEX Lagrangian particle class type. Used if LP_INDEX is set.
+!> \param WALL_INDEX Index to the wall cell being allocated. Optional (one of WALL_INDEX, CFACE_INDEX, or LP_INDEX)
+!> \param CFACE_INDEX Index to the cut cell face being allocated. Optional (one of WALL_INDEX, CFACE_INDEX, or LP_INDEX)
+!> \param LP_INDEX Index to the Lagrangian particle being allocated. Optional (one of WALL_INDEX, CFACE_INDEX, or LP_INDEX)
+!> \param TAG Unique indentifier for a particle used since a particle can move between meshes and reneter a mesh.
+!> \param NEW_TAG Flag indicating TAG is for a new particle.
 
 SUBROUTINE ALLOCATE_STORAGE(NM,SURF_INDEX,LPC_INDEX,WALL_INDEX,CFACE_INDEX,LP_INDEX,TAG,NEW_TAG)
 
@@ -945,11 +986,11 @@ ONE_D%AREA            => OS%REALS(RC+ 1,STORAGE_INDEX) ; IF (NEW) ONE_D%AREA    
 ONE_D%HEAT_TRANS_COEF => OS%REALS(RC+ 2,STORAGE_INDEX) ; IF (NEW) ONE_D%HEAT_TRANS_COEF = 0._EB
 ONE_D%Q_CON_F         => OS%REALS(RC+ 3,STORAGE_INDEX) ; IF (NEW) ONE_D%Q_CON_F         = 0._EB
 IF (RADIATION) THEN
-   ONE_D%Q_RAD_IN          => OS%REALS(RC+ 4,STORAGE_INDEX) ; IF (NEW) ONE_D%Q_RAD_IN          = SF%EMISSIVITY*SIGMA*TMPA4
-   ONE_D%Q_RAD_OUT         => OS%REALS(RC+ 5,STORAGE_INDEX) ; IF (NEW) ONE_D%Q_RAD_OUT         = SF%EMISSIVITY*SIGMA*TMPA4
+   ONE_D%Q_RAD_IN     => OS%REALS(RC+ 4,STORAGE_INDEX) ; IF (NEW) ONE_D%Q_RAD_IN        = SF%EMISSIVITY*SIGMA*TMPA4
+   ONE_D%Q_RAD_OUT    => OS%REALS(RC+ 5,STORAGE_INDEX) ; IF (NEW) ONE_D%Q_RAD_OUT       = SF%EMISSIVITY*SIGMA*TMPA4
 ELSE
-   ONE_D%Q_RAD_IN          => OS%REALS(RC+ 4,STORAGE_INDEX) ; IF (NEW) ONE_D%Q_RAD_IN          = 0._EB
-   ONE_D%Q_RAD_OUT         => OS%REALS(RC+ 5,STORAGE_INDEX) ; IF (NEW) ONE_D%Q_RAD_OUT         = 0._EB
+   ONE_D%Q_RAD_IN     => OS%REALS(RC+ 4,STORAGE_INDEX) ; IF (NEW) ONE_D%Q_RAD_IN        = 0._EB
+   ONE_D%Q_RAD_OUT    => OS%REALS(RC+ 5,STORAGE_INDEX) ; IF (NEW) ONE_D%Q_RAD_OUT       = 0._EB
 ENDIF
 ONE_D%EMISSIVITY      => OS%REALS(RC+ 6,STORAGE_INDEX) ; IF (NEW) ONE_D%EMISSIVITY      = SF%EMISSIVITY
 ONE_D%AREA_ADJUST     => OS%REALS(RC+ 7,STORAGE_INDEX) ; IF (NEW) ONE_D%AREA_ADJUST     = 1._EB
@@ -981,6 +1022,7 @@ ONE_D%K_SUPPRESSION   => OS%REALS(RC+32,STORAGE_INDEX) ; IF (NEW) ONE_D%K_SUPPRE
 ONE_D%BURN_DURATION   => OS%REALS(RC+33,STORAGE_INDEX) ; IF (NEW) ONE_D%BURN_DURATION   = SF%BURN_DURATION
 ONE_D%T_SCALE         => OS%REALS(RC+34,STORAGE_INDEX) ; IF (NEW) ONE_D%T_SCALE         = 0._EB
 ONE_D%Q_SCALE         => OS%REALS(RC+35,STORAGE_INDEX) ; IF (NEW) ONE_D%Q_SCALE         = 0._EB
+ONE_D%L_OBUKHOV       => OS%REALS(RC+36,STORAGE_INDEX) ; IF (NEW) ONE_D%L_OBUKHOV       = 0._EB
 
 I1 = RC+1+N_ONE_D_SCALAR_REALS ; I2 = I1 + SF%ONE_D_REALS_ARRAY_SIZE(1) - 1
 ONE_D%M_DOT_G_PP_ACTUAL(1:I2-I1+1) => OS%REALS(I1:I2,STORAGE_INDEX)
@@ -2537,6 +2579,17 @@ Z1 = A*SIN(TWOPI*U2)
 END SUBROUTINE BOX_MULLER
 
 
+REAL(EB) FUNCTION F_B(B)
+REAL(EB), INTENT(IN) :: B
+
+IF (B<=0._EB) THEN
+   F_B = 1._EB
+ELSE
+   F_B = (1._EB+B)**0.7_EB*LOG(1._EB+B)/B
+ENDIF
+END FUNCTION F_B
+
+
 END MODULE MATH_FUNCTIONS
 
 
@@ -3456,7 +3509,11 @@ USE MATH_FUNCTIONS, ONLY : EVALUATE_RAMP
 REAL(EB), INTENT(IN) :: TMP_IN,Z_IN
 REAL(EB) :: PP,DUMMY
 
-PP = EVALUATE_RAMP(Z_IN,DUMMY,I_RAMP_P0_Z)
+IF (STRATIFICATION) THEN
+   PP = EVALUATE_RAMP(Z_IN,DUMMY,I_RAMP_P0_Z)
+ELSE
+   PP = P_INF
+ENDIF
 GET_POTENTIAL_TEMPERATURE = TMP_IN*(1.E5_EB/PP)**GM1OG  ! GM1OG = (GAMMA-1)/GAMMA = R/CP
 
 END FUNCTION GET_POTENTIAL_TEMPERATURE
@@ -3473,7 +3530,7 @@ KAPPA = VON_KARMAN_CONSTANT
 CALL MONIN_OBUKHOV_STABILITY_CORRECTIONS(PSI_M,PSI_H,Z,L)
 U = (U_STAR/KAPPA)*(LOG(Z/Z_0)-PSI_M)
 THETA = THETA_0 + (THETA_STAR/KAPPA)*(LOG(Z/Z_0)-PSI_H)
-TMP = THETA*(P_REF/(P_REF-RHO_REF*GRAV*Z))**(-0.286_EB)
+TMP = THETA*(P_REF/(P_REF-RHO_REF*GRAV*Z))**(-0.285_EB)
 
 END SUBROUTINE MONIN_OBUKHOV_SIMILARITY
 
@@ -3493,12 +3550,104 @@ IF (L>=0._EB) THEN
 ELSE
    ! unstable boundary layer
    ZETA = (1._EB-16._EB*Z/L)**0.25_EB
-   PSI_M = LOG( (0.5_EB*(1._EB+ZETA))**2 * 0.5_EB*(1._EB+ZETA**2) ) - 2._EB*ATAN(ZETA) + 0.5_EB*PI
+   PSI_M = 2._EB*LOG(0.5_EB*(1._EB+ZETA)) + LOG(0.5_EB*(1._EB+ZETA**2)) - 2._EB*ATAN(ZETA) + 0.5_EB*PI
    PSI_H = 2._EB*LOG(0.5_EB*(1._EB+ZETA**2))
 ENDIF
 
 END SUBROUTINE MONIN_OBUKHOV_STABILITY_CORRECTIONS
 
+!> \brief Computes the mass and heat transfer coeffiicents for a liquid droplet in air based on the selected EVAP_MODEL on MISC
+!> \param H_MASS The mass transfer coefficient (m2/s)
+!> \param H_HEAT The dropelt heat transfer coefficient (W/m2/K)
+!> \param D_AIR Diffusivity in air of the droplet species in the gas cell with the droplet (m2/s)
+!> \param K_AIR Conductivity in the gas cell with the droplet (W/m/k)
+!> \param CP_AIR Specific heat in the gas cell with the droplet (J/kg/K)
+!> \param RHO_AIR Density in the gas cell with the droplet (kg/m3)
+!> \param LENGTH Length scale (m)
+!> \param Y_DROP Equilibrium vapor fraction for the current droplet temperature
+!> \param Y_GAS Mass fraction of vapor in the gas
+!> \param B_NUMBER B number for the droplet
+!> \param NU_FAC_GAS Constant factor used in computing  the NUsselt number
+!> \param SH_FAC_GAS Constant factor used in computing  the Sherwood number
+!> \param RE_L Renyolds number
+!> \param TMP_FILM Film temperature for the droplet (K)
+!> \param ZZ_GET Tracked species mass fractions in the gas cell with the droplet
+!> \param Z_INDEX Droplet species index in ZZ
+
+SUBROUTINE DROPLET_H_MASS_H_HEAT_GAS(H_MASS,H_HEAT,D_AIR,K_AIR,CP_AIR,RHO_AIR,LENGTH,Y_DROP,Y_GAS,B_NUMBER,NU_FAC_GAS,SH_FAC_GAS, &
+                                     RE_L,TMP_FILM,ZZ_GET,Z_INDEX)
+USE MATH_FUNCTIONS, ONLY: F_B
+REAL(EB), INTENT(IN) :: D_AIR,CP_AIR,K_AIR,RHO_AIR,LENGTH,Y_DROP,Y_GAS,NU_FAC_GAS,SH_FAC_GAS,RE_L,TMP_FILM, &
+                        ZZ_GET(1:N_TRACKED_SPECIES)
+INTEGER, INTENT(IN) :: Z_INDEX
+REAL(EB), INTENT(INOUT) :: B_NUMBER
+REAL(EB), INTENT(OUT) :: H_MASS,H_HEAT
+REAL(EB) :: NUSSELT,SHERWOOD,LEWIS,THETA,C_GAS_DROP,C_GAS_AIR,ZZ_GET2(1:N_TRACKED_SPECIES)
+
+SELECT CASE (EVAP_MODEL)
+   CASE(-1) ! Ranz Marshall
+      NUSSELT  = 2._EB + NU_FAC_GAS*SQRT(RE_L)
+      H_HEAT   = NUSSELT*K_AIR/LENGTH
+      IF (Y_DROP <= Y_GAS) THEN
+         H_MASS   = 0._EB
+      ELSE
+         SHERWOOD = 2._EB + SH_FAC_GAS*SQRT(RE_L)
+         H_MASS   = SHERWOOD*D_AIR/LENGTH
+      ENDIF
+   CASE(0) ! Sazhin M0, Eq 106 + 109 with B_T=B_M. This is the default model.
+      IF (Y_DROP <= Y_GAS) THEN
+         NUSSELT  = 2._EB + NU_FAC_GAS*SQRT(RE_L)
+         H_HEAT   = NUSSELT*K_AIR/LENGTH
+         H_MASS   = 0._EB
+      ELSE
+         NUSSELT  = ( 2._EB + NU_FAC_GAS*SQRT(RE_L) )*LOG(1._EB+B_NUMBER)/B_NUMBER
+         H_HEAT   = NUSSELT*K_AIR/LENGTH
+         SHERWOOD = ( 2._EB + SH_FAC_GAS*SQRT(RE_L) )*LOG(1._EB+B_NUMBER)/(Y_DROP-Y_GAS)
+         H_MASS   = SHERWOOD*D_AIR/LENGTH
+         ! above we save a divide and multiply of B_NUMBER
+         ! the full model corresponding to Sazhin (108) and (109) would be
+         ! SH = SH_0 * LOG(1+B_M)/B_M
+         ! H_MASS = SH * D/L * B_M/(Y_D-Y_G)
+      ENDIF
+   CASE(1) ! Sazhin M1, Eq 106 + 109 with eq 102.
+      IF (Y_DROP <= Y_GAS) THEN
+         NUSSELT  = 2._EB + NU_FAC_GAS*SQRT(RE_L)
+         H_HEAT   = NUSSELT*K_AIR/LENGTH
+         H_MASS   = 0._EB
+      ELSE
+         SHERWOOD = ( 2._EB + SH_FAC_GAS*SQRT(RE_L) )*LOG(1._EB+B_NUMBER)/(Y_DROP-Y_GAS)
+         H_MASS   = SHERWOOD*D_AIR/LENGTH
+         LEWIS    = K_AIR / (RHO_AIR * D_AIR * CP_AIR)
+         ZZ_GET2(1:N_TRACKED_SPECIES) = 0._EB
+         ZZ_GET2(Z_INDEX) = 1._EB
+         CALL GET_SPECIFIC_HEAT(ZZ_GET2,C_GAS_DROP,TMP_FILM)
+         CALL GET_SPECIFIC_HEAT(ZZ_GET,C_GAS_AIR,TMP_FILM)
+         THETA = C_GAS_DROP/C_GAS_AIR/LEWIS
+         B_NUMBER = (1._EB+B_NUMBER)**THETA-1._EB
+         NUSSELT  = ( 2._EB + NU_FAC_GAS*SQRT(RE_L) )*LOG(1._EB+B_NUMBER)/B_NUMBER
+         H_HEAT   = NUSSELT*K_AIR/LENGTH
+      ENDIF
+   CASE(2) ! Sazhin M2, Eq 116 and 117 with eq 106, 109, and 102.
+      IF (Y_DROP <= Y_GAS) THEN
+         NUSSELT  = 2._EB + NU_FAC_GAS*SQRT(RE_L)
+         H_HEAT   = NUSSELT*K_AIR/LENGTH
+         H_MASS   = 0._EB
+      ELSE
+         SHERWOOD = ( 2._EB + SH_FAC_GAS*SQRT(RE_L) )*LOG(1._EB+B_NUMBER)/((Y_DROP-Y_GAS)*F_B(B_NUMBER))
+         H_MASS   = SHERWOOD*D_AIR/LENGTH
+         LEWIS    = K_AIR / (RHO_AIR * D_AIR * CP_AIR)
+         ZZ_GET2(1:N_TRACKED_SPECIES) = 0._EB
+         ZZ_GET2(Z_INDEX) = 1._EB
+         CALL GET_SPECIFIC_HEAT(ZZ_GET2,C_GAS_DROP,TMP_FILM)
+         CALL GET_SPECIFIC_HEAT(ZZ_GET,C_GAS_AIR,TMP_FILM)
+         THETA = C_GAS_DROP/C_GAS_AIR/LEWIS
+         B_NUMBER = (1._EB+B_NUMBER)**THETA-1._EB
+         NUSSELT  = ( 2._EB + NU_FAC_GAS*SQRT(RE_L) )*LOG(1._EB+B_NUMBER)/(B_NUMBER*F_B(B_NUMBER))
+         H_HEAT   = NUSSELT*K_AIR/LENGTH
+      ENDIF
+END SELECT
+
+END SUBROUTINE DROPLET_H_MASS_H_HEAT_GAS
 
 END MODULE PHYSICAL_FUNCTIONS
 
@@ -3649,7 +3798,7 @@ END MODULE TRAN
 
 MODULE OPENMP
 
-! Module for OpenMP check
+!> \brief Module for various OpenMP functions
 
 USE GLOBAL_CONSTANTS, ONLY : OPENMP_AVAILABLE_THREADS, OPENMP_USED_THREADS, OPENMP_USER_SET_THREADS, USE_OPENMP
 !$ USE OMP_LIB
@@ -3658,7 +3807,8 @@ PUBLIC OPENMP_INIT, OPENMP_SET_THREADS, OPENMP_PRINT_STATUS
 
 CONTAINS
 
-! set the control flag USE_OPENMP if OpenMP is used
+!> \brief Set the control flag USE_OPENMP if OpenMP is used.
+
 SUBROUTINE OPENMP_INIT
 
 !$OMP PARALLEL
@@ -3673,7 +3823,9 @@ SUBROUTINE OPENMP_INIT
 
 END SUBROUTINE OPENMP_INIT
 
-! change the number of OpenMP threads if set by the user in the input file
+
+!> \brief Change the number of OpenMP threads if set by the user in the input file.
+
 SUBROUTINE OPENMP_SET_THREADS
 
 !$IF (OPENMP_USER_SET_THREADS .EQV. .TRUE.) THEN
@@ -3687,7 +3839,9 @@ SUBROUTINE OPENMP_SET_THREADS
 
 END SUBROUTINE OPENMP_SET_THREADS
 
-! print OpenMP status
+
+!> \brief Write OpenMP status to standard error.
+
 SUBROUTINE OPENMP_PRINT_STATUS
   USE GLOBAL_CONSTANTS, ONLY : LU_ERR, MYID, N_MPI_PROCESSES, VERBOSE
   INTEGER :: THREAD_ID
@@ -3753,6 +3907,14 @@ WRITE(LU,'(A,A)') ' MPI library version: ',TRIM(MPILIBVERSION)
 
 END SUBROUTINE WRITE_SUMMARY_INFO
 
+
+!> \brief Finds the device or control function assoicated with an input
+!> \param NAME Namelist ID
+!> \param CTRL_ID String containing name of control function.
+!> \param DEVC_ID String containing name of device.
+!> \param DEVICE_INDEX Integer index locating DEVC_ID in the array of devices.
+!> \param CONTORL_INDEX Integer index locating CTRL_ID in the array of control functions.
+!> \param INPUT_INDEX The current count of inputs of type NAME.
 
 SUBROUTINE SEARCH_CONTROLLER(NAME,CTRL_ID,DEVC_ID,DEVICE_INDEX,CONTROL_INDEX,INPUT_INDEX)
 

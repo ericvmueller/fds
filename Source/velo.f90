@@ -27,8 +27,8 @@ CONTAINS
 
 SUBROUTINE COMPUTE_VISCOSITY(T,NM,APPLY_TO_ESTIMATED_VARIABLES)
 
-USE PHYSICAL_FUNCTIONS, ONLY: GET_VISCOSITY,LES_FILTER_WIDTH_FUNCTION,GET_POTENTIAL_TEMPERATURE
-USE TURBULENCE, ONLY: VARDEN_DYNSMAG,TEST_FILTER,FILL_EDGES,WALL_MODEL,RNG_EDDY_VISCOSITY,WALE_VISCOSITY
+USE PHYSICAL_FUNCTIONS, ONLY: GET_VISCOSITY,LES_FILTER_WIDTH_FUNCTION,GET_POTENTIAL_TEMPERATURE,GET_CONDUCTIVITY,GET_SPECIFIC_HEAT
+USE TURBULENCE, ONLY: VARDEN_DYNSMAG,TEST_FILTER,FILL_EDGES,WALL_MODEL,RNG_EDDY_VISCOSITY,WALE_VISCOSITY,ABL_WALL_MODEL
 USE MATH_FUNCTIONS, ONLY:EVALUATE_RAMP
 USE COMPLEX_GEOMETRY, ONLY : CCREGION_COMPUTE_VISCOSITY
 REAL(EB), INTENT(IN) :: T
@@ -374,9 +374,6 @@ WALL_LOOP: DO IW=1,N_EXTERNAL_WALL_CELLS+N_INTERNAL_WALL_CELLS
                VEL_GAS = SQRT( 0.25_EB*( (UU(IIG,JJG,KKG)+UU(IIG-1,JJG,KKG))**2 + (VV(IIG,JJG,KKG)+VV(IIG,JJG-1,KKG))**2 ) )
          END SELECT
 
-         CALL WALL_MODEL(SLIP_COEF,WC%ONE_D%U_TAU,WC%ONE_D%Y_PLUS,MU_DNS(IIG,JJG,KKG)/RHO(IIG,JJG,KKG),SF%ROUGHNESS,&
-                         0.5_EB/WC%ONE_D%RDN,VEL_GAS-VEL_T)
-
          IF (SIM_MODE/=DNS_MODE) THEN
             DELTA = LES_FILTER_WIDTH_FUNCTION(DX(IIG),DY(JJG),DZ(KKG))
             SELECT CASE(NEAR_WALL_TURB_MODEL)
@@ -408,6 +405,13 @@ WALL_LOOP: DO IW=1,N_EXTERNAL_WALL_CELLS+N_INTERNAL_WALL_CELLS
          ENDIF
 
          IF (SOLID(CELL_INDEX(II,JJ,KK))) MU(II,JJ,KK) = MU(IIG,JJG,KKG)
+
+         IF (SF%ABL_MODEL) THEN
+            ! set friction velocity and viscous wall units in HEAT_TRANSFER_COEFFICIENT
+         ELSE
+            CALL WALL_MODEL(SLIP_COEF,WC%ONE_D%U_TAU,WC%ONE_D%Y_PLUS,MU_DNS(IIG,JJG,KKG)/RHO(IIG,JJG,KKG),SF%ROUGHNESS,&
+                            0.5_EB/WC%ONE_D%RDN,VEL_GAS-VEL_T)
+         ENDIF
 
       CASE(OPEN_BOUNDARY,MIRROR_BOUNDARY)
 
@@ -1900,20 +1904,24 @@ SUBROUTINE VELOCITY_BC(T,NM,APPLY_TO_ESTIMATED_VARIABLES)
 ! Assert tangential velocity boundary conditions
 
 USE MATH_FUNCTIONS, ONLY: EVALUATE_RAMP
-USE TURBULENCE, ONLY: WALL_MODEL,WANNIER_FLOW
+USE TURBULENCE, ONLY: WALL_MODEL,WANNIER_FLOW,ABL_WALL_MODEL
+USE PHYSICAL_FUNCTIONS, ONLY: GET_CONDUCTIVITY,GET_SPECIFIC_HEAT
 USE COMPLEX_GEOMETRY, ONLY: CCIBM_VELOCITY_BC
 REAL(EB), INTENT(IN) :: T
 INTEGER, INTENT(IN) :: NM
 LOGICAL, INTENT(IN) :: APPLY_TO_ESTIMATED_VARIABLES
 REAL(EB) :: MUA,TSI,WGT,T_NOW,RAMP_T,OMW,MU_WALL,RHO_WALL,SLIP_COEF,VEL_T, &
             UUP(2),UUM(2),DXX(2),MU_DUIDXJ(-2:2),DUIDXJ(-2:2),PROFILE_FACTOR,VEL_GAS,VEL_GHOST, &
-            MU_DUIDXJ_USE(2),DUIDXJ_USE(2),VEL_EDDY,U_TAU,Y_PLUS
+            MU_DUIDXJ_USE(2),DUIDXJ_USE(2),VEL_EDDY,U_TAU,Y_PLUS,&
+            TMP_F,TMP_G,K_G,CP_G,LOB,HTC,ZZ_GET(1:N_TRACKED_SPECIES),UBAR,VBAR,WBAR,DUMMY,U_NORM
 INTEGER :: I,J,K,NOM(2),IIO(2),JJO(2),KKO(2),IE,II,JJ,KK,IEC,IOR,IWM,IWP,ICMM,ICMP,ICPM,ICPP,IC,ICD,ICDO,IVL,I_SGN,IS, &
            VELOCITY_BC_INDEX,IIGM,JJGM,KKGM,IIGP,JJGP,KKGP,SURF_INDEXM,SURF_INDEXP,ITMP,ICD_SGN,ICDO_SGN, &
            BOUNDARY_TYPE_M,BOUNDARY_TYPE_P,IS2,IWPI,IWMI,VENT_INDEX
-LOGICAL :: ALTERED_GRADIENT(-2:2),PROCESS_EDGE,SYNTHETIC_EDDY_METHOD,HVAC_TANGENTIAL,INTERPOLATED_EDGE
+LOGICAL :: ALTERED_GRADIENT(-2:2),PROCESS_EDGE,SYNTHETIC_EDDY_METHOD,HVAC_TANGENTIAL,INTERPOLATED_EDGE,&
+           UPWIND_BOUNDARY,INFLOW_BOUNDARY
 REAL(EB), POINTER, DIMENSION(:,:,:) :: UU=>NULL(),VV=>NULL(),WW=>NULL(),U_Y=>NULL(),U_Z=>NULL(), &
                                        V_X=>NULL(),V_Z=>NULL(),W_X=>NULL(),W_Y=>NULL(),RHOP=>NULL(),VEL_OTHER=>NULL()
+REAL(EB), POINTER, DIMENSION(:,:,:,:) :: ZZP
 TYPE (SURFACE_TYPE), POINTER :: SF=>NULL()
 TYPE (OMESH_TYPE), POINTER :: OM=>NULL()
 TYPE (VENTS_TYPE), POINTER :: VT
@@ -1936,11 +1944,13 @@ IF (APPLY_TO_ESTIMATED_VARIABLES) THEN
    VV => VS
    WW => WS
    RHOP => RHOS
+   ZZP => ZZS
 ELSE
    UU => U
    VV => V
    WW => W
    RHOP => RHO
+   ZZP => ZZ
 ENDIF
 
 ! Set the boundary velocity place holder to some large negative number
@@ -2145,7 +2155,39 @@ EDGE_LOOP: DO IE=1,N_EDGES
             VENT_INDEX = MAX(WCM%VENT_INDEX,WCP%VENT_INDEX)
             VT => VENTS(VENT_INDEX)
 
-         !  WIND_NO_WIND_IF: IF (.NOT.ANY(MEAN_FORCING)) THEN  ! For regular OPEN boundary, (free-slip) BCs
+            UPWIND_BOUNDARY = .FALSE.
+            INFLOW_BOUNDARY = .FALSE.
+
+            IF (ANY(MEAN_FORCING)) THEN
+               UBAR = U0*EVALUATE_RAMP(T,DUMMY,I_RAMP_U0_T)*EVALUATE_RAMP(ZC(KK),DUMMY,I_RAMP_U0_Z)
+               VBAR = V0*EVALUATE_RAMP(T,DUMMY,I_RAMP_V0_T)*EVALUATE_RAMP(ZC(KK),DUMMY,I_RAMP_V0_Z)
+               WBAR = W0*EVALUATE_RAMP(T,DUMMY,I_RAMP_W0_T)*EVALUATE_RAMP(ZC(KK),DUMMY,I_RAMP_W0_Z)
+               SELECT CASE(IEC)
+                  CASE(1)
+                     IF (JJ==0    .AND. IOR== 2) U_NORM = 0.5_EB*(VV(II,   0,KK) + VV(II,   0,KK+1))
+                     IF (JJ==JBAR .AND. IOR==-2) U_NORM = 0.5_EB*(VV(II,JBAR,KK) + VV(II,JBAR,KK+1))
+                     IF (KK==0    .AND. IOR== 3) U_NORM = 0.5_EB*(WW(II,JJ,0)    + WW(II,JJ+1,   0))
+                     IF (KK==KBAR .AND. IOR==-3) U_NORM = 0.5_EB*(WW(II,JJ,KBAR) + WW(II,JJ+1,KBAR))
+                  CASE(2)
+                     IF (II==0    .AND. IOR== 1) U_NORM = 0.5_EB*(UU(   0,JJ,KK) + UU(   0,JJ,KK+1))
+                     IF (II==IBAR .AND. IOR==-1) U_NORM = 0.5_EB*(UU(IBAR,JJ,KK) + UU(IBAR,JJ,KK+1))
+                     IF (KK==0    .AND. IOR== 3) U_NORM = 0.5_EB*(WW(II,JJ,   0) + WW(II+1,JJ,   0))
+                     IF (KK==KBAR .AND. IOR==-3) U_NORM = 0.5_EB*(WW(II,JJ,KBAR) + WW(II+1,JJ,KBAR))
+                  CASE(3)
+                     IF (II==0    .AND. IOR== 1) U_NORM = 0.5_EB*(UU(   0,JJ,KK) + UU(   0,JJ+1,KK))
+                     IF (II==IBAR .AND. IOR==-1) U_NORM = 0.5_EB*(UU(IBAR,JJ,KK) + UU(IBAR,JJ+1,KK))
+                     IF (JJ==0    .AND. IOR== 2) U_NORM = 0.5_EB*(VV(II,   0,KK) + VV(II+1,   0,KK))
+                     IF (JJ==JBAR .AND. IOR==-2) U_NORM = 0.5_EB*(VV(II,JBAR,KK) + VV(II+1,JBAR,KK))
+               END SELECT
+               IF ((IOR==1.AND.UBAR>=0._EB)   .OR. (IOR==-1.AND.UBAR<=0._EB))   UPWIND_BOUNDARY = .TRUE.
+               IF ((IOR==2.AND.VBAR>=0._EB)   .OR. (IOR==-2.AND.VBAR<=0._EB))   UPWIND_BOUNDARY = .TRUE.
+               IF ((IOR==3.AND.WBAR>=0._EB)   .OR. (IOR==-3.AND.WBAR<=0._EB))   UPWIND_BOUNDARY = .TRUE.
+               IF ((IOR==1.AND.U_NORM>=0._EB) .OR. (IOR==-1.AND.U_NORM<=0._EB)) INFLOW_BOUNDARY = .TRUE.
+               IF ((IOR==2.AND.U_NORM>=0._EB) .OR. (IOR==-2.AND.U_NORM<=0._EB)) INFLOW_BOUNDARY = .TRUE.
+               IF ((IOR==3.AND.U_NORM>=0._EB) .OR. (IOR==-3.AND.U_NORM<=0._EB)) INFLOW_BOUNDARY = .TRUE.
+            ENDIF
+
+            WIND_NO_WIND_IF: IF (.NOT.UPWIND_BOUNDARY .OR. .NOT.INFLOW_BOUNDARY) THEN  ! For regular OPEN boundary, (free-slip) BCs
 
                SELECT CASE(IEC)
                   CASE(1)
@@ -2165,31 +2207,27 @@ EDGE_LOOP: DO IE=1,N_EDGES
                      IF (JJ==JBAR .AND. IOR==-2) UU(II,JBP1,KK) = UU(II,JBAR,KK)
                END SELECT
 
-         !  ELSE WIND_NO_WIND_IF  ! For wind, use prescribed far-field velocity all around
+            ELSE WIND_NO_WIND_IF  ! For upwind, inflow boundaries, use the specified wind field for tangential velocity components
 
-         !     UBAR = U0*EVALUATE_RAMP(T,DUMMY,I_RAMP_U0_T)*EVALUATE_RAMP(ZC(KK),DUMMY,I_RAMP_U0_Z)
-         !     VBAR = V0*EVALUATE_RAMP(T,DUMMY,I_RAMP_V0_T)*EVALUATE_RAMP(ZC(KK),DUMMY,I_RAMP_V0_Z)
-         !     WBAR = W0*EVALUATE_RAMP(T,DUMMY,I_RAMP_W0_T)*EVALUATE_RAMP(ZC(KK),DUMMY,I_RAMP_W0_Z)
+               SELECT CASE(IEC)
+                  CASE(1)
+                     IF (JJ==0    .AND. IOR== 2) WW(II,0,KK)    = WBAR
+                     IF (JJ==JBAR .AND. IOR==-2) WW(II,JBP1,KK) = WBAR
+                     IF (KK==0    .AND. IOR== 3) VV(II,JJ,0)    = VBAR
+                     IF (KK==KBAR .AND. IOR==-3) VV(II,JJ,KBP1) = VBAR
+                  CASE(2)
+                     IF (II==0    .AND. IOR== 1) WW(0,JJ,KK)    = WBAR
+                     IF (II==IBAR .AND. IOR==-1) WW(IBP1,JJ,KK) = WBAR
+                     IF (KK==0    .AND. IOR== 3) UU(II,JJ,0)    = UBAR
+                     IF (KK==KBAR .AND. IOR==-3) UU(II,JJ,KBP1) = UBAR
+                  CASE(3)
+                     IF (II==0    .AND. IOR== 1) VV(0,JJ,KK)    = VBAR
+                     IF (II==IBAR .AND. IOR==-1) VV(IBP1,JJ,KK) = VBAR
+                     IF (JJ==0    .AND. IOR== 2) UU(II,0,KK)    = UBAR
+                     IF (JJ==JBAR .AND. IOR==-2) UU(II,JBP1,KK) = UBAR
+               END SELECT
 
-         !     SELECT CASE(IEC)
-         !        CASE(1)
-         !           IF (JJ==0    .AND. IOR== 2) WW(II,0,KK)    = WBAR
-         !           IF (JJ==JBAR .AND. IOR==-2) WW(II,JBP1,KK) = WBAR
-         !           IF (KK==0    .AND. IOR== 3) VV(II,JJ,0)    = VBAR
-         !           IF (KK==KBAR .AND. IOR==-3) VV(II,JJ,KBP1) = VBAR
-         !        CASE(2)
-         !           IF (II==0    .AND. IOR== 1) WW(0,JJ,KK)    = WBAR
-         !           IF (II==IBAR .AND. IOR==-1) WW(IBP1,JJ,KK) = WBAR
-         !           IF (KK==0    .AND. IOR== 3) UU(II,JJ,0)    = UBAR
-         !           IF (KK==KBAR .AND. IOR==-3) UU(II,JJ,KBP1) = UBAR
-         !        CASE(3)
-         !           IF (II==0    .AND. IOR== 1) VV(0,JJ,KK)    = VBAR
-         !           IF (II==IBAR .AND. IOR==-1) VV(IBP1,JJ,KK) = VBAR
-         !           IF (JJ==0    .AND. IOR== 2) UU(II,0,KK)    = UBAR
-         !           IF (JJ==JBAR .AND. IOR==-2) UU(II,JBP1,KK) = UBAR
-         !     END SELECT
-
-         !  ENDIF WIND_NO_WIND_IF
+            ENDIF WIND_NO_WIND_IF
 
             IF (IWM/=0 .AND. IWP/=0) THEN
                CYCLE EDGE_LOOP  ! Do no further processing of this edge if both cell faces are OPEN
@@ -2392,7 +2430,20 @@ EDGE_LOOP: DO IE=1,N_EDGES
                      ITMP = MIN(5000,NINT(0.5_EB*(TMP(IIGM,JJGM,KKGM)+TMP(IIGP,JJGP,KKGP))))
                      MU_WALL = MU_RSQMW_Z(ITMP,1)/RSQ_MW_Z(1)
                      RHO_WALL = 0.5_EB*( RHOP(IIGM,JJGM,KKGM) + RHOP(IIGP,JJGP,KKGP) )
-                     CALL WALL_MODEL(SLIP_COEF,U_TAU,Y_PLUS,MU_WALL/RHO_WALL,SF%ROUGHNESS,0.5_EB*DXX(ICD),VEL_GAS-VEL_T)
+
+                     IF (SF%ABL_MODEL) THEN
+                        TMP_F = 0.5_EB*(WCM%ONE_D%TMP_F+WCP%ONE_D%TMP_F)
+                        TMP_G = 0.5_EB*(TMP(IIGM,JJGM,KKGM)+TMP(IIGP,JJGP,KKGP))
+                        ZZ_GET(1:N_TRACKED_SPECIES) = 0.5_EB*( ZZP(IIGM,JJGM,KKGM,1:N_TRACKED_SPECIES) &
+                                                             + ZZP(IIGP,JJGP,KKGP,1:N_TRACKED_SPECIES) )
+                        CALL GET_CONDUCTIVITY(ZZ_GET,K_G,TMP_G)
+                        CALL GET_SPECIFIC_HEAT(ZZ_GET,CP_G,TMP_G)
+
+                        CALL ABL_WALL_MODEL(SLIP_COEF,HTC,U_TAU,LOB,VEL_GAS-VEL_T,&
+                             SF%Z_0,0.5_EB*DXX(ICD),ZC(KKGM),TMP_G,TMP_F,MUA,RHO_WALL,CP_G,K_G)
+                     ELSE
+                        CALL WALL_MODEL(SLIP_COEF,U_TAU,Y_PLUS,MU_WALL/RHO_WALL,SF%ROUGHNESS,0.5_EB*DXX(ICD),VEL_GAS-VEL_T)
+                     ENDIF
                      ! SLIP_COEF = -1, no slip, VEL_GHOST=-VEL_GAS
                      ! SLIP_COEF =  1, free slip, VEL_GHOST=VEL_T
                      VEL_GHOST = VEL_T + 0.5_EB*(SLIP_COEF-1._EB)*(VEL_GAS-VEL_T)
