@@ -153,11 +153,7 @@ OVERALL_INSERT_LOOP: DO
    INSERT_ANOTHER_BATCH = .FALSE.
 
    CALL INSERT_SPRAY_PARTICLES
-   IF (.NOT. FBRAND) THEN 
-      CALL INSERT_VENT_PARTICLES
-   ELSE
-      CALL INSERT_FIREBRANDS
-   ENDIF
+   CALL INSERT_VENT_PARTICLES
    CALL INSERT_VOLUMETRIC_PARTICLES
    IF (DUCT_HT) CALL INSERT_DUCT_PARTICLES
 
@@ -494,10 +490,11 @@ END SUBROUTINE INSERT_VENT_PARTICLES
 SUBROUTINE PARTICLE_FACE_INSERT(WALL_INDEX,CFACE_INDEX)
 
 USE COMPLEX_GEOMETRY, ONLY : RANDOM_CFACE_XYZ
+USE MATH_FUNCTIONS, ONLY : AFILL2
 
 INTEGER, INTENT(IN), OPTIONAL :: WALL_INDEX,CFACE_INDEX
-INTEGER :: I
-REAL(EB):: CFA_X, CFA_Y, CFA_Z, RN
+INTEGER :: I,IIX,JJY,KKZ,IC
+REAL(EB):: CFA_X, CFA_Y, CFA_Z, RN, GPR, X_WGT, Y_WGT, Z_WGT
 
 TYPE(CFACE_TYPE), POINTER :: CFA=>NULL()
 TYPE(WALL_TYPE), POINTER :: WC=>NULL()
@@ -525,6 +522,7 @@ ENDIF WALL_OR_CFACE_IF_1
 IIG = ONE_D%IIG
 JJG = ONE_D%JJG
 KKG = ONE_D%KKG
+IC = CELL_INDEX(II,JJ,KK)
 
 IF (T < ONE_D%T_IGN)                                   RETURN
 IF (T < SF%PARTICLE_INSERT_CLOCK(NM))                  RETURN
@@ -540,6 +538,18 @@ IF (LPC%CTRL_INDEX>0) THEN
 ENDIF
 IF (NM > 1) THEN
    IF (INTERPOLATED_MESH(IIG,JJG,KKG) > 0)             RETURN
+ENDIF
+
+IF (FBRAND) THEN
+   ! specify generation only for regions of burning
+   IF (.NOT. ONE_D%M_DOT_G_PP_ADJUST(REACTION(1)%FUEL_SMIX_INDEX)>0) RETURN 
+
+   GPR=100._EB*DX(II)*DY(JJ)*ONE_D%M_DOT_G_PP_ADJUST(REACTION(1)%FUEL_SMIX_INDEX)*DT
+   SF%NPPC=FLOOR(GPR)
+   CALL RANDOM_NUMBER(RN)
+   IF (RN<(GPR-SF%NPPC)) THEN
+      SF%NPPC=SF%NPPC+1    
+   ENDIF
 ENDIF
 
 ! Loop over all particles for the WALL_INDEX-th cell
@@ -584,7 +594,13 @@ PARTICLE_INSERT_LOOP2: DO I=1,SF%NPPC
             LP%X = X(II-1) + DX(II)*REAL(RN,EB)
             LP%Z = Z(KK-1) + DZ(KK)*REAL(RN2,EB)
          CASE(3)
-            IF (IOR== 3) LP%Z = Z(KK)   + VENT_OFFSET*DZ(KK+1)
+            IF (IOR== 3) THEN
+               IF (FBRAND) THEN
+                  LP%Z = 0.49_EB
+               ELSE
+                  LP%Z = Z(KK)   + VENT_OFFSET*DZ(KK+1)
+               ENDIF
+            ENDIF
             IF (IOR==-3) LP%Z = Z(KK-1) - VENT_OFFSET*DZ(KK-1)
             LP%X = X(II-1) + DX(II)*REAL(RN,EB)
             LP%Y = Y(JJ-1) + DY(JJ)*REAL(RN2,EB)
@@ -612,6 +628,20 @@ PARTICLE_INSERT_LOOP2: DO I=1,SF%NPPC
                LP%U = SF%VEL_T(1)
                LP%V = SF%VEL_T(2)
                LP%W = -ONE_D%U_NORMAL
+               IF (FBRAND) THEN
+                  IIX  = FLOOR(XI+.5_EB)
+                  JJY  = FLOOR(YJ+.5_EB)
+                  KKZ  = FLOOR(ZK+.5_EB)
+                  X_WGT = XI+.5_EB-IIX
+                  Y_WGT = YJ+.5_EB-JJY
+                  Z_WGT = 1._EB                  
+                  LP%U = AFILL2(U,IIG-1,JJY,KKZ,(LP%X-X(IIG-1))*RDX(IIG),Y_WGT,Z_WGT)
+                  LP%V = AFILL2(V,IIX,JJG-1,KKZ,X_WGT,(LP%Y-Y(JJG-1))*RDY(JJG),Z_WGT)
+                  LP%W = AFILL2(W,IIX,JJY,KKG-1,X_WGT,Y_WGT,(LP%Z-Z(KKG-1))*RDZ(KKG))
+                  ! Random noise to prevent infinite drag (RE=0)
+                  CALL RANDOM_NUMBER(RN)
+                  LP%W = LP%W*(1+(0.1_EB*RN-0.05_EB))
+               ENDIF
             CASE(-3)
                LP%U = SF%VEL_T(1)
                LP%V = SF%VEL_T(2)
@@ -674,178 +704,6 @@ ENDIF
 DEALLOCATE(LP_INDEX_LOOKUP)
 
 END SUBROUTINE PARTICLE_FACE_INSERT
-
-SUBROUTINE INSERT_FIREBRANDS
-
-USE MATH_FUNCTIONS, ONLY : AFILL2
-TYPE(WALL_TYPE), POINTER :: WC=>NULL()
-INTEGER :: I,IIX,JJY,KKZ
-REAL(EB) :: GPR,X_WGT,Y_WGT,Z_WGT
-
-! Loop through all boundary cells and insert particles if appropriate
-
-WALL_INSERT_LOOP: DO IW=1,N_EXTERNAL_WALL_CELLS+N_INTERNAL_WALL_CELLS
-
-   WC => WALL(IW)
-   IF (T < WC%ONE_D%T_IGN)                     CYCLE WALL_INSERT_LOOP
-   IF (WALL(IW)%BOUNDARY_TYPE/=SOLID_BOUNDARY) CYCLE WALL_INSERT_LOOP
-   SF  => SURFACE(WC%SURF_INDEX)
-   ILPC =  SF%PART_INDEX
-   IF (ILPC < 1)    CYCLE WALL_INSERT_LOOP
-   LPC  => LAGRANGIAN_PARTICLE_CLASS(ILPC)
-   IF (LPC%DEVC_INDEX>0) THEN
-      IF (.NOT.DEVICE(LPC%DEVC_INDEX)%CURRENT_STATE) CYCLE WALL_INSERT_LOOP
-   ENDIF
-   IF (LPC%CTRL_INDEX>0) THEN
-      IF (.NOT.CONTROL(LPC%CTRL_INDEX)%CURRENT_STATE) CYCLE WALL_INSERT_LOOP
-   ENDIF
-   IF (T < SF%PARTICLE_INSERT_CLOCK(NM)) CYCLE WALL_INSERT_LOOP
-   IF (WC%ONE_D%U_NORMAL >= -0.0001_EB) CYCLE WALL_INSERT_LOOP
-
-   II = WC%ONE_D%II
-   JJ = WC%ONE_D%JJ
-   KK = WC%ONE_D%KK
-   IC = CELL_INDEX(II,JJ,KK)
-   IF (.NOT.SOLID(IC)) CYCLE WALL_INSERT_LOOP
-
-   IIG = WC%ONE_D%IIG
-   JJG = WC%ONE_D%JJG
-   KKG = WC%ONE_D%KKG
-   IF (NM > 1) THEN
-      IF (INTERPOLATED_MESH(IIG,JJG,KKG) > 0) CYCLE WALL_INSERT_LOOP
-   ENDIF
-
-   ! specify generation only for regions of burning
-   IF (.NOT. WC%ONE_D%M_DOT_G_PP_ADJUST(REACTION(1)%FUEL_SMIX_INDEX)>0) CYCLE WALL_INSERT_LOOP
-
-   ! Loop over all particles for the IW-th cell
-
-   IOR = WC%ONE_D%IOR
-   MASS_SUM = 0._EB
-
-   GPR=100._EB*DX(II)*DY(JJ)*WC%ONE_D%M_DOT_G_PP_ADJUST(REACTION(1)%FUEL_SMIX_INDEX)*DT
-   SF%NPPC=FLOOR(GPR)
-   CALL RANDOM_NUMBER(RN)
-   IF (RN<(GPR-SF%NPPC)) THEN
-      SF%NPPC=SF%NPPC+1    
-   ENDIF
-
-   IF (SF%NPPC/=0) THEN
-      ALLOCATE(LP_INDEX_LOOKUP(SF%NPPC))
-      LP_INDEX_LOOKUP = 0
-      PARTICLE_INSERT_LOOP2: DO I=1,SF%NPPC
-
-         ! Insert a single droplet at wall cell IW
-         IF (NLP+1>MAXIMUM_PARTICLES) THEN
-            CALL REMOVE_OLDEST_PARTICLE(NM,ILPC,NLP,NEW_LP_INDEX)
-            IF (I>1) LP_INDEX_LOOKUP(I-1)=NEW_LP_INDEX
-         ELSE
-            NLP = NLP+1
-         ENDIF
-         LP_INDEX_LOOKUP(I) = NLP
-
-         PARTICLE_TAG = PARTICLE_TAG + NMESHES
-         CALL ALLOCATE_STORAGE(NM,LPC%SURF_INDEX,LPC_INDEX=ILPC,LP_INDEX=NLP,TAG=PARTICLE_TAG,NEW_TAG=.TRUE.)
-         LP=>MESHES(NM)%LAGRANGIAN_PARTICLE(NLP)
-         LAGRANGIAN_PARTICLE => MESHES(NM)%LAGRANGIAN_PARTICLE
-
-         ! Assign particle position on the cell face
-
-         CALL RANDOM_NUMBER(RN)
-         CALL RANDOM_NUMBER(RN2)
-
-         SELECT CASE (ABS(IOR))
-            CASE(1)
-               IF (IOR== 1) LP%X = X(II)   + VENT_OFFSET*DX(II+1)
-               IF (IOR==-1) LP%X = X(II-1) - VENT_OFFSET*DX(II-1)
-               LP%Y = Y(JJ-1) + DY(JJ)*REAL(RN,EB)
-               LP%Z = Z(KK-1) + DZ(KK)*REAL(RN2,EB)
-            CASE(2)
-               IF (IOR== 2) LP%Y = Y(JJ)   + VENT_OFFSET*DY(JJ+1)
-               IF (IOR==-2) LP%Y = Y(JJ-1) - VENT_OFFSET*DY(JJ-1)
-               LP%X = X(II-1) + DX(II)*REAL(RN,EB)
-               LP%Z = Z(KK-1) + DZ(KK)*REAL(RN2,EB)
-            CASE(3)
-               IF (IOR== 3) LP%Z = 0.5
-               IF (IOR==-3) LP%Z = Z(KK-1) - VENT_OFFSET*DZ(KK-1)
-               LP%X = X(II-1) + DX(II)*REAL(RN,EB)
-               LP%Y = Y(JJ-1) + DY(JJ)*REAL(RN2,EB)
-         END SELECT
-
-         ! Give particles an initial velocity
-
-         
-         CALL GET_IJK(LP%X,LP%Y,LP%Z,NM,XI,YJ,ZK,LP%ONE_D%IIG,LP%ONE_D%JJG,LP%ONE_D%KKG)
-         IIX  = FLOOR(XI+.5_EB)
-         JJY  = FLOOR(YJ+.5_EB)
-         KKZ  = FLOOR(ZK+.5_EB)
-         X_WGT = XI+.5_EB-IIX
-         Y_WGT = YJ+.5_EB-JJY
-         Z_WGT = ZK+.5_EB-KKZ
-         IF (X_WGT>=0.5_EB .AND. WALL_INDEX(IC,-1)>0) X_WGT = 1._EB
-         IF (X_WGT< 0.5_EB .AND. WALL_INDEX(IC, 1)>0) X_WGT = 0._EB
-         IF (Y_WGT>=0.5_EB .AND. WALL_INDEX(IC,-2)>0) Y_WGT = 1._EB
-         IF (Y_WGT< 0.5_EB .AND. WALL_INDEX(IC, 2)>0) Y_WGT = 0._EB
-         IF (Z_WGT>=0.5_EB .AND. WALL_INDEX(IC,-3)>0) Z_WGT = 1._EB
-         IF (Z_WGT< 0.5_EB .AND. WALL_INDEX(IC, 3)>0) Z_WGT = 0._EB
-
-         SELECT CASE(IOR)
-            CASE( 1)
-               LP%U = -WALL(IW)%ONE_D%U_NORMAL
-               LP%V = SF%VEL_T(1)
-               LP%W = SF%VEL_T(2)
-            CASE(-1)
-               LP%U =  WALL(IW)%ONE_D%U_NORMAL
-               LP%V = SF%VEL_T(1)
-               LP%W = SF%VEL_T(2)
-            CASE( 2)
-               LP%U = SF%VEL_T(1)
-               LP%V = -WALL(IW)%ONE_D%U_NORMAL
-               LP%W = SF%VEL_T(2)
-            CASE(-2)
-               LP%U = SF%VEL_T(1)
-               LP%V =  WALL(IW)%ONE_D%U_NORMAL
-               LP%W = SF%VEL_T(2)
-            CASE( 3)
-               LP%U = AFILL2(U,IIG-1,JJY,KKZ,(LP%X-X(IIG-1))*RDX(IIG),Y_WGT,Z_WGT)
-               LP%V = AFILL2(V,IIX,JJG-1,KKZ,X_WGT,(LP%Y-Y(JJG-1))*RDY(JJG),Z_WGT)
-               LP%W = AFILL2(W,IIX,JJY,KKG-1,X_WGT,Y_WGT,(LP%Z-Z(KKG-1))*RDZ(KKG))
-               ! Random noise to prevent infinite drag (RE=0)
-               CALL RANDOM_NUMBER(RN)
-               LP%W = LP%W*(1+(0.1_EB*RN-0.05_EB))
-            CASE(-3)
-               LP%U = SF%VEL_T(1)
-               LP%V = SF%VEL_T(2)
-               LP%W =  WALL(IW)%ONE_D%U_NORMAL
-         END SELECT
-
-         !LP%ONE_D%IIG = IIG
-         !LP%ONE_D%JJG = JJG
-         !LP%ONE_D%KKG = KKG
-
-         ! Save the insertion time (TP) and scalar property (SP) for the particle
-
-         CALL RANDOM_NUMBER(RN)
-         IF (RN < 1._EB/REAL(LPC%SAMPLING_FACTOR,EB)) LP%SHOW = .TRUE.
-         LP%T_INSERT = T
-
-         CALL INITIALIZE_SINGLE_PARTICLE
-
-         LP=>MESHES(NM)%LAGRANGIAN_PARTICLE(NLP)
-         SF=>SURFACE(LPC%SURF_INDEX)
-         IF (.NOT.LPC%MASSLESS_TRACER .AND. .NOT.LPC%MASSLESS_TARGET) THEN
-            MASS_SUM = MASS_SUM + LP%PWT*LPC%FTPR*LP%ONE_D%X(SF%N_CELLS_INI)**3
-         ENDIF
-
-      ENDDO PARTICLE_INSERT_LOOP2
-
-      DEALLOCATE(LP_INDEX_LOOKUP)
-   ENDIF
-
-ENDDO WALL_INSERT_LOOP
-
-END SUBROUTINE INSERT_FIREBRANDS
-
 
 !> \brief Loop over all INIT lines and look for particles inserted within a specified volume
 
