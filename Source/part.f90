@@ -153,7 +153,7 @@ OVERALL_INSERT_LOOP: DO
 
    INSERT_ANOTHER_BATCH = .FALSE.
 
-   CALL INSERT_SPRAY_PARTICLES
+   CALL INSERT_SPRAY_PARTICLES ; IF (STOP_STATUS/=0) RETURN
    CALL INSERT_VENT_PARTICLES
    CALL INSERT_VOLUMETRIC_PARTICLES
    IF (DUCT_HT) CALL INSERT_DUCT_PARTICLES
@@ -202,6 +202,8 @@ CONTAINS
 
 SUBROUTINE INSERT_SPRAY_PARTICLES
 
+USE COMP_FUNCTIONS, ONLY: SHUTDOWN
+CHARACTER(MESSAGE_LENGTH) :: MESSAGE
 INTEGER :: I,OI
 
 N_OPEN_NOZZLES = 0
@@ -420,9 +422,12 @@ SPRINKLER_INSERT_LOOP: DO KS=1,N_DEVC
             LP%V = 0._EB
             LP%Y = DV%Y
          ENDIF
-         IF (LP%X<=XS .OR. LP%X>=XF) CYCLE CHOOSE_COORDS
-         IF (LP%Y<=YS .OR. LP%Y>=YF) CYCLE CHOOSE_COORDS
-         IF (LP%Z<=ZS .OR. LP%Z>=ZF) CYCLE CHOOSE_COORDS
+         IF (LP%X<=XS .OR. LP%X>=XF .OR. LP%Y<=YS .OR. LP%Y>=YF .OR. LP%Z<=ZS .OR. LP%Z>=ZF) THEN
+            WRITE(MESSAGE,'(A,A,A)') 'ERROR: Nozzle ',TRIM(DV%ID),' is too close to mesh boundary'
+            CALL SHUTDOWN(MESSAGE,PROCESS_0_ONLY=.FALSE.)
+            RETURN
+         ENDIF
+
          CALL GET_IJK(LP%X,LP%Y,LP%Z,NM,XI,YJ,ZK,II,JJ,KK)
          IC = CELL_INDEX(II,JJ,KK)
          LP%ONE_D%IIG = II
@@ -721,7 +726,7 @@ VOLUME_INSERT_LOOP: DO IB=1,N_INIT
 
    ILPC = IN%PART_INDEX
    IF (ILPC<1) CYCLE VOLUME_INSERT_LOOP
-   IF ((IN%SINGLE_INSERTION.AND.IN%ALREADY_INSERTED(NM)) .OR. T<IN%T_INSERT) CYCLE VOLUME_INSERT_LOOP
+   IF (IN%SINGLE_INSERTION .AND. IN%ALREADY_INSERTED(NM)) CYCLE VOLUME_INSERT_LOOP
 
    ! Determine if the particles/PARTICLEs are controlled by devices
 
@@ -1431,7 +1436,7 @@ PARTICLE_LOOP: DO IP=1,NLP
    DT_CFL = MIN(DX(LP%ONE_D%IIG)/(ABS(LP%U)+TWO_EPSILON_EB),&
                 DY(LP%ONE_D%JJG)/(ABS(LP%V)+TWO_EPSILON_EB),&
                 DZ(LP%ONE_D%KKG)/(ABS(LP%W)+TWO_EPSILON_EB))
-   N_ITER = CEILING(DT/DT_CFL)
+   N_ITER = CEILING(DT/(0.90_EB*DT_CFL))
    DT_P   = DT/REAL(N_ITER,EB)
 
    ! Zero out acceleration terms that go into momentum equation.
@@ -1734,7 +1739,7 @@ PARTICLE_LOOP: DO IP=1,NLP
       ! If the particle crosses a cell boundary, determine its new status and check if it has hit a solid.
 
       WALL_SEARCH: IF (.NOT.HIT_SOLID .AND. LP%CFACE_INDEX==0 .AND. &
-                       IIG_OLD/=LP%ONE_D%IIG .OR. JJG_OLD/=LP%ONE_D%JJG .OR. KKG_OLD/=LP%ONE_D%KKG) THEN
+                       (IIG_OLD/=LP%ONE_D%IIG .OR. JJG_OLD/=LP%ONE_D%JJG .OR. KKG_OLD/=LP%ONE_D%KKG)) THEN
 
          ! Calculate the STEP_FRACTION, which indicates the relative distance between the particles's old and new
          ! position where the particle hits a cell boundary.
@@ -1840,6 +1845,11 @@ PARTICLE_LOOP: DO IP=1,NLP
 
       ENDIF WALL_SEARCH
 
+      ! If the particle has passed outside of its current mesh and it has not
+      ! hit anything, schedule it for removal or adoption by another mesh.
+
+      IF (EXTERIOR(IC_NEW) .AND. .NOT.HIT_SOLID) CYCLE PARTICLE_LOOP
+
       ! Process the particle if it has hit either a WALL or CFACE
 
       IF (HIT_SOLID) THEN
@@ -1912,9 +1922,9 @@ PARTICLE_LOOP: DO IP=1,NLP
          ENDIF
 
       ELSEIF (LP%CFACE_INDEX==0) THEN
-        
+
          LP%WALL_INDEX = 0  ! The droplet is not stuck to a WALL cell
-         
+
       ENDIF
 
    ENDDO TIME_STEP_LOOP
@@ -1948,15 +1958,16 @@ END SUBROUTINE MOVE_ON_SOLID
 
 SUBROUTINE MOVE_IN_GAS
 
-USE PHYSICAL_FUNCTIONS, ONLY : DRAG, GET_VISCOSITY
+USE PHYSICAL_FUNCTIONS, ONLY : DRAG, GET_VISCOSITY, LES_FILTER_WIDTH_FUNCTION
 USE MATH_FUNCTIONS, ONLY : AFILL2, EVALUATE_RAMP, RANDOM_CHOICE, BOX_MULLER
 REAL(EB) :: UBAR,VBAR,WBAR,RVC,UREL,VREL,WREL,QREL,RHO_G,TMP_G,MU_AIR, &
             U_OLD,V_OLD,W_OLD,ZZ_GET(1:N_TRACKED_SPECIES),WAKE_VEL,DROP_VOL_FRAC,RE_WAKE,&
             WE_G,T_BU_BAG,T_BU_STRIP,MPOM,ALBO,SFAC,BREAKUP_RADIUS(0:NDC),&
             DD,DD_X,DD_Y,DD_Z,DW_X,DW_Y,DW_Z,K_TERM(3),Y_TERM(3),C_DRAG,A_DRAG,HAB,PARACOR,QREL2,X_WGT,Y_WGT,Z_WGT,&
-            GX_LOC,GY_LOC,GZ_LOC,DUMMY,DRAG_MAX(3)=0._EB,SUM_RHO,D_HY
-REAL(EB), SAVE :: FP_MASS,HALF_DT2,BETA,OBDT,ALPHA,OPA,DTOPA,BDTOA
+            GX_LOC,GY_LOC,GZ_LOC,DUMMY,DRAG_MAX(3)=0._EB,SUM_RHO,K_SGS,U_P,D_HY
+REAL(EB), SAVE :: HALF_DT2,BETA
 INTEGER :: IIX,JJY,KKZ,SURF_INDEX,N
+REAL(EB), PARAMETER :: MAX_TURBULENCE_INTENSITY = 0.1_EB
 
 ! Save current values of particle velocity components
 
@@ -1983,10 +1994,9 @@ UBAR = AFILL2(U,IIG_OLD-1,JJY,KKZ,(X_OLD-X(IIG_OLD-1))*RDX(IIG_OLD),Y_WGT,Z_WGT)
 VBAR = AFILL2(V,IIX,JJG_OLD-1,KKZ,X_WGT,(Y_OLD-Y(JJG_OLD-1))*RDY(JJG_OLD),Z_WGT)
 WBAR = AFILL2(W,IIX,JJY,KKG_OLD-1,X_WGT,Y_WGT,(Z_OLD-Z(KKG_OLD-1))*RDZ(KKG_OLD))
 
-! If the particle is massless, just move it and go on to the next particle
+! If the particle has a path, just follow the path and return
 
 IF (LP%PATH_PARTICLE) THEN
-   ! If the particle has a path, just follow the path and return
    IF (INITIALIZATION(LP%INIT_INDEX)%PATH_RAMP_INDEX(1) > 0) &
       LP%X = EVALUATE_RAMP(T,0._EB,INITIALIZATION(LP%INIT_INDEX)%PATH_RAMP_INDEX(1))
    IF (INITIALIZATION(LP%INIT_INDEX)%PATH_RAMP_INDEX(2) > 0) &
@@ -1995,6 +2005,8 @@ IF (LP%PATH_PARTICLE) THEN
       LP%Z = EVALUATE_RAMP(T,0._EB,INITIALIZATION(LP%INIT_INDEX)%PATH_RAMP_INDEX(3))
    RETURN
 ENDIF
+
+! If the particle is massless, just move it and go on to the next particle
 
 TRACER_IF: IF (LPC%MASSLESS_TRACER .OR. LP%PWT<=TWO_EPSILON_EB) THEN
    IF (LPC%TURBULENT_DISPERSION) THEN
@@ -2022,17 +2034,40 @@ TRACER_IF: IF (LPC%MASSLESS_TRACER .OR. LP%PWT<=TWO_EPSILON_EB) THEN
       LP%Y = Y_OLD + LP%V*DT_P
       LP%Z = Z_OLD + LP%W*DT_P
    ENDIF
+   IF (TWO_D) THEN
+      LP%Y=Y_OLD
+      LP%V=0._EB
+   ENDIF
    RETURN
 ENDIF TRACER_IF
+
+! Massive particles undergoing turbulent dispersion (EXPERIMENTAL, under construction)
+
+IF (LPC%TURBULENT_DISPERSION) THEN
+   ! Built model from ideas in this ref:
+   ! M. Breuer and M. Alletto, Efficient simulation of particle-laden turbulent flows with high mass loadings using LES,
+   ! Int. J. Heat and Fluid Flow, 35:2-12, 2012.
+   ! The basic idea is to add an isotropic turbulent fluctuation to the cell mean velocity components prior to
+   ! computing the drag.
+   DELTA = LES_FILTER_WIDTH_FUNCTION(DX(IIG_OLD),DY(JJG_OLD),DZ(KKG_OLD))
+   K_SGS = (MU(IIG_OLD,JJG_OLD,KKG_OLD)/RHO(IIG_OLD,JJG_OLD,KKG_OLD)/C_DEARDORFF/DELTA)**2 ! def of Deardorff eddy viscosity
+   U_P = SQRT(TWTH*K_SGS)
+   CALL BOX_MULLER(DW_X,DW_Y)
+   CALL BOX_MULLER(DW_Z,DW_X)
+   UBAR = UBAR + U_P*DW_X
+   VBAR = VBAR + U_P*DW_Y
+   WBAR = WBAR + U_P*DW_X
+ENDIF
 
 ! Calculate the particle drag coefficient
 
 RVC   = RDX(IIG_OLD)*RRN(IIG_OLD)*RDY(JJG_OLD)*RDZ(KKG_OLD)
 RHO_G = RHO(IIG_OLD,JJG_OLD,KKG_OLD)
-UREL   = LP%U - UBAR
-VREL   = LP%V - VBAR
-WREL   = LP%W - WBAR
-QREL   = SQRT(UREL*UREL + VREL*VREL + WREL*WREL)
+UREL  = LP%U - UBAR
+VREL  = LP%V - VBAR
+WREL  = LP%W - WBAR
+IF (TWO_D) VREL=0._EB
+QREL  = SQRT(UREL*UREL + VREL*VREL + WREL*WREL)
 
 DRAG_LAW_SELECT: SELECT CASE (LPC%DRAG_LAW)
 
@@ -2159,79 +2194,62 @@ ENDIF
 
 PARTICLE_NON_STATIC_IF: IF (.NOT.LPC%STATIC .OR. LP%EMBER) THEN ! Move airborne, non-stationary particles
 
-   IF (ITER==1) THEN
-      FP_MASS = (RHO_G/RVC)/NDPC(IIG_OLD,JJG_OLD,KKG_OLD) ! fluid parcel mass
-      IF (FREEZE_VELOCITY) FP_MASS = 1.E10_EB
-   ENDIF
-   BETA  = 0.5_EB*RHO_G*C_DRAG*A_DRAG*(1._EB/LP%MASS+1._EB/FP_MASS)*QREL
-   ALPHA = FP_MASS/LP%MASS
-   HALF_DT2 = 0.5_EB*DT_P*DT_P
-   OBDT  = 1._EB+BETA*DT_P
-   OPA   = 1._EB+ALPHA
-   DTOPA = DT_P/OPA
-   BDTOA = BETA*DTOPA
-
-
-   LP%U = ( U_OLD + (U_OLD+ALPHA*UBAR)*BDTOA )/OBDT
-   LP%V = ( V_OLD + (V_OLD+ALPHA*VBAR)*BDTOA )/OBDT
-   LP%W = ( W_OLD + (W_OLD+ALPHA*WBAR)*BDTOA )/OBDT
-
    ! Compute gravity components
 
-   IF (.NOT.SPATIAL_GRAVITY_VARIATION) THEN
+   IF (SPATIAL_GRAVITY_VARIATION) THEN
+      GX_LOC = EVALUATE_RAMP(X_OLD,DUMMY,I_RAMP_GX)*GVEC(1)
+      GY_LOC = EVALUATE_RAMP(X_OLD,DUMMY,I_RAMP_GY)*GVEC(2)
+      GZ_LOC = EVALUATE_RAMP(X_OLD,DUMMY,I_RAMP_GZ)*GVEC(3)
+   ELSEIF (I_RAMP_GX>0 .OR. I_RAMP_GY>0 .OR. I_RAMP_GZ>0) THEN
       GX_LOC = EVALUATE_RAMP(T,DUMMY,I_RAMP_GX)*GVEC(1)
       GY_LOC = EVALUATE_RAMP(T,DUMMY,I_RAMP_GY)*GVEC(2)
       GZ_LOC = EVALUATE_RAMP(T,DUMMY,I_RAMP_GZ)*GVEC(3)
    ELSE
-      GX_LOC = EVALUATE_RAMP(X_OLD,DUMMY,I_RAMP_GX)*GVEC(1)
-      GY_LOC = EVALUATE_RAMP(X_OLD,DUMMY,I_RAMP_GY)*GVEC(2)
-      GZ_LOC = EVALUATE_RAMP(X_OLD,DUMMY,I_RAMP_GZ)*GVEC(3)
+      GX_LOC = GVEC(1)
+      GY_LOC = GVEC(2)
+      GZ_LOC = GVEC(3)
    ENDIF
 
+   ! Update particle velocity
+
+   BETA = 0.5_EB*RHO_G*C_DRAG*A_DRAG*QREL/LP%MASS
+
    IF (BETA>TWO_EPSILON_EB) THEN
-      ! fluid momentum source term
+      LP%U = UBAR + (UREL-GX_LOC/BETA)*EXP(-BETA*DT_P) + GX_LOC/BETA
+      LP%V = VBAR + (VREL-GY_LOC/BETA)*EXP(-BETA*DT_P) + GY_LOC/BETA
+      LP%W = WBAR + (WREL-GZ_LOC/BETA)*EXP(-BETA*DT_P) + GZ_LOC/BETA
+   ELSE
+      LP%U = U_OLD + DT_P*GX_LOC
+      LP%V = V_OLD + DT_P*GY_LOC
+      LP%W = W_OLD + DT_P*GZ_LOC
+   ENDIF
+
+   ! Fluid momentum source term
+
+   IF (BETA>TWO_EPSILON_EB) THEN
       MPOM = LP%PWT*RVC/RHO_G
       LP%ACCEL_X = LP%ACCEL_X + MPOM*(LP%MASS*(U_OLD-LP%U)/DT + LP%M_DOT*UREL)
       LP%ACCEL_Y = LP%ACCEL_Y + MPOM*(LP%MASS*(V_OLD-LP%V)/DT + LP%M_DOT*VREL)
       LP%ACCEL_Z = LP%ACCEL_Z + MPOM*(LP%MASS*(W_OLD-LP%W)/DT + LP%M_DOT*WREL)
-
-      ! semi-analytical solution for PARTICLE position
-      ALBO = ALPHA*LOG(OBDT)/(BETA*OPA)
-      LP%X = X_OLD + (U_OLD+ALPHA*UBAR)*DTOPA + ALBO*(U_OLD-UBAR) + GX_LOC*HALF_DT2
-      LP%Y = Y_OLD + (V_OLD+ALPHA*VBAR)*DTOPA + ALBO*(V_OLD-VBAR) + GY_LOC*HALF_DT2
-      LP%Z = Z_OLD + (W_OLD+ALPHA*WBAR)*DTOPA + ALBO*(W_OLD-WBAR) + GZ_LOC*HALF_DT2
    ELSE
-      ! no drag
       LP%ACCEL_X  = 0._EB
       LP%ACCEL_Y  = 0._EB
       LP%ACCEL_Z  = 0._EB
-      LP%X = X_OLD + DT_P*U_OLD + GX_LOC*HALF_DT2
-      LP%Y = Y_OLD + DT_P*V_OLD + GY_LOC*HALF_DT2
-      LP%Z = Z_OLD + DT_P*W_OLD + GZ_LOC*HALF_DT2
    ENDIF
 
-   ! gravitational acceleration terms
+   ! Update particle position
 
-   LP%U = LP%U + GX_LOC*DT_P
-   LP%V = LP%V + GY_LOC*DT_P
-   LP%W = LP%W + GZ_LOC*DT_P
-
-   ! 2nd-order terms for the particle relative velocities (experimental)
-
-   IF (LPC%SECOND_ORDER_PARTICLE_TRANSPORT .AND. DT_P>BETA*HALF_DT2) THEN
-      HAB = ALPHA*BETA*HALF_DT2/OPA
-      QREL2=QREL*QREL
-      IF (QREL2<TWO_EPSILON_EB) THEN
-         PARACOR = 0._EB
-      ELSE
-         PARACOR = (UREL*GX_LOC + VREL*GY_LOC + WREL*GZ_LOC)/QREL2
-      ENDIF
-      LP%U = LP%U - HAB*(GX_LOC + UREL*PARACOR)
-      LP%V = LP%V - HAB*(GY_LOC + VREL*PARACOR)
-      LP%W = LP%W - HAB*(GZ_LOC + WREL*PARACOR)
-   ENDIF
+   LP%X = X_OLD + 0.5_EB*DT_P*(LP%U+U_OLD)
+   LP%Y = Y_OLD + 0.5_EB*DT_P*(LP%V+V_OLD)
+   LP%Z = Z_OLD + 0.5_EB*DT_P*(LP%W+W_OLD)
 
    IF (AEROSOL_SCRUBBING) CALL DROPLET_SCRUBBING(IP,NM,DT,DT_P)
+
+   IF (TWO_D) THEN
+      LP%Y = Y_OLD
+      LP%V = 0._EB
+      LP%ACCEL_Y  = 0._EB
+   ENDIF
 
    IF (PARTICLE_CFL) PART_UVWMAX = MAX(PART_UVWMAX,MAX( ABS(LP%U)*RDX(IIG_OLD),ABS(LP%V)*RDY(JJG_OLD),ABS(LP%W)*RDZ(KKG_OLD)))
 
@@ -2272,10 +2290,14 @@ ELSE PARTICLE_NON_STATIC_IF ! Drag calculation for stationary, airborne particle
          LP%ACCEL_X = -(MIN(DX(IIG_OLD),LP%DX)/DX(IIG_OLD))*(K_TERM(1)+Y_TERM(1))*UBAR*SFAC
          LP%ACCEL_Y = -(MIN(DY(JJG_OLD),LP%DY)/DY(JJG_OLD))*(K_TERM(2)+Y_TERM(2))*VBAR*SFAC
          LP%ACCEL_Z = -(MIN(DZ(KKG_OLD),LP%DZ)/DZ(KKG_OLD))*(K_TERM(3)+Y_TERM(3))*WBAR*SFAC
-         DRAG_MAX(1) = LP%ACCEL_X/(-UBAR+TWO_EPSILON_EB)
-         DRAG_MAX(2) = LP%ACCEL_Y/(-VBAR+TWO_EPSILON_EB)
-         DRAG_MAX(3) = LP%ACCEL_Z/(-WBAR+TWO_EPSILON_EB)
+         DRAG_MAX(1) = LP%ACCEL_X/(-UBAR-SIGN(1._EB,UBAR)*TWO_EPSILON_EB)
+         DRAG_MAX(2) = LP%ACCEL_Y/(-VBAR-SIGN(1._EB,VBAR)*TWO_EPSILON_EB)
+         DRAG_MAX(3) = LP%ACCEL_Z/(-WBAR-SIGN(1._EB,WBAR)*TWO_EPSILON_EB)
    END SELECT
+   IF (TWO_D) THEN
+      LP%ACCEL_Y  = 0._EB
+      DRAG_MAX(2) = 0._EB
+   ENDIF
    IF (ANY(ABS(DRAG_MAX)>PART_UVWMAX)) PART_UVWMAX = MAX(PART_UVWMAX,MAXVAL(DRAG_MAX))
 
 ENDIF PARTICLE_NON_STATIC_IF
@@ -2404,10 +2426,12 @@ REAL(EB) :: MW_RATIO !< Ratio of average gas molecular weigth to particle specie
 REAL(EB) :: RVC !< Inverse of the cell volume (1/m3)
 REAL(EB) :: WGT !< LAGRANGIAN_PARTICLE%PWT
 REAL(EB) :: Q_CON_GAS !< Convective heat transfer between the particle and the gas (J)
+REAL(EB) :: Q_CON_SUM !< Sum of convective heat transfer between the particle and the surface over subtimesteps (J)
 REAL(EB) :: Q_CON_WALL !< Convective heat transfer between the particle and a surface (J)
 REAL(EB) :: Q_DOT_RAD ! Radiant heat transfer rate to particle (J/s)
 REAL(EB) :: Q_FRAC !< Heat transfer adjustment factor when particle reaches boiling temperature during a sub time step
 REAL(EB) :: Q_RAD !< Net radiation heat transfer to the particle (J)
+REAL(EB) :: Q_RAD_SUM !< Sum of radiant heat transfer to the particle over subtimesteps (J)
 REAL(EB) :: Q_TOT !< Total heat transfer from convection and radiation to the particle (J)
 REAL(EB) :: H_HEAT !< Convection heat transfer coefficient between the particle and the gas (W/m2/K)
 REAL(EB) :: H_WALL !< Convection heat transfer coefficient between the particle and a surface (W/m2/K)
@@ -2612,6 +2636,9 @@ SPECIES_LOOP: DO Z_INDEX = 1,N_TRACKED_SPECIES
       DT_SUBSTEP = DT
       DT_SUM = 0._EB
       WGT    = LP%PWT
+      LP%M_DOT = 0._EB
+      Q_CON_SUM = 0._EB
+      Q_RAD_SUM = 0._EB
 
       Y_COND = 0._EB
 
@@ -2714,7 +2741,7 @@ SPECIES_LOOP: DO Z_INDEX = 1,N_TRACKED_SPECIES
                DELTA_H_G = H_S_B - H_S
                D_SOURCE(II,JJ,KK) = D_SOURCE(II,JJ,KK) + (MW_GAS/MW_DROP*M_VAP/M_GAS + (M_VAP*DELTA_H_G)/H_S_G_OLD) * WGT / DT
                M_DOT_PPP(II,JJ,KK,Z_INDEX) = M_DOT_PPP(II,JJ,KK,Z_INDEX) + M_VAP*RVC*WGT/DT
-               LP%M_DOT = M_VAP/DT
+               LP%M_DOT = LP%M_DOT + M_VAP/DT
 
                ! Add energy losses and gains to overall energy budget array
 
@@ -2985,8 +3012,6 @@ SPECIES_LOOP: DO Z_INDEX = 1,N_TRACKED_SPECIES
                      IF (DT_SUBSTEP <= 0.00001_EB*DT) THEN
                         DT_SUBSTEP = DT_SUBSTEP * 2.0_EB
                         WRITE(LU_ERR,'(A,I0,A,I0)') 'WARNING Y_EQ < Y_G_N. Mesh: ',NM,'Particle: ',IP
-                        !CALL SHUTDOWN('Numerical instability in particle energy transport, Y_EQUIL < Y_GAS_NEW')
-                        !RETURN
                      ELSE
                         CYCLE TIME_ITERATION_LOOP
                      ENDIF
@@ -3001,8 +3026,6 @@ SPECIES_LOOP: DO Z_INDEX = 1,N_TRACKED_SPECIES
                      IF (DT_SUBSTEP <= 0.00001_EB*DT) THEN
                         DT_SUBSTEP = DT_SUBSTEP * 2.0_EB
                         WRITE(LU_ERR,'(A,I0,A,I0)') 'WARNING Y_G_N > Y_EQ. Mesh: ',NM,'Particle: ',IP
-                        !CALL SHUTDOWN('Numerical instability in particle energy transport, Y_GAS_NEW > Y_EQUIL')
-                        !RETURN
                      ELSE
                      CYCLE TIME_ITERATION_LOOP
                      ENDIF
@@ -3056,8 +3079,6 @@ SPECIES_LOOP: DO Z_INDEX = 1,N_TRACKED_SPECIES
                   IF (DT_SUBSTEP <= 0.00001_EB*DT) THEN
                      DT_SUBSTEP = DT_SUBSTEP * 2.0_EB
                      WRITE(LU_ERR,'(A,I0,A,I0)') 'WARNING Delta TMP_G. Mesh: ',NM,' Particle: ',IP
-                     !CALL SHUTDOWN('Numerical instability in particle energy transport, TMP_G')
-                     !RETURN
                   ELSE
                      CYCLE TIME_ITERATION_LOOP
                   ENDIF
@@ -3071,8 +3092,6 @@ SPECIES_LOOP: DO Z_INDEX = 1,N_TRACKED_SPECIES
                   IF (DT_SUBSTEP <= 0.00001_EB*DT) THEN
                      DT_SUBSTEP = DT_SUBSTEP * 2.0_EB
                      WRITE(LU_ERR,'(A,I0,A,I0)') 'WARNING TMP_G_N < TMP_D_N. Mesh: ',NM,' Particle: ',IP
-                     !CALL SHUTDOWN('Numerical instability in particle energy transport, TMP_G_NEW < TMP_G')
-                     !RETURN
                   ELSE
                      CYCLE TIME_ITERATION_LOOP
                   ENDIF
@@ -3095,7 +3114,7 @@ SPECIES_LOOP: DO Z_INDEX = 1,N_TRACKED_SPECIES
                D_SOURCE(II,JJ,KK) = D_SOURCE(II,JJ,KK) + &
                                     (MW_GAS/MW_DROP*M_VAP/M_GAS + (M_VAP*DELTA_H_G - Q_CON_GAS)/H_S_G_OLD) * WGT / DT
                M_DOT_PPP(II,JJ,KK,Z_INDEX) = M_DOT_PPP(II,JJ,KK,Z_INDEX) + M_VAP*RVC*WGT/DT
-               LP%M_DOT = M_VAP/DT
+               LP%M_DOT = LP%M_DOT + M_VAP/DT
 
                ! Add stability checks
 
@@ -3123,15 +3142,10 @@ SPECIES_LOOP: DO Z_INDEX = 1,N_TRACKED_SPECIES
                LP%ONE_D%TMP_F  = TMP_DROP_NEW
                LP%MASS = M_DROP
 
-               ! Compute surface cooling
-
+               ! Sum convection and radiation for surfaces
                IF (LP%WALL_INDEX>0 .OR. LP%CFACE_INDEX>0) THEN
-                  R_DROP = LP%ONE_D%X(1)
-                  A_DROP = WGT*PI*R_DROP**2
-                  ONE_D%LP_TEMP(LPC%ARRAY_INDEX) = ONE_D%LP_TEMP(LPC%ARRAY_INDEX) + A_DROP*0.5_EB*(TMP_DROP+TMP_DROP_NEW)
-                  ONE_D%LP_CPUA(LPC%ARRAY_INDEX) = ONE_D%LP_CPUA(LPC%ARRAY_INDEX) + &
-                                                   (1._EB-LPC%RUNNING_AVERAGE_FACTOR_WALL)*WGT*Q_CON_WALL/(ONE_D%AREA*DT)
-                  ONE_D%Q_RAD_IN = (ONE_D%AREA*DT*ONE_D%Q_RAD_IN - WGT*DT*Q_DOT_RAD) / (ONE_D%AREA*DT)
+                  Q_CON_SUM = Q_CON_SUM + Q_CON_WALL
+                  Q_RAD_SUM = Q_RAD_SUM + Q_DOT_RAD*DT_SUBSTEP
                ENDIF
 
             ENDIF BOIL_ALL
@@ -3146,6 +3160,17 @@ SPECIES_LOOP: DO Z_INDEX = 1,N_TRACKED_SPECIES
          DT_SUBSTEP = MIN(DT-DT_SUM,DT_SUBSTEP * 1.5_EB)
 
       ENDDO TIME_ITERATION_LOOP
+
+      ! Compute surface cooling
+
+      IF (LP%WALL_INDEX>0 .OR. LP%CFACE_INDEX>0) THEN
+         R_DROP = LP%ONE_D%X(1)
+         A_DROP = WGT*PI*R_DROP**2
+         ONE_D%LP_TEMP(LPC%ARRAY_INDEX) = ONE_D%LP_TEMP(LPC%ARRAY_INDEX) + A_DROP*0.5_EB*(TMP_DROP+TMP_DROP_NEW)
+         ONE_D%LP_CPUA(LPC%ARRAY_INDEX) = ONE_D%LP_CPUA(LPC%ARRAY_INDEX) + &
+                                          (1._EB-LPC%RUNNING_AVERAGE_FACTOR_WALL)*WGT*Q_CON_WALL/(ONE_D%AREA*DT)
+         ONE_D%Q_RAD_IN = (ONE_D%AREA*DT*ONE_D%Q_RAD_IN - WGT*DT*Q_DOT_RAD) / (ONE_D%AREA*DT)
+      ENDIF
 
    ENDDO PARTICLE_LOOP
 
@@ -3314,6 +3339,8 @@ REAL(EB) :: XI,YJ,ZK,X_WGT,Y_WGT,Z_WGT
 INTEGER :: II,JJ,KK,I,J,K,IC,IW
 TYPE (LAGRANGIAN_PARTICLE_TYPE), POINTER :: LP
 TYPE (LAGRANGIAN_PARTICLE_CLASS_TYPE), POINTER :: LPC
+
+IF (MESHES(NM)%NLP==0) RETURN
 
 CALL POINT_TO_MESH(NM)
 

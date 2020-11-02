@@ -30,6 +30,7 @@ $QFDS -d Atmospheric_Effects MO_velocity_profile_unstable.fds
 $QFDS -d Complex_Geometry geom_extruded_poly.fds
 $QFDS -d Complex_Geometry geom_intersection.fds
 $QFDS -d Complex_Geometry geom_bad_inverted_normals.fds
+$QFDS -p 4 -d Complex_Geometry geom_particle_cascade_2.fds
 $QFDS -d Complex_Geometry geom_simple.fds
 #$QFDS -d Complex_Geometry geom_azim.fds
 #$QFDS -d Complex_Geometry geom_elev.fds
@@ -55,7 +56,6 @@ $QFDS -d Complex_Geometry geom_texture3a.fds
 $QFDS -d Complex_Geometry geom_texture3b.fds
 $QFDS -d Complex_Geometry geom_texture4a.fds
 $QFDS -d Complex_Geometry geom_texture4b.fds
-$QFDS -d Complex_Geometry geom_arch.fds
 $QFDS -d Complex_Geometry sphere_helium_1mesh.fds
 $QFDS -p 3 -d Complex_Geometry sphere_helium_3meshes.fds
 $QFDS -p 3 -d Complex_Geometry sphere_helium_conserve_3meshes.fds
@@ -119,9 +119,9 @@ $QFDS -d Complex_Geometry rotated_cube_0deg_128_obs.fds
 $QFDS -d Complex_Geometry rotated_cube_0deg_256_exp.fds
 $QFDS -d Complex_Geometry rotated_cube_0deg_256_imp.fds
 $QFDS -d Complex_Geometry rotated_cube_0deg_256_obs.fds
-$QFDS -o 4 -d Complex_Geometry rotated_cube_0deg_384_exp.fds
-$QFDS -o 4 -d Complex_Geometry rotated_cube_0deg_384_imp.fds
-$QFDS -o 4 -d Complex_Geometry rotated_cube_0deg_384_obs.fds
+$QFDS -o 2 -d Complex_Geometry rotated_cube_0deg_384_exp.fds
+$QFDS -o 2 -d Complex_Geometry rotated_cube_0deg_384_imp.fds
+$QFDS -o 2 -d Complex_Geometry rotated_cube_0deg_384_obs.fds
 $QFDS -d Complex_Geometry rotated_cube_27deg_32_exp.fds
 $QFDS -d Complex_Geometry rotated_cube_27deg_32_imp.fds
 $QFDS -d Complex_Geometry rotated_cube_27deg_64_exp.fds
@@ -130,8 +130,8 @@ $QFDS -d Complex_Geometry rotated_cube_27deg_128_exp.fds
 $QFDS -d Complex_Geometry rotated_cube_27deg_128_imp.fds
 $QFDS -d Complex_Geometry rotated_cube_27deg_256_exp.fds
 $QFDS -d Complex_Geometry rotated_cube_27deg_256_imp.fds
-$QFDS -o 4 -d Complex_Geometry rotated_cube_27deg_384_exp.fds
-$QFDS -o 4 -d Complex_Geometry rotated_cube_27deg_384_imp.fds
+$QFDS -o 2 -d Complex_Geometry rotated_cube_27deg_384_exp.fds
+$QFDS -o 2 -d Complex_Geometry rotated_cube_27deg_384_imp.fds
 $QFDS -d Complex_Geometry rotated_cube_45deg_32_exp.fds
 $QFDS -d Complex_Geometry rotated_cube_45deg_32_imp.fds
 $QFDS -d Complex_Geometry rotated_cube_45deg_64_exp.fds
@@ -140,8 +140,8 @@ $QFDS -d Complex_Geometry rotated_cube_45deg_128_exp.fds
 $QFDS -d Complex_Geometry rotated_cube_45deg_128_imp.fds
 $QFDS -d Complex_Geometry rotated_cube_45deg_256_exp.fds
 $QFDS -d Complex_Geometry rotated_cube_45deg_256_imp.fds
-$QFDS -o 4 -d Complex_Geometry rotated_cube_45deg_384_exp.fds
-$QFDS -o 4 -d Complex_Geometry rotated_cube_45deg_384_imp.fds
+$QFDS -o 2 -d Complex_Geometry rotated_cube_45deg_384_exp.fds
+$QFDS -o 2 -d Complex_Geometry rotated_cube_45deg_384_imp.fds
 
 $QFDS -d Complex_Geometry cone_1mesh.fds
 $QFDS -d Complex_Geometry geom_mass_file_test.fds
@@ -167,8 +167,9 @@ $QFDS -d Energy_Budget energy_budget_adiabatic_two_fuels.fds
 $QFDS -d Energy_Budget energy_budget_cold_walls.fds
 $QFDS -d Energy_Budget energy_budget_combustion.fds
 $QFDS -d Energy_Budget energy_budget_dns_100.fds
-$QFDS -d Energy_Budget energy_budget_tmix.fds
+$QFDS -d Energy_Budget energy_budget_particles.fds
 $QFDS -d Energy_Budget energy_budget_solid.fds
+$QFDS -d Energy_Budget energy_budget_tmix.fds
 
 #$QFDS -d Evacuation evac_smv_testcase0.fds
 #$QFDS -d Evacuation evac_smv_testcase2.fds
@@ -287,6 +288,7 @@ $QFDS -d Heat_Transfer ht3d_sphere_51.fds
 $QFDS -p 8 -d Heat_Transfer ht3d_sphere_102.fds
 $QFDS -d Heat_Transfer ht3d_vs_ht1d.fds
 $QFDS -p 4 -d Heat_Transfer back_wall_test.fds
+$QFDS -p 3 -d Heat_Transfer back_wall_test_2.fds
 $QFDS -d Heat_Transfer ht3d_radiation_kappa100_n10.fds
 $QFDS -d Heat_Transfer ht3d_radiation_kappa100_n20.fds
 $QFDS -d Heat_Transfer ht3d_radiation_kappa100_n40.fds
@@ -454,7 +456,9 @@ $QFDS -d Pyrolysis pyro3d_wood_char.fds
 $QFDS -d Pyrolysis pyro3d_vs_pyro1d.fds
 $QFDS -d Pyrolysis pyro3d_vs_pyro1d_wood_moist.fds
 $QFDS -d Pyrolysis pyro3d_transport.fds
-
+$QFDS -d Pyrolysis solid_particle_decomposition_1.fds
+$QFDS -d Pyrolysis solid_particle_decomposition_2.fds
+$QFDS -d Pyrolysis solid_particle_decomposition_3.fds
 
 $QFDS -d Radiation adiabatic_surface_temperature.fds
 $QFDS -d Radiation droplet_absorption_cart.fds
@@ -530,9 +534,12 @@ $QFDS -d Radiation TC_heating.fds
 $QFDS -d Radiation TC_view_factor.fds
 $QFDS -d Radiation wall_internal_radiation.fds
 
+$QFDS -d Restart restart_test1a.fds
+
 $QFDS -d Species burke_schumann.fds
 $QFDS -d Species FED_FIC.fds
 $QFDS -d Species FED_FIC_SMIX.fds
+$QFDS -d Species FED_CO_HCN.fds
 $QFDS -d Species methane_flame_simple.fds
 $QFDS -d Species methane_flame_simple_2.fds
 $QFDS -d Species methane_flame_primitive.fds
