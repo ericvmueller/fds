@@ -263,7 +263,7 @@ TYPE LAGRANGIAN_PARTICLE_TYPE
    REAL(EB), POINTER :: DZ                  !< Length scale used in POROUS_DRAG calculation (m)
    REAL(EB), POINTER :: M_DOT               !< Particle mass evaporation rate (kg/s)
    REAL(EB), POINTER :: HTC_LIMIT           !< Limiter for the heat transfer coefficient (W/m2/K)
-   REAL(EB), POINTER :: DA                  !< firebrand disk surface area (m2)
+   REAL(EB), POINTER :: ZI                  !< Storage of firebrand injection height for post analysis
 
    INTEGER, POINTER :: TAG                  !< Unique integer identifier for the particle
    INTEGER, POINTER :: ARRAY_INDEX          !< Index in the array of evaporating particles
