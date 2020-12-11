@@ -603,7 +603,7 @@ PARTICLE_INSERT_LOOP2: DO I=1,SF%NPPC
             IF (IOR== 3) THEN
                IF (FBRAND) THEN
                   CALL RANDOM_NUMBER(RN3)
-                  LP%Z = 0.001_EB+4.999_EB*REAL(RN3,EB)
+                  LP%Z = 0.001_EB+0.999_EB*REAL(RN3,EB)
                   LP%ZI = LP%Z
                ELSE
                   LP%Z = Z(KK)   + VENT_OFFSET*DZ(KK+1)
@@ -637,6 +637,7 @@ PARTICLE_INSERT_LOOP2: DO I=1,SF%NPPC
                LP%V = SF%VEL_T(2)
                LP%W = -ONE_D%U_NORMAL
                IF (FBRAND) THEN
+                  CALL GET_IJK(LP%X,LP%Y,LP%Z,NM,XI,YJ,ZK,IIG,JJG,KKG)
                   IIX  = FLOOR(XI+.5_EB)
                   JJY  = FLOOR(YJ+.5_EB)
                   KKZ  = FLOOR(ZK+.5_EB)
@@ -648,7 +649,7 @@ PARTICLE_INSERT_LOOP2: DO I=1,SF%NPPC
                   LP%W = AFILL2(W,IIX,JJY,KKG-1,X_WGT,Y_WGT,(LP%Z-Z(KKG-1))*RDZ(KKG))
                   ! Random noise to prevent infinite drag (RE=0)
                   CALL RANDOM_NUMBER(RN)
-                  LP%W = LP%W*(1+(0.1_EB*RN-0.05_EB))
+                  LP%W = LP%W*(1+(0.1_EB*REAL(RN,EB)-0.05_EB))
                ENDIF
             CASE(-3)
                LP%U = SF%VEL_T(1)
@@ -1142,11 +1143,11 @@ IF (LPC%SOLID_PARTICLE) THEN
 
    IF (LPC%SURF_INDEX==TGA_SURF_INDEX) TGA_PARTICLE_INDEX = NLP
 
-   !disk radius for firebrand particles
    IF(FBRAND) THEN
       CALL RANDOM_NUMBER(RN)
-      !inverse of modified exponential CDF for ember area
-      ONE_D%AREA=(-LOG((1-RN)/8.25_EB)/54._EB)**3.64_EB
+      ! inverse of modified exponential CDF for ember area
+      ! note this variable is total surface area, so adjust accordingly elsewhere
+      ONE_D%AREA=2._EB*(-LOG((1-REAL(RN,EB))/1.97_EB)/662._EB)**1.686_EB
    ENDIF
 
    LP%MASS = 0._EB
@@ -1241,7 +1242,7 @@ IF (LPC%SOLID_PARTICLE) THEN
             ONE_D%LAYER_THICKNESS(:) = ONE_D%LAYER_THICKNESS(:)*SCALE_FACTOR
          ELSEIF (FBRAND) THEN
             CALL RANDOM_NUMBER(RN)
-            SCALE_FACTOR = ((-LOG(1-RN)/1.92E7_EB)**0.4_EB)/SF%THICKNESS
+            SCALE_FACTOR = ((-LOG(1-REAL(RN,EB))/1.92E7_EB)**0.4_EB)/SF%THICKNESS/2._EB
             ONE_D%X(:) = ONE_D%X(:)*SCALE_FACTOR
             ONE_D%LAYER_THICKNESS(:) = ONE_D%LAYER_THICKNESS(:)*SCALE_FACTOR
          ELSE
@@ -1253,7 +1254,7 @@ IF (LPC%SOLID_PARTICLE) THEN
                CASE (SURF_CARTESIAN)
                   DO N=1,SF%N_LAYERS
                      !LP%MASS = LP%MASS + 2._EB*SF%LENGTH*SF%WIDTH*SF%LAYER_THICKNESS(N)*SCALE_FACTOR*SF%LAYER_DENSITY(N)
-                     LP%MASS = LP%MASS + 2._EB*ONE_D%AREA*SF%LAYER_THICKNESS(N)*SCALE_FACTOR*SF%LAYER_DENSITY(N)
+                     LP%MASS = LP%MASS + ONE_D%AREA*ONE_D%LAYER_THICKNESS(N)*SF%LAYER_DENSITY(N)
                   ENDDO
                CASE (SURF_CYLINDRICAL)
                   X1 = SUM(SF%LAYER_THICKNESS)*SCALE_FACTOR
@@ -2092,7 +2093,7 @@ DRAG_LAW_SELECT: SELECT CASE (LPC%DRAG_LAW)
       LP%RE  = RHO_G*QREL*2._EB*R_D/MU_AIR
       IF (SF%GEOMETRY==SURF_CARTESIAN) THEN
          !D_HY = 4*SF%LENGTH*SF%WIDTH/(2*(SF%LENGTH+SF%WIDTH))
-         D_HY  = SQRT(LP%ONE_D%AREA)
+         D_HY  = SQRT(LP%ONE_D%AREA/2._EB)
          LP%RE = RHO_G*QREL*D_HY/MU_AIR
       ENDIF   
       C_DRAG = DRAG(LP%RE,LPC%DRAG_LAW)
@@ -2175,7 +2176,7 @@ IF (LPC%DRAG_LAW/=SCREEN_DRAG .AND. LPC%DRAG_LAW/=POROUS_DRAG) THEN
          CASE(SURF_CARTESIAN)           
             A_DRAG = 2._EB*SF%LENGTH*SF%WIDTH*LPC%SHAPE_FACTOR
             IF (FBRAND) THEN
-               A_DRAG = LP%ONE_D%AREA
+               A_DRAG = LP%ONE_D%AREA/2._EB
             ENDIF
          CASE(SURF_CYLINDRICAL)
             A_DRAG = 2._EB*PI*R_D*SF%LENGTH*LPC%SHAPE_FACTOR
@@ -3426,8 +3427,8 @@ PARTICLE_LOOP: DO IP=1,NLP
       IF (LPC%SOLID_PARTICLE .AND. SF%THERMAL_BC_INDEX==THERMALLY_THICK .AND. LP%ONE_D%BURNAWAY) THEN
          ! Write final location if particle is a firebrand
          IF (FBRAND) THEN
-            WRITE(LU_FBRAND(NM),'(8(F10.2,A),E10.2)') T,',',(T-LP%T_INSERT),',',LP%X,',',LP%Y,',',LP%Z,',',LP%ZI,',', &
-               2.E6*SUM(LP%ONE_D%LAYER_THICKNESS),',',2.E6*LP%MASS,',',LP%ONE_D%AREA
+            WRITE(LU_FBRAND(NM),'(6(F10.2,A),2(F10.3,A),E10.3)') T,',',(T-LP%T_INSERT),',',LP%X,',',LP%Y,',',LP%Z,',',LP%ZI,',', &
+               2.E6*SUM(LP%ONE_D%LAYER_THICKNESS),',',1.E6*LP%MASS,',',LP%ONE_D%AREA/2._EB
          ENDIF
          CALL PARTICLE_ORPHANAGE
          CYCLE WEED_LOOP
