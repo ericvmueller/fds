@@ -603,7 +603,7 @@ PARTICLE_INSERT_LOOP2: DO I=1,SF%NPPC
             IF (IOR== 3) THEN
                IF (FBRAND) THEN
                   CALL RANDOM_NUMBER(RN3)
-                  LP%Z = 0.001_EB+0.999_EB*REAL(RN3,EB)
+                  LP%Z = 0.001_EB+4.999_EB*REAL(RN3,EB)
                   LP%ZI = LP%Z
                ELSE
                   LP%Z = Z(KK)   + VENT_OFFSET*DZ(KK+1)
