@@ -67,7 +67,7 @@ MODULE EVAC
   USE DEVICE_VARIABLES
   USE CONTROL_VARIABLES
 
-  IMPLICIT NONE
+  IMPLICIT NONE (TYPE,EXTERNAL)
   PRIVATE
 
   ! Public subprograms (called from the main program or read or dump)
@@ -480,7 +480,6 @@ CONTAINS
   !
   SUBROUTINE READ_EVAC(IMODE)
     USE OUTPUT_DATA, ONLY: COLOR2RGB
-    IMPLICIT NONE
     !
     ! IMODE = 1:
     ! Read some evacuation input from the main evacuation meshes:
@@ -634,7 +633,7 @@ CONTAINS
     !
     IF_IMODE_1: IF (IMODE == 1) THEN
        N_DOOR_MESHES = 0
-       IF (NO_EVACUATION) THEN
+       IF (.NOT.DO_EVACUATION) THEN
           N_EVAC = 0
           RETURN ! skip evacuation calculation
        END IF
@@ -993,13 +992,13 @@ CONTAINS
     END IF IF_IMODE_1
 
     ! Lines below are only for imode=2, i.e., after the READ_MESH in read.f90.
-    IF (.NOT. ANY(EVACUATION_ONLY)) THEN
+    IF (.NOT. DO_EVACUATION) THEN
        N_EVAC = 0
        IF (EVACUATION_WRITE_FED) THEN
           I_EVAC = 16*1 + 8*0 + 4*0 + 2*1 + 1*0  ! I_EVAC=16+2 => do only fire calculation, save fed info
        END IF
        IF (MY_RANK==MAX(0,EVAC_PROCESS)) THEN
-          IF (ANY(EVACUATION_ONLY)) THEN
+          IF (DO_EVACUATION) THEN
              WRITE(MESSAGE,'(A,A,A)') 'ERROR: No main evacuation meshes defined.'
              CALL SHUTDOWN(MESSAGE,PROCESS_0_ONLY=.FALSE.) ; RETURN
           END IF
@@ -1036,7 +1035,7 @@ CONTAINS
     ! These are just initialization. Later it is checked if files exists.
     ! If EFF/FED file does not exists, then it is calculated (and saved).
     I_EVAC = 16*0 + 8*0 + 4*0 + 2*0 + 1*0 ! do not save soot,fed files
-    IF (.NOT. ALL(EVACUATION_ONLY) ) THEN
+    IF (.NOT.DO_EVACUATION) THEN
        ! Note: If EVACUATION_DRILL=true there are no fire meshes
        ! Note: If NO_EVACUATION=true there are no evacuation meshes
        ! There are fire grids ==> save fed and evac flow fields
@@ -1056,7 +1055,7 @@ CONTAINS
           WRITE(MESSAGE, '(A,A)') ' ERROR: Evacuation only and pressure solver is: ',TRIM(PRES_METHOD)
           CALL SHUTDOWN(MESSAGE,PROCESS_0_ONLY=.FALSE.) ; RETURN
        END IF
-       IF (EVACUATION_MC_MODE) THEN 
+       IF (EVACUATION_MC_MODE) THEN
           ! New fire+evacuation strategy: Phase 3 (read in eff,fed files)
           ! 3) EVACUATION_INITIALIZATION=F, EVACUATION_MC_MODE=T
           !    => read (eff) and FED files, just evacuation meshes are used.
@@ -1122,7 +1121,6 @@ CONTAINS
   CONTAINS
 
     SUBROUTINE COUNT_EVAC_NODES(IMODE)
-      IMPLICIT NONE
       !
       ! Passed variables
       INTEGER, INTENT(IN) :: IMODE
@@ -1494,7 +1492,6 @@ CONTAINS
     END SUBROUTINE COUNT_EVAC_NODES
 
     SUBROUTINE READ_PERS
-      IMPLICIT NONE
       !
       ! Local variables
       TYPE (EVAC_PERS_TYPE), POINTER :: PCP=>NULL()
@@ -2251,7 +2248,6 @@ CONTAINS
     END SUBROUTINE READ_PERS
 
     SUBROUTINE READ_EXIT
-      IMPLICIT NONE
       !
       ! Read the EXIT lines
       !
@@ -2696,7 +2692,6 @@ CONTAINS
     END SUBROUTINE READ_EXIT
 
     SUBROUTINE READ_DOOR
-      IMPLICIT NONE
       !
       ! Read the DOOR lines
       !
@@ -3144,7 +3139,6 @@ CONTAINS
     END SUBROUTINE READ_DOOR
 
     SUBROUTINE READ_CORR
-      IMPLICIT NONE
       !
       ! Local variables
       TYPE (EVAC_CORR_TYPE), POINTER :: PCX=>NULL()
@@ -3409,7 +3403,6 @@ CONTAINS
     END SUBROUTINE READ_CORR
 
     SUBROUTINE READ_STRS
-      IMPLICIT NONE
       !
       ! Local variables
       REAL(EB) Z_TMP
@@ -3639,7 +3632,6 @@ CONTAINS
 
     LOGICAL FUNCTION Is_Within_Bounds(P1x1,P1x2,P1y1,P1y2,P1z1,P1z2,&
          P2x1,P2x2,P2y1,P2y2,P2z1,P2z2,xtol,ytol,ztol)
-      IMPLICIT NONE
       !
       REAL(EB), INTENT(IN) :: P1x1,P1x2,P1y1,P1y2,P1z1,P1z2
       REAL(EB), INTENT(IN) :: P2x1,P2x2,P2y1,P2y2,P2z1,P2z2,xtol,ytol,ztol
@@ -3652,7 +3644,6 @@ CONTAINS
     END FUNCTION Is_Within_Bounds
 
     SUBROUTINE COLLECT_NODE_INFO
-      IMPLICIT NONE
       !
       ! Now exits, doors, corrs and strs are already read in
       IF (N_NODES > 0 .AND. MY_RANK==MAX(0,EVAC_PROCESS)) THEN
@@ -3740,7 +3731,6 @@ CONTAINS
     END SUBROUTINE COLLECT_NODE_INFO
 
     SUBROUTINE READ_ENTRIES
-      IMPLICIT NONE
       !
       ! Read the ENTR lines
       !
@@ -3791,7 +3781,7 @@ CONTAINS
          END IF
          READ(LU_INPUT,ENTR,END=28,IOSTAT=IOS)
          !
-         IF (.NOT.ALL(EVACUATION_ONLY)) THEN
+         IF (.NOT.DO_EVACUATION) THEN
             MAX_HUMANS         = 0
             MAX_FLOW           = 0.0_EB
             MAX_HUMANS_RAMP    = 'null'
@@ -4184,7 +4174,6 @@ CONTAINS
     END SUBROUTINE READ_ENTRIES
 
     SUBROUTINE READ_EVAC_LINES
-      IMPLICIT NONE
       !
       ! Read the EVAC lines
       !
@@ -4248,7 +4237,7 @@ CONTAINS
             EXIT READ_EVAC_LOOP
          END IF
          READ(LU_INPUT,EVAC,END=25,IOSTAT=IOS)
-         IF (.NOT.ALL(EVACUATION_ONLY)) THEN
+         IF (.NOT.DO_EVACUATION) THEN
             NUMBER_INITIAL_PERSONS   = 0
             EVACFILE                 = .FALSE.
             GUARD_MEN_IN  = 0
@@ -4574,7 +4563,6 @@ CONTAINS
     END SUBROUTINE READ_EVAC_LINES
 
     SUBROUTINE READ_EDEV
-      IMPLICIT NONE
       !
       ! Read the EDEV lines
       !
@@ -4675,7 +4663,6 @@ CONTAINS
     END SUBROUTINE READ_EDEV
 
     SUBROUTINE READ_EVHO
-      IMPLICIT NONE
       !
       ! Read the EVHO lines
       !
@@ -4772,7 +4759,6 @@ CONTAINS
     END SUBROUTINE READ_EVHO
 
     SUBROUTINE READ_EVSS
-      IMPLICIT NONE
       !
       ! Read the EVSS lines
       !
@@ -5049,7 +5035,6 @@ CONTAINS
     END SUBROUTINE READ_EVSS
 
     SUBROUTINE CHECK_EVAC_NODES
-      IMPLICIT NONE
       !
       ! Local variables
       REAL(EB) xtol,ytol
@@ -5247,7 +5232,6 @@ CONTAINS
   END SUBROUTINE READ_EVAC
 
   SUBROUTINE INITIALIZE_EVAC_DUMPS(Tin,T_SAVE)
-    IMPLICIT NONE
     !
     ! Passed variables
     REAL(EB), INTENT(IN) :: Tin
@@ -5288,7 +5272,7 @@ CONTAINS
     !      New Format, version 2.2.2: n=-2 ==> no fed info for exits and doors
     ! LU_EVACXYZ: CHID_evac.xyz, evac-mesh xyz + door/exit/corr xyz (z: EVSS shifts included) for FED and soot, binary?
 
-    IF (.NOT.ANY(EVACUATION_ONLY)) THEN
+    IF (.NOT.DO_EVACUATION) THEN
        ! Only fire meshes (e.g. phase 2 of the new evacuation scheme)
        IF (EVACUATION_WRITE_FED) THEN
           LU_EVACXYZ = GET_FILE_NUMBER()
@@ -5320,6 +5304,10 @@ CONTAINS
           N_EGRIDS = n_egrids_tmp
           ! ntmp2 = 4
           N_CORRS = ntmp3
+          IF (N_CORRS > 0 ) THEN
+             ALLOCATE(EVAC_CORRS(N_CORRS),STAT=IZERO)
+             CALL ChkMemErr('INITIALIZE_EVAC_DUMPS','EVAC_CORRS',IZERO)
+          END IF
           ! ntmp4 = 8, ntmp5 = 0, ntmp6 = 4
           READ  (LU_EVACXYZ) ntmp1
           N_DEVC_EVAC = ntmp1
@@ -5351,7 +5339,7 @@ CONTAINS
           ! of the HUMAN_GRID%objects
           ALLOCATE(HUMAN_GRID_FED(N_EGRIDS), STAT=IZERO)
           CALL ChkMemErr('INIT_EVACUATION','HUMAN_GRID_FED',IZERO)
-          
+
           ! Mesh loop, now n_egrids
           FEDXYZ_NM_LOOP: DO NM = 1, N_EGRIDS
              ! N_TMP = 4  New format (version 1.11)
@@ -5440,7 +5428,7 @@ CONTAINS
              EVAC_CORRS(I)%RADFLUX(2) = 0.0_EB
 
           END DO CORR_LOOP_READ_XYZ
-          
+
        ENDIF
        RETURN
     ENDIF
@@ -6236,7 +6224,6 @@ CONTAINS
 
 !
   SUBROUTINE INITIALIZE_EVACUATION(NM)
-    IMPLICIT NONE
     !
     ! Insert humans into the domain at the start of calculation
     !
@@ -6900,7 +6887,6 @@ CONTAINS
 
   !
   SUBROUTINE INIT_EVAC_GROUPS
-    IMPLICIT NONE
     !
     ! Initialize group lists, known doors, etc
     !
@@ -6915,7 +6901,7 @@ CONTAINS
     TYPE (EVAC_SSTAND_TYPE), POINTER :: ESS=>NULL()
     TYPE (HUMAN_TYPE), POINTER :: HR=>NULL()
     !
-    IF (.NOT.ANY(EVACUATION_ONLY)) RETURN
+    IF (.NOT.DO_EVACUATION) RETURN
     IF (STOP_STATUS > 0) RETURN
 
     TNOW=CURRENT_TIME()
@@ -7092,7 +7078,7 @@ CONTAINS
 
     WRITE (LU_EVACOUT,FMT='(/A)') ' EVAC: Initial positions of the agents'
     WRITE (LU_EVACOUT,FMT='(A,A)') ' Agent      X       Y       Z    Tpre    Tdet  ', &
-         ' Dia    V0   Tau   I_gr I_ff'
+         ' Dia    V0   Tau   I_gr I_ff COLOR_INDEX'
 
     ! Initialize the GROUP_I_FFIELDS
     I_EGRID = 0
@@ -7145,7 +7131,6 @@ CONTAINS
   END SUBROUTINE INIT_EVAC_GROUPS
 !
   SUBROUTINE EVAC_MESH_EXCHANGE(T,T_SAVE,I_MODE, ICYC, EXCHANGE_EVACUATION, MODE)
-    IMPLICIT NONE
     !
     ! Passed variables
     REAL(EB), INTENT(IN) :: T
@@ -7169,7 +7154,7 @@ CONTAINS
 
     EXCHANGE_EVACUATION=.FALSE.
     !
-    IF (.NOT. ANY(EVACUATION_ONLY).AND. .NOT.EVACUATION_WRITE_FED) RETURN
+    IF (.NOT.DO_EVACUATION .AND. .NOT.EVACUATION_WRITE_FED) RETURN
     IF (ICYC < 1) RETURN
     !
     ! I_MODE: 'binary' index:
@@ -7255,7 +7240,7 @@ CONTAINS
           T_SAVE = T_TMP + DT_TMP ! Next time point in the file
        END IF
 
-       IF (EVACUATION_WRITE_FED .AND. .NOT.ALL(EVACUATION_ONLY)) THEN
+       IF (EVACUATION_WRITE_FED .AND. .NOT.DO_EVACUATION) THEN
           ! New fire+evacuation strategy: only fire meshes, write fed data to the disk
           IF (L_FED_SAVE) THEN
              MESH_LOOP_FEDXYZ: DO NM=1,N_EGRIDS
@@ -7397,7 +7382,7 @@ CONTAINS
              ELSEIF (ICYC==1) THEN ! Write CHID_evac.xyz file
                 WRITE (LU_EVACXYZ) &
                      REAL(EVAC_CORRS(I)%X1,FB),REAL(EVAC_CORRS(I)%Y1,FB),REAL(EVAC_CORRS(I)%Z1,FB), &
-                     REAL(EVAC_CORRS(I)%X2,FB),REAL(EVAC_CORRS(I)%Y2,FB),REAL(EVAC_CORRS(I)%Z2,FB)  
+                     REAL(EVAC_CORRS(I)%X2,FB),REAL(EVAC_CORRS(I)%Y2,FB),REAL(EVAC_CORRS(I)%Z2,FB)
              END IF
           ELSE                    ! Read FED from a file
              ! Read FED, SOOT, TEMP(C), and RADFLUX
@@ -7521,7 +7506,6 @@ CONTAINS
   END SUBROUTINE EVAC_MESH_EXCHANGE
 !
   SUBROUTINE PREPARE_TO_EVACUATE(ICYC)
-    IMPLICIT NONE
     !
     ! Do the mesh independent initializations for the subroutine EVACUATE_HUMANS.
     !
@@ -7536,7 +7520,7 @@ CONTAINS
     !
     TYPE (MESH_TYPE), POINTER :: MFF=>NULL()
 
-    IF (.NOT.ANY(EVACUATION_ONLY)) RETURN
+    IF (.NOT.DO_EVACUATION) RETURN
 
     L_EFF_READ = BTEST(I_EVAC,2)
     L_EFF_SAVE = BTEST(I_EVAC,0)
@@ -7585,7 +7569,6 @@ CONTAINS
   END SUBROUTINE PREPARE_TO_EVACUATE
 !
   SUBROUTINE CLEAN_AFTER_EVACUATE(ICYC,I_MODE)
-    IMPLICIT NONE
     !
     ! Do the mesh independent clean up for the subroutine EVACUATE_HUMANS.
     !
@@ -7595,7 +7578,7 @@ CONTAINS
     ! Local variables
     !
     INTRINSIC :: BTEST
-    IF (.NOT.ANY(EVACUATION_ONLY)) RETURN
+    IF (.NOT.DO_EVACUATION) RETURN
     IF (ICYC < 1) RETURN
     ! Check if FED is used
     IF (BTEST(I_MODE,3) .OR. BTEST(I_MODE,1)) EVAC_DEVICES(:)%USE_NOW = .FALSE.
@@ -7603,7 +7586,6 @@ CONTAINS
   END SUBROUTINE CLEAN_AFTER_EVACUATE
 !
   SUBROUTINE EVACUATE_HUMANS(TIN,DT,NM,ICYC)
-    IMPLICIT NONE
     !
     ! Calculates the forces on humans and moves them.
     ! Uses a modified Velocity-Verlet algorithm.
@@ -8154,14 +8136,14 @@ CONTAINS
                             HERDING_LIST_DOORS(ABS(HRE%I_Target)) = HERDING_LIST_DOORS(ABS(HRE%I_Target)) + &
                                  W0_HERDING -((W0_HERDING-WR_HERDING)/R_HERD_HR)*P2P_DIST
                          END DO Other_Agent_Loop_2
-                         
+
                          Other_TPRE = 0.0_EB
                          Other_Agent_Loop_3: DO IE = 1, HERDING_LIST_N
                             HRE => HUMAN(HERDING_LIST_IHUMAN(IE))
                             Other_TPRE = Other_TPRE + HRE%TPRE
                          END DO Other_Agent_Loop_3
                          Other_TPRE = Other_TPRE/REAL(MAX(1,HERDING_LIST_N))
-                         
+
                          DO II = 1, N_DOORS+N_EXITS
                             IF (HERDING_LIST_DOORS(II)>0.0_EB) THEN
                                ! Make it symmetrical with respect the doors.
@@ -10580,7 +10562,6 @@ CONTAINS
 !!$      !   startX,Y
 !!$      !   targetX,Y
 !!$      !   walkability
-!!$      IMPLICIT NONE
 !!$      INTEGER, INTENT(IN) :: NM
 !!$      REAL(EB), INTENT(IN) :: XI, YJ, TARGET_X, TARGET_Y
 !!$      REAL(EB), INTENT(OUT) :: WSPA, WSPB
@@ -10997,7 +10978,6 @@ CONTAINS
 
     SUBROUTINE FIND_PREFERRED_DIRECTION(I, NOUT, T, T_BEGIN, L_DEAD, NM_STRS_MESH, &
          II, JJ, XI, YJ, UBAR, VBAR, HR_TAU, TPRE, NM, I_STRS_DOOR, HR_SPEED)
-      IMPLICIT NONE
       !
       ! Calculate the prefered walking direction
       !
@@ -11750,7 +11730,6 @@ CONTAINS
 
 
     SUBROUTINE GETSTAIRSPEEDANDZ(SPEED_XM, SPEED_XP, SPEED_YM, SPEED_YP, HP_SPEED, SP, HP)
-      IMPLICIT NONE
       !
       ! Passed variables
       REAL(EB), INTENT(OUT) :: SPEED_XM, SPEED_XP, SPEED_YM, SPEED_YP
@@ -11827,7 +11806,6 @@ CONTAINS
     END SUBROUTINE GETSTAIRSPEEDANDZ
 
     SUBROUTINE FIND_TARGET_NODE_IN_STRS(SP,HP)
-      IMPLICIT NONE
       !
       ! This subroutine sets
       !   HP%I_TARGET: the target door/exit index (now <0, not visible status is returned)
@@ -11982,7 +11960,6 @@ CONTAINS
     END SUBROUTINE FIND_TARGET_NODE_IN_STRS
 
     SUBROUTINE STRS_U_AND_V(STRP,I_NODE,X,Y,DIRECTION,UBAR,VBAR)
-      IMPLICIT NONE
       !
       ! Get preferred direction in STRS
       !
@@ -12028,7 +12005,6 @@ CONTAINS
     END SUBROUTINE STRS_U_AND_V
 
     SUBROUTINE GET_IW(IIIN,JJIN,KKIN,IOR,IW)
-      IMPLICIT NONE
       !
       ! Passed variables
       INTEGER, INTENT(IN) :: IIIN, JJIN, KKIN, IOR
@@ -12086,7 +12062,6 @@ CONTAINS
 
     !
     SUBROUTINE CHECK_EXITS(T,NM)
-      IMPLICIT NONE
       !
       ! Remove persons if they are found at an exit or just count if COUNT_ONLY=T.
       !
@@ -12260,7 +12235,6 @@ CONTAINS
     END SUBROUTINE CHECK_EXITS
     !
     SUBROUTINE CHECK_DOORS(T,NM)
-      IMPLICIT NONE
       !
       ! Replace persons if they are found at a door.
       !
@@ -12501,7 +12475,6 @@ CONTAINS
     END SUBROUTINE CHECK_DOORS
     !
     SUBROUTINE CHECK_CORRS(T,NM,DTSP)
-      IMPLICIT NONE
       !
       ! Entry persons from the corridors.
       !
@@ -12733,7 +12706,6 @@ CONTAINS
     !
     SUBROUTINE CHECK_TARGET_NODE(INODE,INODE2,ISTAT,XX,YY,ZZ,IOR_NEW,IMESH2,T,NEW_FFIELD_NAME,NEW_FFIELD_I, &
          COLOR_INDEX,I_TARGET,KEEP_XY,ANGLE,STR_INDX, STR_SUB_INDX, HR)
-      IMPLICIT NONE
       !
       ! Check, that the target node is free.
       ! If target node is DOOR/ENTRY, try to put person to the floor.
@@ -13174,7 +13146,6 @@ CONTAINS
     END SUBROUTINE Check_Target_Node
     !
     SUBROUTINE REMOVE_PERSON(I)
-      IMPLICIT NONE
       !
       ! Remove a person
       !
@@ -13189,7 +13160,6 @@ CONTAINS
     END SUBROUTINE REMOVE_PERSON
     !
     SUBROUTINE REMOVE_OUT_OF_GRIDS
-      IMPLICIT NONE
       !
       ! Remove humans that do not lie in any mesh
       !
@@ -13253,7 +13223,6 @@ CONTAINS
     END SUBROUTINE REMOVE_OUT_OF_GRIDS
     !
     SUBROUTINE ENTRY_HUMAN(I_entry, Tin, NM, istat)
-      IMPLICIT NONE
       !
       ! Insert humans into the domain every 1/Flow seconds.
       !
@@ -13495,7 +13464,6 @@ CONTAINS
     END SUBROUTINE ENTRY_HUMAN
 
     SUBROUTINE ENTRY_CROWBAR_HUMAN(I_entry, Tin, NM, istat)
-      IMPLICIT NONE
       !
       ! Insert humans into the domain if needed.
       ! Crowbar project: use camera information
@@ -13981,7 +13949,6 @@ CONTAINS
     END SUBROUTINE ENTRY_CROWBAR_HUMAN
 
     LOGICAL FUNCTION Is_XY_Within_Bounds(P1x,P1y,P2x1,P2x2,P2y1,P2y2,xtol,ytol)
-      IMPLICIT NONE
       !
       REAL(EB), INTENT(IN) :: P1x,P1y
       REAL(EB), INTENT(IN) :: P2x1,P2x2,P2y1,P2y2,xtol,ytol
@@ -13994,7 +13961,6 @@ CONTAINS
 
     SUBROUTINE Corner_Forces(x1, y1, x11, y11, p2p_dist_max, P2P_U, P2P_V, Social_F, &
          Contact_F, P2P_Torque, d_walls, x_tmp, y_tmp, r_tmp, u_tmp, v_tmp, istat, CONTACT_FX, CONTACT_FY)
-      IMPLICIT NONE
 
       ! Corner point - agent social and contact forces and torques
       !
@@ -14088,7 +14054,6 @@ CONTAINS
 
     SUBROUTINE Door_Forces(x_tmp, y_tmp, r_tmp, u_tmp, v_tmp, p2p_dist_max, d_xy,&
          P2P_U, P2P_V, Social_F, Contact_F, P2P_Torque, FoundWall_xy, CONTACT_FX, CONTACT_FY)
-      IMPLICIT NONE
       !
       ! This routine adds forces from the door posts. (VENTs with VEL>0)
       !
@@ -14186,7 +14151,6 @@ CONTAINS
     END SUBROUTINE Door_Forces
 
     SUBROUTINE Wall_SocialForces(x_tmp, y_tmp, r_tmp, p2p_dist_max, d_xy, P2P_U, P2P_V, Social_F, FoundWall_xy)
-      IMPLICIT NONE
       !
       ! wall - agent social forces
       !
@@ -14292,7 +14256,6 @@ CONTAINS
 
     SUBROUTINE Wall_ContactForces(x_tmp, y_tmp, r_tmp, u_tmp, v_tmp, d_xy,&
          P2P_U, P2P_V, P2P_Torque, Contact_F, d_walls, FoundWall_xy, CONTACT_FX, CONTACT_FY)
-      IMPLICIT NONE
       !
       ! wall - agent contact forces
       !
@@ -14463,7 +14426,6 @@ CONTAINS
 ! ============================================================
 !
   SUBROUTINE CLASS_PROPERTIES(HR,PCP,IEL)
-    IMPLICIT NONE
     !
     ! Passed variables
     INTEGER :: IEL  ! >0: EVAC line index, <0: ENTR line index=Abs(iel)
@@ -14611,7 +14573,7 @@ CONTAINS
        CALL SHUTDOWN('ERROR: Class_Properties I_VEL_DIST',PROCESS_0_ONLY=.FALSE.) ; RETURN
     END SELECT
     HR%Speed = Max(HR%Speed, 0.0_EB)
-    
+
     SELECT CASE(PCP%I_DIA_DIST)
     CASE(-1)
        CALL SHUTDOWN('ERROR: Class_Properties: -1',PROCESS_0_ONLY=.FALSE.) ; RETURN
@@ -15006,7 +14968,6 @@ CONTAINS
   END SUBROUTINE CLASS_PROPERTIES
 
   SUBROUTINE TPRE_GENERATION(i_pre_dist,Tpre_low,Tpre_high,Tpre_mean,Tpre_para,Tpre_para2,TPRE_OUT)
-    IMPLICIT NONE
     !
     ! Passed variables
     INTEGER, INTENT(IN) :: i_pre_dist
@@ -15123,7 +15084,6 @@ CONTAINS
   END SUBROUTINE TPRE_GENERATION
 !
   SUBROUTINE RE_ALLOCATE_HUMANS(CODE,NM)
-    IMPLICIT NONE
     !
     ! Passed variables
     INTEGER, INTENT(IN) :: CODE,NM
@@ -15133,7 +15093,7 @@ CONTAINS
     TYPE (HUMAN_TYPE), ALLOCATABLE, DIMENSION(:) :: DUMMY
     TYPE (MESH_TYPE), POINTER :: M =>NULL()
     !
-    IF (.NOT.ANY(EVACUATION_ONLY)) RETURN
+    IF (.NOT.DO_EVACUATION) RETURN
     IF (.NOT.EVACUATION_ONLY(NM)) RETURN
 
     SELECT CASE(CODE)
@@ -15156,7 +15116,6 @@ CONTAINS
   END SUBROUTINE RE_ALLOCATE_HUMANS
 !
   SUBROUTINE DUMP_EVAC(T,NM)
-    IMPLICIT NONE
     !
     ! Passed variables
     INTEGER, INTENT(IN) :: NM
@@ -15173,7 +15132,7 @@ CONTAINS
     TYPE (HUMAN_TYPE), POINTER :: HR =>NULL()
     INTEGER, PARAMETER :: PART_BOUNDFILE_VERSION=1
     !
-    IF (.NOT.ANY(EVACUATION_ONLY)) RETURN
+    IF (.NOT.DO_EVACUATION) RETURN
     IF (.NOT.(EVACUATION_ONLY(NM) .AND. EMESH_INDEX(NM)>0)) RETURN
     TNOW=CURRENT_TIME()
     !
@@ -15256,7 +15215,7 @@ CONTAINS
           AP(NPP,3) =   2.0_FB*REAL(HR%r_torso,FB) ! diameter
           ! Height of a human scaled by radius, default male 1.80 m
           AP(NPP,4) =  1.80_FB*REAL(HR%Radius/0.27_EB,FB)
-          
+
           IF (CROWBAR_DUMP) THEN
              EVEL = SQRT(HR%U_CB**2 + HR%V_CB**2)
              IF (EVEL >= TWO_EPSILON_EB) THEN
@@ -15370,7 +15329,6 @@ CONTAINS
   END SUBROUTINE DUMP_EVAC
 !
   FUNCTION GaussRand( gmean, gtheta, gcutmult )
-    IMPLICIT NONE
     !
     ! Random numbers from the Gaussian distribution
     !
@@ -15431,7 +15389,6 @@ CONTAINS
   END FUNCTION GaussRand
 !
   FUNCTION GaussTrun( gmean, gsigma, glow, ghigh )
-    IMPLICIT NONE
     !
     ! Random numbers from the Gaussian distribution
     !
@@ -15492,7 +15449,6 @@ CONTAINS
   END FUNCTION GaussTrun
 !
   SUBROUTINE DUMP_EVAC_CSV(Tin)
-    IMPLICIT NONE
     !
     ! Dump agent data to CHID_evac.csv
     ! This subroutine is called from the main program.
@@ -15505,7 +15461,7 @@ CONTAINS
     INTEGER n_cols, n_tot_humans, i, ii, izero, ii_ntargets, ii_density
     REAL(FB), ALLOCATABLE, DIMENSION(:) :: ITEMP
     !
-    IF (.NOT.ANY(EVACUATION_ONLY)) RETURN
+    IF (.NOT.DO_EVACUATION) RETURN
     !
     ALLOCATE(ITEMP(MAX(1,N_EXITS+N_DOORS)), STAT = IZERO)
     CALL ChkMemErr('DUMP_EVAC_CSV','ITEMP', IZERO)
@@ -15854,7 +15810,6 @@ CONTAINS
   END FUNCTION See_door
 
   SUBROUTINE Find_walls(nm, r1_x, r1_y, r_circle, d_cutoff, Skip_Wall_Force_Ior, d_xy, FoundWall_xy, istat)
-    IMPLICIT NONE
     !
     ! This subroutine checks if the circle is inside a solid (totally or partially inside).
     ! Only the positions of the closest walls in the four main directions are returned.
@@ -16104,7 +16059,6 @@ CONTAINS
   END SUBROUTINE Find_walls
 
   SUBROUTINE GET_FIRE_CONDITIONS(NOM,I,J,K,fed_indx,fed_indx_rest,fed_indx_hard,soot_dens,gas_temp,rad_flux,ZZ_GET)
-    IMPLICIT NONE
     !
     ! Passed variables
     INTEGER, INTENT(IN) :: I, J, K, NOM
@@ -16137,7 +16091,6 @@ CONTAINS
   END SUBROUTINE GET_FIRE_CONDITIONS
 
   SUBROUTINE Change_Target_Door(nm, nm2, ie, j, j1, i_egrid, imode, xx, yy, I_Target, I_Color, I_Field, HR)
-    IMPLICIT NONE
     !
     ! Door selection algorithm
     !
@@ -16536,7 +16489,7 @@ CONTAINS
              max_fed = MIN(max_fed, max_fed2) ; ave_K = MIN(ave_K, ave_K2)
           END IF
           PP_see_door = PP_see_door .OR. (PP_see_doorXB .AND. PP_correct_side)
-             
+
           FED_max_Door(i) = max_fed
           K_ave_Door(i) = MAX(ave_K,0.5_EB*ABS(FED_DOOR_CRIT)) ! no divisions by zero
 

@@ -431,6 +431,45 @@ The single level structure was instrumented with five bare-bead thermocouple arr
 \label{fig:west_instrumentation}
 \end{figure}
 
+
+\section{DoJ/HAI Pool Fire Experiments}
+\label{DoJ_HAI_Pool_Fires_Description}
+
+The U.S. Department of Justice sponsored a series of liquid pool fire experiments performed by Hughes Associates, Inc.~\cite{Mealy:DoJ_HAI_Pool_Fires}. Hundreds of experiments were performed, involving six different liquid fuels, eight different substrates, a variety of pan sizes and pool depths. Of these, 44 experiments were chosen from the ``Diked Fire Test Series,'' where gasoline or kerosene was burned within 0.3~m, 0.6~m, or 1.2~m square pans with liquid depths ranging from 1~mm to 20~mm. The substrate was either coated concrete or vinyl, each of which was designed to avoid liquid absorption. The vinyl flooring material had a nominal thickness of 1.2~mm applied to a 14.7~mm plywood using a vinyl adhesive. Table~\ref{DoJ_HAI_Matrix} provides a summary of the experimental parameters.
+
+\subsubsection{Modeling Notes}
+
+The test report for the experiments does not explicitly list the components of the gasoline or kerosene. Rather, distillation curves are provided showing that the initial and final boiling points for gasoline are 45~$^\circ$C and 212~$^\circ$C, and for kerosene 170~$^\circ$C and 257~$^\circ$C. The density of the gasoline is 742~kg/m$^3$ and the kerosene 798~kg/m$^3$. From various industry documents, it is postulated that the gasoline is a mixture of n-hexane (0.521 by mass), n-heptane (0.054), n-octane (0.063), n-decane (0.023), benzene (0.20), and toluene (0.139). The kerosene is assumed to be a mixture of iso-octane (0.04), n-nonane (0.19), iso-nonane (0.12), n-decane (0.15), iso-decane (0.11), n-undecane (0.09), and cis-decalin (0.30). The relavant properties of these liquids are listed in Table~\ref{fuelprops}.
+
+A few additional assumptions are made concerning the mixtures. First, that the absorption coefficient of all components is set to 150~m$^{-1}$, a value that is typical of heavy hydrocarbon liquids. Seconds, the thermal conductivity of the components is set to an artificially low value of 0.02~W/m/K to roughly account for the buoyancy that drives heated liquid upwards towards the surface. Third, all liquid components are assumed to evaporate into a single gas phase species, n-hexane. If this were not assumed, additional transport equations and combustion reactions would be needed for all liquid components.
+
+Finally, to simulate the ignition of the liquid pools, an external flux is imposed at the surface for 10~s in the case of gasoline and 25~s for kerosene.
+ 
+\begin{table}[h!]
+\begin{center}
+\caption[Gasoline and kerosene components]{Gasoline and kerosene components~\cite{CRCHandbook:Enthalpy_of_Vaporization}.} 
+\label{fuelprops2}
+\begin{tabular}{|l|c|c|c|c|c|c|} \hline
+Fuel        & Chemical          & $W$         & $\rho$      & $c_p$              & $h_{\rm v}$        & $T_{\rm b}$     \\
+Component   & Formula           & (g/mol)     & (kg/m$^3$)  & (kJ/(kg$\cdot$K))  & (kJ/kg)            & $^\circ$C       \\
+\hline \hline
+Benzene     & C$_6$H$_{6}$      & 78.1        & 879         & 1.72              & 393                 & 80.1   \\ \hline
+cis-Decalin & C$_{10}$H$_{18}$  & 138.3       & 897         & 1.68              & 297                 & 195.8  \\ \hline
+iso-Decane  & C$_{10}$H$_{22}$  & 142.3       & 728         & 2.20              & 269                 & 167.0  \\ \hline
+n-Decane    & C$_{10}$H$_{22}$  & 142.3       & 730         & 2.21              & 278                 & 174.1  \\ \hline
+n-Heptane   & C$_7$H$_{16}$     & 100.2       & 684         & 2.24              & 317                 & 98.4   \\ \hline
+n-Hexane    & C$_6$H$_{14}$     & 86.2        & 659         & 2.27              & 335                 & 68.7   \\ \hline
+iso-Nonane  & C$_9$H$_{20}$     & 128.3       & 708         & 2.34              & 350                 & 143.0  \\ \hline
+n-Nonane    & C$_9$H$_{20}$     & 128.3       & 718         & 2.22              & 290                 & 150.8  \\ \hline
+iso-Octane  & C$_8$H$_{18}$     & 114.2       & 692         & 2.09              & 270                 & 99.2   \\ \hline
+n-Octane    & C$_8$H$_{18}$     & 114.2       & 702         & 2.23              & 301                 & 125.6  \\ \hline
+Toluene     & C$_7$H$_{8}$      & 92.1        & 867         & 1.67              & 360                 & 110.6  \\ \hline
+n-Undecane  & C$_{11}$H$_{24}$  & 156.3       & 740         & 2.21              & 268                 & 195.9  \\ \hline
+\end{tabular}
+\end{center}
+\end{table}
+
+
 \section{Droplet Evaporation}
 \label{Droplet_Evaporation_Description}
 
@@ -490,18 +529,18 @@ In the same enclosure and using the same burner, Ren et. al~\cite{Ren:IAFSS2020}
 
 The FDS simulations of the 10~kW ethylene, methane, propane and propylene fires are run for 65~s, in which time the oxygen concentration in the co-flow stream is ramped down linearly from 21~\% to 8~\%. The volume flow of the co-flow stream has been increased tenfold compared to the experiments to prevent a downwash of ambient air into the sealed compartment. The 15~kW ethylene fire simulations at the various fixed oxygen levels are performed for 20~s. For these simulations, the oxygen volume fraction is specified directly, as is the co-flow stream.
 
-The combustion and extinction are modeled using a two-step reaction scheme. In the first step, fuel is converted to CO, soot, and water vapor, and in the second step, the CO and soot are oxidized to form CO$_2$. Both reactions are fast, but the oxidation step follows the first reaction in serial. That is, in a given time step, all available oxygen first converts fuel to CO and Soot, assumed to be C$_{0.9}$H$_{0.1}$. Any leftover oxygen is then used to oxidize existing CO and Soot. There are two assumptions. First, it is assumed that 2/3 of the carbon in the fuel molecule is converted to CO, and 1/3 to Soot in the first reaction step. Second, the post-flame yields of Soot and CO are set to 0.043 and 0.013, respectively, based on Tewarson's measurements reported in the SFPE Handbook~\cite{SFPE:Tewarson}.
+The combustion and extinction are modeled using a two-step reaction scheme. In the first step, fuel is converted to CO, soot, and water vapor, and in the second step, the CO and soot are oxidized to form CO$_2$. Both reactions are fast, but the oxidation step follows the first reaction in serial. That is, in a given time step, all available oxygen first converts fuel to CO and Soot, assumed to be C$_{0.9}$H$_{0.1}$. Any leftover oxygen is then used to oxidize existing CO and Soot. There are two assumptions. First, it is assumed that 3/5 of the carbon in the fuel molecule is converted to CO, and 2/5 to Soot in the first reaction step. Second, the post-flame yields of Soot and CO are set to 0.043 and 0.013, respectively, based on Tewarson's measurements reported in the SFPE Handbook~\cite{SFPE:Tewarson}.
 
 Under the assumption that Air contains 383~ppm CO$_2$ and water vapor corresponding to 40~\% humidity, the full two-step reaction scheme for ethylene is written in terms of ``lumped'' species as follows:
 \begin{eqnarray}
 \lefteqn{ \underbrace{\mathrm{ (C_2H_4) }}_\text{Fuel} \; + \;
-7.96 \; \underbrace{ \mathrm{\left( 0.208 \, O_2 + 0.783 \; N_2 + 0.0004 \, CO_2 + 0.009 \, H_2O \right)}}_\text{Air} \longrightarrow } \quad \quad \quad \quad \quad \quad \quad \nonumber \\
-& & 10.34 \, \underbrace{\mathrm{(0.130 \; CO +  0.197 \; H_2O + 0.071 \; Soot +  0.602\, N_2 + 0.0003 \, CO_2)}}_\text{Products 1}
+7.60 \; \underbrace{ \mathrm{\left( 0.208 \, O_2 + 0.783 \; N_2 + 0.0004 \, CO_2 + 0.009 \, H_2O \right)}}_\text{Air} \longrightarrow } \quad \quad \quad \quad \quad \quad \quad \nonumber \\
+& & 10.07 \, \underbrace{\mathrm{(0.119 \; CO +  0.201 \; H_2O + 0.088 \; Soot +  0.591\, N_2 + 0.0003 \, CO_2)}}_\text{Products 1}
 \end{eqnarray}
 \be
-(\text{Products 1}) + 0.58 \; (\text{Air}) \longrightarrow  1.45 \, \underbrace{\mathrm{(0.0009 \, CO + 0.0073 \, Soot + 0.126 \, CO_2 +  0.141 \; H_2O  + 0.725 \; N_2)}}_\text{Products 2}
+(\text{Products 1}) + 0.63 \; (\text{Air}) \longrightarrow  1.49 \, \underbrace{\mathrm{(0.0009 \, CO + 0.0073 \, Soot + 0.126 \, CO_2 +  0.141 \; H_2O  + 0.725 \; N_2)}}_\text{Products 2}
 \ee
-For each of the four fuels simulated, it has been assumed that 2/3 of the carbon in the fuel molecule is converted to CO in the first step. However, there are only detailed measurements of radiative emission and soot volume fraction for ethylene. Thus, it is not clear how the carbon is distributed between the soot and CO in the early stages. For lighter sooting fuels like methane, the fraction of carbon allocated to CO approaches unity.
+For each of the four fuels simulated, it has been assumed that 3/5 of the carbon in the fuel molecule is converted to CO in the first step. However, there are only detailed measurements of radiative emission and soot volume fraction for ethylene. Thus, it is not clear how the carbon is distributed between the soot and CO in the early stages. For lighter sooting fuels like methane, the fraction of carbon allocated to CO approaches unity.
 
 The radiative fraction has been predicted rather than specified in all simulations.
 
@@ -808,6 +847,15 @@ $^\dag$ The Falcon experiments involved 4 separated spills
 \label{tab:LNG_Dispersion}
 \end{sidewaystable}
 
+
+\section{LNG Fire Experiments}
+\label{LNG_Fires_Description}
+
+In 1982 and 1983, Croce, Mudan, and Moorhouse conducted 13 liquified natural gas (LNG) trench fire experiments on behalf of the Gas Research Institute~\cite{Croce:GRI}. Thirteen experiments were performed with nominal trench sizes ranging from 0.8~m by 4.4~m to 3.9~m by 52~m and aspect ratios ranging from approximately 5 to 30. Wind speeds varied from approximately 1~m/s to almost 10~m/s. Measurements made during the tests included flame geometry, radiative heat flux, emissive power, burning rate, LNG liquid and vapor compositions, and meteorological data. The fires were observed to exhibit substantial flame drag and flame breakup, unlike low aspect ratio pools. Steady burning was achieved in all tests.
+
+\subsubsection{Modeling Notes}
+
+The experiments are simulated using the specified fuel burning rate. The fuel is assumed to be methane. The atmosphere is assumed to be neutral with a large Obukhov length, $L=1000000$, and the ground surface is flat with an assumed aerodynamic roughness, $z_0=0.1$~m. The relative humidity, ambient temperature and pressure, and wind speed at 9~m are specified in the report. The radiative fraction is assumed to 0.25 and the radiative path length is assumed to be 50~m; that is, the effective absorption coefficients of the various gas mixtures are evaluated over a distance of 50~m. The radiation source term is taken directly as 25~\% of the combustion energy release rate. The soot yield is assumed to be 0.005.
 
 
 \section{McCaffrey Plume Experiments}
@@ -1299,48 +1347,124 @@ Test   & Cabinet    & Front Door & Top Vents        & Upper Side Vents          
 As part of a Nuclear Regulatory Commission (NRC) research project to assess fire behavior in electrical enclosures, rate of spread and heat release rate measurements were made on various plastics lining a parallel panel apparatus. The panels were 0.6~m (2~ft) wide, 2.4~m (8~ft) tall, and separated by 0.3~m (1~ft). A 60~kW propane sand burner was positioned at the base of the two panels. Plastics tested to date include PMMA, PVC, and PBT, cut into 6.4~mm (0.25~in) thick panels. A sketch of the apparatus, originally developed by Factory Mutual, is shown in Fig.~\ref{Parallel_Panel_Sketch}.
 
 
+\section{NIST/NRC Transient Combustibles Experiments}
+\label{NIST_NRC_Transient_Combustibles_Description}
+
+In December, 2019 and February, 2020, 40 calorimetry experiments were conducted at the National Fire Research Laboratory at NIST on behalf of the U.S. Nuclear Regulatory Commission. The experiments were conducted under a 6.1~m (20~ft) by 6.1~m hood with a nominal capacity of 3~MW. The full report on the experiments can be found in Ref.~\cite{McGrattan:Multiple_Transients_2020}.
+
+The items burned are described briefly in Fig.~\ref{Items_1}. These consist of commercially available materials constructed mainly of wood and paper. Each item was weighed before and after the experiment on a load cell accurate to 10~g.
+
+The fires were all ignited using one or more 7.5~cm (3~in) segments of approximately 1~cm (0.5~in) diameter cotton rope soaked in approximately 10~mL of acetone. For some items like the wood cribs and pallets, a small amount of shredded craft or ``crinkle'' paper was used to sustain the ignition until steady burning was achieved.
+
+The floor beneath the burning item was protected with a single layer of gypsum board covered by a single layer of concrete board.
+
+
+\begin{figure}[!t]
+\begin{tabular*}{\textwidth}{l@{\extracolsep{\fill}}r}
+\parbox[b][2.0in][c]{2.6in}{\sloppy {\bf Box \#1:} Single-wall corrugated box with nominal dimensions 61~cm by 61~cm by 46~cm (24~in by 24~in by 18~in) filled with ``crinkle paper,'' a common packing material made by shredding craft paper. The box alone had a mass of approximately 1.6~kg (3.5~lb), and the box and paper combined had a mass of 8.0~kg (18~lb). The box top flaps were closed, end over end, but not sealed with tape.} &
+\includegraphics[width=2.9in]{FIGURES/NIST_NRC_Transient_Combustibles/box}  \\
+\parbox[b][2.0in][c]{2.6in}{\sloppy {\bf Pallet:} Pine wood pallet with dimensions 122~cm by 102~cm by 12~cm (48~in by 40~in by 4.75~in). Its mass was approximately 16.0~kg (35~lb). Its moisture content was less than 5~\%. Shown at right are two pallets, which were ignited with 1~kg (2.2~lb) of crinkle paper distributed evenly throughout the lower pallet.} &
+\includegraphics[width=2.9in]{FIGURES/NIST_NRC_Transient_Combustibles/pallet}  \\
+\parbox[b][2.0in][c]{2.6in}{\sloppy {\bf Crib:} Pine wood crib with dimensions 56~cm by 56~cm by 46~cm (22~in by 22~in by 18~in) constructed of slats with a cross-section 3.8~cm (1.5~in) square. Its mass was approximately 39~kg (86~lb). Its moisture content was less than 5~\%. It was ignited with 0.75~kg (1.7~lb) of crinkle paper stuffed in the space below the first row of slats.} &
+\includegraphics[width=2.9in]{FIGURES/NIST_NRC_Transient_Combustibles/crib}
+\end{tabular*}
+\caption[Description of test items]{Description of test items.}
+\label{Items_1}
+\end{figure}
+
+%\begin{figure}[p]
+%\begin{tabular*}{\textwidth}{l@{\extracolsep{\fill}}r}
+%\parbox[b][2.0in][c]{2.6in}{\sloppy {\bf Box \#2:} Single-wall corrugated box with nominal dimensions 41~cm by 30~cm by 30~cm (16~in by 12~in by 12~in) filled with dry cotton rags. The box alone had a mass of approximately 0.8~kg (1.8~lb), and the box and rags combined had a mass of approximately 4.5~kg (10~lb). The box top was taped shut for the burns.} &
+%\includegraphics[width=2.9in]{FIGURES/NIST_NRC_Transient_Combustibles/DSC01463}  \\
+%\parbox[b][2.0in][c]{2.6in}{\sloppy {\bf Box \#3:} Single-wall corrugated box with nominal dimensions 53~cm by 53~cm by 53~cm (21~in by 21~in by 21~in) filled with 100 rigid polystyrene cups. The corrugated box and inner liners alone had a mass of approximately 3.5~kg (7.7~lb), and the total combined mass was approximately 7.0~kg (15~lb). The top was taped shut. This item was originally developed by FM Global for use in rack storage commodity testing.} &
+%\includegraphics[width=2.9in]{FIGURES/NIST_NRC_Transient_Combustibles/DSC01465} \\
+%\parbox[b][2.0in][c]{2.6in}{\sloppy {\bf Tarp:} Lightweight plastic tarp with dimensions 3.0~m by 2.4~m (10~ft by 8~ft) draped across a steel rod. Its mass was approximately 0.8~kg (1.8~lb).} &
+%\includegraphics[width=2.9in]{FIGURES/NIST_NRC_Transient_Combustibles/DSC01287} \\
+%\parbox[b][2.0in][c]{2.6in}{\sloppy {\bf Bin \#1:} Cylindrical, open-top plastic trash bin approximately 71~cm (28~in) tall with an opening diameter of 51~cm (20~in). Its mass was approximately 2.7~kg (5.9~lb). The bin was half filled with crinkle paper for a combined mass of 5.0~kg (11~lb).} &
+%\includegraphics[width=2.9in]{FIGURES/NIST_NRC_Transient_Combustibles/DSC01218}  \\
+%\parbox[b][2.0in][c]{2.6in}{\sloppy {\bf Bin \#2:} The same as Bin \#1, but with the rags and cardboard of Box~\#2 mixed in. The total mass was approximately 9.5~kg (21~lb).} &
+%\includegraphics[width=2.9in]{FIGURES/NIST_NRC_Transient_Combustibles/DSC01358}
+%\end{tabular*}
+%\caption[Description of test items (cont.)]{Description of test items (cont.)}
+%\label{Items_2}
+%\end{figure}
+
+The heats of combustion and product yields of the various items burned are given in Table~\ref{Item_Yields}. These values are derived from the measured initial and final mass, and an assumed value of 13.61~MJ/kg for the energy released per unit mass of oxygen consumed.
+
+\begin{table}[h]
+\caption[Average heat and product yields of the various test items]{Average heat and product yields of the various test items.}
+\centering
+\begin{tabular}{|c|c|c|c|c|c|}
+\hline
+Item        & $\Delta H$ (MJ/kg)  & CO Yield           & CO$_2$ Yield   & Soot Yield          & Residue Yield               \\ \hline \hline
+Box \#1     & $14.8\pm0.5$        & $0.039\pm0.001$    & $1.48\pm0.05$  & $0.0014\pm0.0003$   & $0.031\pm0.016$               \\ \hline
+%Box \#2     & $13.8\pm0.5$        & $0.066\pm0.003$    & $1.33\pm0.05$  & $0.0042\pm0.0019$   & $0.035\pm0.020$               \\ \hline
+%Box \#3     & $25.4\pm1.5$        & $0.055\pm0.002$    & $2.13\pm0.08$  & $0.0976\pm0.014  $  & $0.003\pm0.002$               \\ \hline
+Pallet      & $17.2\pm0.5$        & $0.031\pm0.001$    & $1.66\pm0.06$  & $0.0033\pm0.0006$   & $0.059\pm0.024$               \\ \hline
+Crib        & $16.7\pm0.5$        & $0.023\pm0.001$    & $1.63\pm0.06$  & $0.0020\pm0.0003$   & $0.053\pm0.034$               \\ \hline
+%Bin \#1     & $27.6\pm1.7$        & $0.021\pm0.004$    & $2.18\pm0.08$  & $0.0153\pm0.0027$   & $0.090\pm0.040$               \\ \hline
+%Bin \#2     & $20.8\pm1.2$        & $0.031\pm0.001$    & $1.80\pm0.07$  & $0.0099\pm0.0029$   & $0.040\pm0.020$               \\ \hline
+\end{tabular}
+\label{Item_Yields}
+\end{table}
+
+\subsubsection{Modeling Notes}
+
+The combustible items are modeled as collections of Lagrangian particles that undergo a three-step decomposition process consisting of moisture evaporation, pyrolysis, and char oxidation. The moisture content, $M$, of the conditioned materials was less than the 0.05 lower limit of the moisture meter, and this value is used in the calculations.
+
+In the model, all of the wood and paper materials are assumed to be made up of cellulose, C$_6$H$_{10}$O$_5$, with a net heat of combustion of 16.12~MJ/kg~\cite{SFPE}. It is also assumed that the materials have a char yield of 20~\%, meaning that 20~\% of the dry mass is converted into char that undergoes an exothermic oxidation reaction generating 32.12~MJ/kg of char consumed. The decomposition reactions are as follows:
+
+\vspace{\baselineskip}
+
+\noindent 1. Endothermic moisture evaporation
+\be
+ {\rm Wet\ Vegetation} \rightarrow \nu_{\rm H_2O} \, {\rm H_2O} + (1-\nu_{\rm H_2O}) \, {\rm Dry\ Vegetation} \quad ; \quad \nu_{\rm H_2O} = \frac{M}{1+M}
+\ee
+\noindent 2. Endothermic pyrolysis of dry vegetation
+\be
+ {\rm Dry\ Vegetation} \rightarrow 0.2 \, {\rm Char} + 0.8 \, \hbox{C}_{3.3}\hbox{H}_{10}\hbox{O}_5
+\ee
+\noindent 3. Exothermic char oxidation
+\be
+ \label{char_reaction}
+ {\rm Char} + 1.65 \, {\rm O_2} \rightarrow 2.4 \, {\rm CO_2} + 0.25 \, {\rm Ash}
+\ee
+Note that the fuel gas is taken as cellulose with 20~\% of its molecular mass decreased to account for the residual char, which is assumed to be pure carbon. The heat of combustion of this modified fuel gas is 12120~MJ/kg. The yield of residual Ash is based on the measured residual mass.
+
+The crinkle paper is assumed to consist of 3~cm long, 4~mm wide strips with a surface area to volume ratio of 10000~m$^{-1}$ (approximately 0.2~mm thick). The length and width are important only in defining the mass and volume of each particle. The thermal and kinetic properties of the paper are assumed to be similar to those of corrugated cardboard given in Table~\ref{Properties_Cardboard}. The cardboard that makes up the box that holds the crinkle paper has a mass of 0.62~kg/m$^2$ and the box itself has a mass of 1.6~kg. The corrugated paper has an assumed dry density of 350~kg/m$^3$, yielding an effective thickness of 1.8~mm. In the model, the box does not undergo char oxidation but rather ``burns away'' to expose the crinkle paper inside.
+
+The wood crib is made up of 104 56~cm (22~in) long, 3.8~cm (1.5~in) square interlacing pine wood strips. The particles used to model the crib are assumed to be cylindrical in shape but with a surface area to volume ratio of 69~m$^{-1}$ based on a direct measurement of the actual crib geometry. The dry density of the wood has been measured to be 463~kg/m$^3$, its peak pyrolysis temperature is taken to be 320~$^\circ$C~\cite{Fraga:2020}, its char yield assumed to be 20~\%, and its heat of reaction is taken to be 418~kJ/kg~\cite{Morvan:CF2001}. Other property values are based on the default vegetation pyrolysis model described in the FDS User's Guide.
+
+The pine wood pallets are constructed of 1.6~cm (5/8~in) thick planks and modeled as a collection of flat particles with a thickness of 8~mm and the same thermal and kinetic properties as the cribs, except that the wood making up the pallets has a dry density of 414~kg/m$^3$.
+
+The drag per unit volume exerted by the particles is given by
+\be
+   \mathbf{f} = \frac{\rho}{2} C_{\rm d} \, \kappa \, \bu |\bu|   \quad ; \quad \kappa = C_{\rm s} \sigma \beta
+\ee
+where $\rho$ is the gas density, $C_{\rm d}$ is a drag coefficient, $\bu$ is the local velocity vector, $C_{\rm s}$ is a shape factor, $\sigma$ is the surface area to volume ratio, and $\beta$ is the packing ratio; that is the ratio of particle volume to cell volume. The shape factor is taken as 0.25 for all particle types. The packing ratio is determined by the measured mass of the item and the volume it occupies. The drag coefficient for the wood crib is 65, a value obtained by simulating a finely-resolved wood crib in a wind tunnel and calibrating the drag of the equivalent ``crib particles'' accordingly. The drag coefficient of the crinkle paper is taken as 1, and that of the pallet is taken as 3. These are only order of magnitude estimates and have not been verified.
+
 
 \section{NIST Pool Fire Experiments}
 \label{NIST_Pool_Fires_Description}
 
-The NIST Pool Fire Experiments include temperature, species concentration, and heat flux measurements of 30~cm and 100~cm diameter circular liquid fuel fires, and 37~cm gaseous burner fires.
+The NIST Pool Fire Experiments include temperature, species concentration, velocity, and heat flux measurements of 30~cm and 100~cm diameter circular liquid fuel fires, and 37~cm gaseous burner fires.
 
 The 30~cm burner is 15~cm deep and has a wall thickness of 1.6~mm. The burner is fitted with legs such that the burner rim is positioned 30~cm above the floor. The bottom of the burner is maintained at a constant temperature by flowing tap water (nominally 20~$^\circ$C) through a 3~cm section on the bottom of the fuel pan. The dimensions of the circular burner are similar to Weckman's methanol experiment described in Section~\ref{Waterloo_Methanol_Description}.
 
 The 100~cm burner is also 15~cm deep, has a wall thickness of 1.6~mm, and is water-cooled.
 
-The 37~cm burner is actually 38~cm in diameter with an effective diameter of 37~cm. It is water cooled, and the surface temperature is maintained at approximately 40~$^\circ$C.
+The 37~cm burner is actually 38~cm in diameter with an effective diameter of 37~cm. It is water cooled, and the surface temperature is maintained at approximately 40~$^\circ$C.  The measured fuel flow rate for the methane fire was 0.69~g/s and its estimated HRR was 34.5~kW. The heat release rates of the two propane fires were 20~kW and 34~kW.
 
-\subsubsection{Temperature Measurements}
+Details and references with regard to the plume temperature measurements are given in Section~\ref{NIST_Pool_Fires_Plume_Temps}. Details on the heat flux measurements are given in Section~\ref{NIST_Pool_Fires_Heat_Flux_Results}. Details on the gas species measurements is given in Section~\ref{sec:NIST_Pool_Fires}. Details on the velocity measuremnts is given in Section~\ref{NIST_Pool_Fires_Velocity}.
 
-Hamins and Lock~\cite{Hamins:TN1928} made mean and rms centerline and radial gas temperature measurements for a 30~cm methanol pool fire. The radial measurements were made at heights of 3, 30, 40, 50, and 60~cm.
-
-Sung et al.~\cite{Sung:TN2019} made mean and rms centerline and radial gas temperature measurements for a 100~cm methanol pool fire. The radial measurements were made at heights of 20, 60, 100, 140, and 180~cm.
-
-\subsubsection{Gas Species Measurements}
-
-Falkenstein-Smith et al. measured the time-averaged centerline species concentrations within the flaming region of three liquid fuel fires---acetone, ethanol, and methanol~\cite{Falkenstein-Smith:2019}. The measurements were made using a gas chromatograph/mass spectrometer system (GC/MSD). The volume fraction of each species was calculated via the number of moles identified by the GC/MSD at each centerline point. Soot mass fractions were measured during the gas sampling process.
-
-Similar measurements were made for 37~cm diameter methane and propane fires with a measured fuel flow rate of 0.69~g/s and an estimated HRR of 34.5~kW for the methane fire, and heat release rates of 20~kW and 34~kW for the propane.
-
-\subsubsection{Heat Flux Measurements}
-
-Radiative and total heat flux measurements were made at various locations for the 30~cm and 100~cm methanol pool fires.
-\begin{itemize}
-\item Kim et al.~\cite{Kim:FSJ2019} made total heat flux measurements along a radial profile extending 1.5~m outwards from the center of the 30~cm methanol fire.
-\item Hamins et al.~\cite{Hamins:CST1994} made radiative heat flux measurements along a radial profile extending from the pool center to the outer rim of the 30~cm methanol fire.
-\item Klassen et al.~\cite{Klassen:GCR1994} and Kim et al.~\cite{Kim:FSJ2019} made radiative heat flux measurements along a radial profile extending outwards from the outer rim of the 30~cm methanol fire.
-\item Kim et al.~\cite{Kim:FSJ2019} made total heat flux measurements along a vertical profile 60~cm from the center of the 30~cm methanol fire.
-\item Sung et al.~\cite{Sung:TN2019} made total heat flux measurements along a radial profile extending from outer rim to 2~m, and at various heights and distances from center of the 100~cm methanol fire.
-\end{itemize}
 
 \subsubsection{Modeling Notes}
 
 The 30~cm pool fires are modeled at three different grid resolutions---2~cm, 1~cm, and 0.5~cm. The 100~cm pool fires are modeled at 4~cm, 2~cm, and 1~cm resolution. The mass loss rate of the fuel is specified.
 
-A two-step reaction mechanism is implemented. In the first reaction, fuel is converted to CO, soot, H$_2$, and H$_2$O. In the second reaction, the CO, soot, and H$_2$ are converted to CO$_2$ and H$_2$O. Both reactions employ fast kinetics, but proceed in series, not in parallel. The relative amounts of CO, soot, and H$_2$ produced in the first step are still subjects of study, and for the moment have been estimated based on measured results. For example, the methanol fire produces no measurable soot and thus all of the carbon in the fuel molecule is assumed to produce CO in the first step.
+A two-step reaction mechanism is implemented. In the first reaction, fuel is converted to CO, soot, H$_2$, and H$_2$O. In the second reaction, the CO, soot, and H$_2$ are converted to CO$_2$ and H$_2$O. Both reactions employ fast kinetics, but proceed in series, not in parallel. The relative amounts of CO, soot, and H$_2$ produced in the first step are still subjects of study, and for the moment have been estimated based on measured results. The fractions of carbon atoms converted to CO in the first step are as follows---0.85 for acetone; 0.95 for ethanol; 0.97 for methane; 1.0 for methanol; 0.85 for propane. For all fuels, one half of the hydrogen atoms are converted to H$_2$ in the first step.
 
-The radiative fraction is not specified, but rather predicted using the computed temperature and radiative properties computed by RadCal.
+The radiative fractions are specified based on measured values---0.31 for acetone; 0.26 for ethanol; 0.15 for methane; 0.21 for 1~m methanol; 0.22 for 30~cm methanol; 0.22 for propane.
 
 
 \section{NIST Smoke Alarm Experiments}
@@ -1586,6 +1710,54 @@ Back, Beyler, DiNenno and Tatem~\cite{Back:IAFSS4} measured the heat flux from 9
 of gypsum board. The experiments were sponsored by the Naval Research Laboratory and conducted by Hughes Associates, Inc., of Baltimore, Maryland. The
 square sand burner ranged in size from 0.28~m to 0.70~m, and the fires ranged in size from 50~kW to 520~kW.
 
+
+\section{Pool Fires}
+\label{Pool_Fires_Description}
+
+The ``Pool Fires'' cases include a variety of flammable and non-flammable liquid evaporation experiments:
+\begin{enumerate}
+\item A variety of pure liquid pool fires compiled by Gottuk and White~\cite{SFPE:Gottuk_and_White} based on earlier compilations such as that by Mudan~\cite{Mudan:1984}. The liquids are listed in Table~\ref{fuelprops}.
+\item A single experiment involving the evaporation of water under a 50~kW/m$^2$ heat flux in the ASTM~E2058 fire propagration apparatus, reported in Ref.~\cite{SFPE:Tewarson}. 
+\item Two heptane pool fire experiments described in Ref.~\cite{Sikanen:2016}.
+\end{enumerate}
+
+\subsubsection{Modeling Notes}
+
+Because there are few details concerning the burning rates cited by Gottuk and White~\cite{SFPE:Gottuk_and_White}, the pans for the fuels listed in Table~\ref{fuelprops}, with the exception of water, are assumed to be 1~m square with a fuel depth of 10~cm.
+
+The simulations of the VTT heptane pool fires are performed in a 4~m by 4~m by 6~m domain with open boundaries, and a circular pool with steel (one cell high and thick) lip. The pool surface is 1~m above the floor.
+
+The burning rate of liquid hydrocarbon fuels has been found to correlate well with the ratio of the heat of combustion, $\Delta h_{\rm c}$, and the heat of gasification, $\Delta h_{\rm g}$:
+\begin{equation}
+\dot{m}''= 0.001 \; \frac{\Delta h_{\rm c}}{\Delta h_{\rm g}} \quad ; \quad \Delta h_{\rm g} = \Delta h_{\rm v} + \int_{T_0}^{T_{\rm b}} c_p \; dT
+\label{poolcorr}
+\end{equation}
+where $\Delta h_{\rm v}$ is the latent heat of vaporization, $T_0$ is the initial temperature, $T_{\rm b}$ is the boiling temperature, and $c_p$ is the specific heat of the liquid fuel. The heat of gasification is the amount of energy required to raise the fuel from its initial temperature to its boiling temperature and evaporate it. 
+
+Table~\ref{fuelprops} lists the liquid fuel properties used in the simulations. Note that the heats of vaporization are evaluated at the liquid boiling temperature. The thermal conductivities, $k$, are found in Ref.~\cite{CRCHandbook}, except for butane, which is found in Ref.~\cite{Webbook:FluidThermo}. The heats of combustion, $\Delta h_{\rm c}$, are computed in FDS based on the heats of formation of the reactants and products listed in Ref.~\cite{NIST_JANAF}. The heats of combustion account for the presence of products of incomplete combustion, like CO and soot.
+
+The effective absorption coefficients. $\kappa$, for benzene and ethanol are based on curve fits to experimental data as explained in Appendix~K of the FDS Technical Reference Guide. The absorption coefficient for methanol presented in Appendix~K is calculated with the assumption that the incoming radiation is approximately blackbody radiation. The absorption coefficient for ethanol is calculated based on experimentally determined spectrum of an ethanol flame. Since both methanol and ethanol flames are low sooting, the blackbody radiation assumption is not correct. Instead it is assumed that the absorption coefficient for methanol should be of similar magnitude as that for ethanol. For heptane, butane and acetone the absorption coefficients are simple order of magnitude estimates.
+
+\begin{table}[h!]
+\begin{center}
+\caption[Liquid fuel properties]{Liquid fuel properties.} \label{fuelprops}
+\begin{tabular}{|l|c|c|c|c|c|c|c|c|c|c|} \hline
+        & $\rho$               & $c_p$                        & $k$                &  $\Delta h_{\rm v}$         &  $\Delta h_{\rm c}$  & $\chi_{\rm r}$       & $y_{\rm CO}$         & $y_{\rm s}$          & $T_{\rm b}$                    & $\kappa$  \\
+Fuel    & \si{\kg/\m^3}        & \si{\kJ/(\kg.\K)}            & \si{\W/(\m.\K)}    & \si{\kJ/\kg}                & \si{\kJ/\kg}         &                      &  \si{\g/\g}          &  \si{\g/\g}          & $^\circ$C                      & m$^{-1}$  \\
+        & \cite{Babrauskas:1}  & \cite{Webbook:HeatCapacity}  & \cite{CRCHandbook} &  \cite{Webbook:FluidThermo} & See text             & \cite{SFPE:Tewarson} & \cite{SFPE:Tewarson} & \cite{SFPE:Tewarson} & \cite{Webbook:BoilingPoint}    & See text  \\
+\hline \hline
+Acetone  &  791  &  2.13   & 0.20  &   501   & 28555  & 0.27 & 0.003 & 0.014 & 56.15 & 100    \\ \hline
+Benzene  &  874  &  1.74   & 0.14  &   393   & 33823  & 0.60 & 0.067 & 0.181 & 80.15 & 123    \\ \hline
+Butane   &  573  &  2.28   & 0.12  &   385   & 44680  & 0.31 & 0.007 & 0.029 & 0     & 100    \\ \hline
+Ethanol  &  794  &  2.44   & 0.17  &   837   & 27474  & 0.25 & 0.001 & 0.008 & 78.35 & 1534.3 \\ \hline
+Heptane  &  675  &  2.24   & 0.14  &   317   & 43580  & 0.33 & 0.010 & 0.037 & 98.35 & 187.5  \\ \hline
+Methanol &  796  &  2.48   & 0.20  &   1099  & 20934  & 0.16 & 0.001 & 0.001 & 64.65 & 1500   \\ \hline
+Water    & 1000  &  4.18   & 0.60  &   2260  & N/A    & N/A  & N/A   & N/A   & 100.0 & 140    \\ \hline
+\end{tabular}
+\end{center}
+\end{table}
+
+
 \section{PRISME Project}
 \label{PRISME_Description}
 
@@ -1603,69 +1775,79 @@ A turbulent buoyant diffusion flame is established on a diffuser burner with an 
 \section{Ranz Marshall Droplet Experiments}
 \label{Ranz_Marshall_Description}
 
-In 1952 Ranz and Marshall performed a set of droplet evaporation experiments that ultimately led to the development of the Ranz-Marshall Nusselt and Schmidt number correlations for droplet heat and mass transfer~\cite{Ranz}. The experiments documented in Figure 8 and Tables 1 to 4 in the paper have been modeled with FDS. For the experiment in Figure 8 of the Ranz and Marshall paper a 1043~$\mu$m water droplet was suspended in still dry air at an ambient temperature and pressure of 24.9$^\circ$C and 98792 Pa. The droplet diameter was measured over time. For the experiments in Tables 1 to 4 in the paper, droplets were suspended in a dry air stream. Experimental parameters included the type of fluid (water or benzene), the initial drop diameter, the ambient temperature, and the velocity of the air stream. The evaporation rate in the FDS simulations was determined by allowing the drop temperature to reach equilibrium and then using the time it took the drop to decrease in size to 350~$\mu$m (the minimum reported droplet size in Figure 8 of the paper). The table below summarizes the experiments.
+In 1952, Ranz and Marshall performed a set of droplet evaporation experiments that ultimately led to the development of Nusselt and Schmidt number correlations for droplets~\cite{Ranz}. The experiments documented in Figure~8 and Tables~1-4 in the paper have been modeled with FDS. For Figure~8 of the paper, a 1043~$\mu$m water droplet was suspended in still dry air at an ambient temperature and pressure of 24.9~$^\circ$C and 98792~Pa, and its diameter was measured over time. For the experiments in Tables~1-4 in the paper, droplets were suspended in a dry air stream. Experimental parameters include the fluid type (water or benzene), initial droplet diameter, ambient temperature, and velocity of the air stream. The evaporation rate in the simulations is calculated based the time required for the droplet to decrease in size to 350~$\mu$m, the minimum reported diameter. Table~\ref{Ranz_Marshall_Summary} summarizes the experiments.
 
-\begin{table}[h]
-	\caption[Summary of Ranz and Marshall droplet evaporation experiments]{Summary of Ranz and Marshall droplet evaporation experiments.}
-	\begin{center}
-		\begin{tabular}{|c|c|c|c|c|c|c|}
-			\hline
-			Table   & Test   & Fluid  &  Diameter  &  Air Temperature & Pressure &  Velocity  \\
-			No.     & No.    &        & ($\mu$m)   &  ($^{\circ}$C)   &  (Pa)    &  (m/s)     \\ \hline \hline
-1 & 1 & Water & 954 & 19.9 & 99059 & 2.46 \\hline
-1 & 2 & Water & 954 & 24.6 & 98659 & 2.1 \\hline
-1 & 3 & Water & 954 & 24.9 & 98659 & 1.723 \\hline
-1 & 4 & Water & 954 & 25.3 & 98659 & 1.532 \\hline
-1 & 5 & Water & 954 & 25.4 & 98659 & 1.197 \\hline
-1 & 6 & Water & 954 & 24.3 & 98392 & 0.952 \\hline
-1 & 7 & Water & 954 & 24.4 & 98392 & 0.762 \\hline
-1 & 8 & Water & 954 & 24.5 & 98392 & 0.571 \\hline
-1 & 9 & Water & 954 & 24.5 & 98392 & 0.571 \\hline
-1 & 10 & Water & 954 & 24.6 & 98392 & 0.285 \\hline
-1 & 11 & Water & 954 & 24.7 & 98392 & 0.1513 \\hline
-1 & 12 & Water & 954 & 24.8 & 98392 & 0.1718 \\hline
-1 & 13 & Water & 954 & 24.9 & 98392 & 0.0841 \\hline
-1 & 14 & Water & 954 & 25.0 & 98392 & 0.0337 \\hline
-1 & 15 & Water & 954 & 23.2 & 98392 & 2.86 \\hline
-1 & 16 & Water & 954 & 23.6 & 99459 & 2.67 \\hline
-1 & 17 & Water & 954 & 23.7 & 99459 & 2.28 \\hline
-1 & 18 & Water & 954 & 24.0 & 99459 & 3.06 \\hline
-1 & 19 & Water & 954 & 24.9 & 98792 & 0 \\hline
-2 & 1 & Water & 950 & 90.0 & 98792 & 2.3 \\hline
-2 & 2 & Water & 950 & 77.5 & 98792 & 1.1 \\hline
-2 & 3 & Water & 950 & 78.7 & 98792 & 1.1 \\hline
-2 & 4 & Water & 950 & 78.7 & 98792 & 1.1 \\hline
-2 & 5 & Water & 950 & 84.0 & 98792 & 1.83 \\hline
-2 & 6 & Water & 950 & 82.5 & 98792 & 1.14 \\hline
-2 & 7 & Water & 950 & 83.0 & 98792 & 1.14 \\hline
-2 & 8 & Water & 950 & 66.4 & 98792 & 0.55 \\hline
-2 & 9 & Water & 950 & 71.4 & 98792 & 0.176 \\hline
-3 & 1 & Water & 850 & 115.0 & 98792 & 1.84 \\hline
-3 & 2 & Water & 710 & 115.0 & 98792 & 1.84 \\hline
-3 & 3 & Water & 560 & 85.0 & 98792 & 0.188 \\hline
-3 & 4 & Water & 460 & 85.0 & 98792 & 0.188 \\hline
-3 & 5 & Water & 960 & 221.0 & 98792 & 1.84 \\hline
-3 & 6 & Water & 580 & 221.0 & 98792 & 1.84 \\hline
-3 & 7 & Water & 880 & 193.0 & 98792 & 0.77 \\hline
-3 & 8 & Water & 600 & 193.0 & 98792 & 0.77 \\hline
-3 & 9 & Water & 1010 & 125.0 & 98792 & 0.21 \\hline
-4 & 1 & Benzene & 1100 & 24.4 & 97592 & 0.051 \\hline
-4 & 2 & Benzene & 1100 & 26.4 & 97592 & 0.153 \\hline
-4 & 3 & Benzene & 1100 & 27.1 & 98125 & 0.289 \\hline
-4 & 4 & Benzene & 1100 & 17.9 & 98525 & 0.748 \\hline
-4 & 5 & Benzene & 1100 & 17.5 & 98525 & 1.124 \\hline
-4 & 6 & Benzene & 1100 & 17.7 & 97725 & 1.5 \\hline
-4 & 7 & Benzene & 1100 & 20.7 & 97725 & 0.188 \\hline
-4 & 8 & Benzene & 1100 & 20.4 & 97725 & 0.283 \\hline
-4 & 9 & Benzene & 1100 & 19.9 & 97725 & 0.755 \\hline
-4 & 10 & Benzene & 1100 & 20.0 & 97725 & 1.13 \\hline
-4 & 11 & Benzene & 1100 & 20.2 & 97725 & 1.516 \\hline
-4 & 12 & Benzene & 1100 & 20.2 & 97725 & 1.9 \\hline
-4 & 13 & Benzene & 1100 & 20.4 & 97725 & 2.88 \\hline
-		\end{tabular}
-	\end{center}
-	\label{Ranz_Marshall_Summary}
-\end{table}
+\begin{longtable}[c]{|c|c|c|c|c|c|c|}
+\caption[Summary of Ranz and Marshall droplet evaporation experiments]{Summary of Ranz and Marshall droplet evaporation experiments.}
+\label{Ranz_Marshall_Summary} \\
+\hline
+Table   & Test   & Fluid  &  Diameter  &  Air Temperature & Pressure &  Velocity  \\
+			No.     & No.    &        & ($\mu$m)   &  ($^{\circ}$C)   &  (Pa)    &  (m/s)     \\
+\hline \hline
+\endfirsthead
+\caption[]{Continued} \\
+\hline
+Table   & Test   & Fluid  &  Diameter  &  Air Temperature & Pressure &  Velocity  \\
+			No.     & No.    &        & ($\mu$m)   &  ($^{\circ}$C)   &  (Pa)    &  (m/s)     \\
+\hline \hline
+\endhead
+\hline
+\endfoot
+
+\hline
+\endlastfoot
+1 & 1 & Water & 954 & 19.9 & 99059 & 2.46 \\
+1 & 2 & Water & 954 & 24.6 & 98659 & 2.1 \\
+1 & 3 & Water & 954 & 24.9 & 98659 & 1.723 \\
+1 & 4 & Water & 954 & 25.3 & 98659 & 1.532 \\
+1 & 5 & Water & 954 & 25.4 & 98659 & 1.197 \\
+1 & 6 & Water & 954 & 24.3 & 98392 & 0.952 \\
+1 & 7 & Water & 954 & 24.4 & 98392 & 0.762 \\
+1 & 8 & Water & 954 & 24.5 & 98392 & 0.571 \\
+1 & 9 & Water & 954 & 24.5 & 98392 & 0.571 \\
+1 & 10 & Water & 954 & 24.6 & 98392 & 0.285 \\
+1 & 11 & Water & 954 & 24.7 & 98392 & 0.1513 \\
+1 & 12 & Water & 954 & 24.8 & 98392 & 0.1718 \\
+1 & 13 & Water & 954 & 24.9 & 98392 & 0.0841 \\
+1 & 14 & Water & 954 & 25.0 & 98392 & 0.0337 \\
+1 & 15 & Water & 954 & 23.2 & 98392 & 2.86 \\
+1 & 16 & Water & 954 & 23.6 & 99459 & 2.67 \\
+1 & 17 & Water & 954 & 23.7 & 99459 & 2.28 \\
+1 & 18 & Water & 954 & 24.0 & 99459 & 3.06 \\
+1 & 19 & Water & 954 & 24.9 & 98792 & 0 \\
+2 & 1 & Water & 950 & 90.0 & 98792 & 2.3 \\
+2 & 2 & Water & 950 & 77.5 & 98792 & 1.1 \\
+2 & 3 & Water & 950 & 78.7 & 98792 & 1.1 \\
+2 & 4 & Water & 950 & 78.7 & 98792 & 1.1 \\
+2 & 5 & Water & 950 & 84.0 & 98792 & 1.83 \\
+2 & 6 & Water & 950 & 82.5 & 98792 & 1.14 \\
+2 & 7 & Water & 950 & 83.0 & 98792 & 1.14 \\
+2 & 8 & Water & 950 & 66.4 & 98792 & 0.55 \\
+2 & 9 & Water & 950 & 71.4 & 98792 & 0.176 \\
+3 & 1 & Water & 850 & 115.0 & 98792 & 1.84 \\
+3 & 2 & Water & 710 & 115.0 & 98792 & 1.84 \\
+3 & 3 & Water & 560 & 85.0 & 98792 & 0.188 \\
+3 & 4 & Water & 460 & 85.0 & 98792 & 0.188 \\
+3 & 5 & Water & 960 & 221.0 & 98792 & 1.84 \\
+3 & 6 & Water & 580 & 221.0 & 98792 & 1.84 \\
+3 & 7 & Water & 880 & 193.0 & 98792 & 0.77 \\
+3 & 8 & Water & 600 & 193.0 & 98792 & 0.77 \\
+3 & 9 & Water & 1010 & 125.0 & 98792 & 0.21 \\
+4 & 1 & Benzene & 1100 & 24.4 & 97592 & 0.051 \\
+4 & 2 & Benzene & 1100 & 26.4 & 97592 & 0.153 \\
+4 & 3 & Benzene & 1100 & 27.1 & 98125 & 0.289 \\
+4 & 4 & Benzene & 1100 & 17.9 & 98525 & 0.748 \\
+4 & 5 & Benzene & 1100 & 17.5 & 98525 & 1.124 \\
+4 & 6 & Benzene & 1100 & 17.7 & 97725 & 1.5 \\
+4 & 7 & Benzene & 1100 & 20.7 & 97725 & 0.188 \\
+4 & 8 & Benzene & 1100 & 20.4 & 97725 & 0.283 \\
+4 & 9 & Benzene & 1100 & 19.9 & 97725 & 0.755 \\
+4 & 10 & Benzene & 1100 & 20.0 & 97725 & 1.13 \\
+4 & 11 & Benzene & 1100 & 20.2 & 97725 & 1.516 \\
+4 & 12 & Benzene & 1100 & 20.2 & 97725 & 1.9 \\
+4 & 13 & Benzene & 1100 & 20.4 & 97725 & 2.88 \\
+\hline
+\end{longtable}
 
 \section{Restivo Compartment Air Flow Experiment}
 \label{Restivo_Description}
@@ -1686,9 +1868,11 @@ The Fire Laboratory for Accreditation of Models by Experimentation (FLAME) facil
 
 \section{SETCOM Wall Condensation Experiments}
 \label{SETCOM_Cond_Description}
+
 The Separate Effect Test for Condensation Modeling (SETCOM) facility is located in J\"{u}lich, Germany \cite{setcom_cfd}. The facility is a recirculating duct containing a flow conditioning section for establishing temperature and humidity and a test section for performing condensation experiments. The condensation section contains a 4~m or 5~m long, water-cooled, aluminum plate for its floor with the remaining walls adiabatic. The condensation section can be tilted from horizontal to vertical to investigate the effects of orientation on condensation. A set of five experiments were performed using the 4~m test section that measured the condensation heat flux from hot, high humidity air. Temperature, humidity, and flow rate were varied.
 
-\subsection{Modeling notes}
+\subsubsection{Modeling Notes}
+
 Prior to running the validation cases, a set of five scoping simulations were run with no condensation. These simulations used a short length of the test section with {\ct PERIODIC} boundary conditions. These cases were used to determine the rms velocity as a function of the mean velocity.
 
 The condensation simulations included a 4~m portion of duct upstream to allow for flow development, and a 1 m portion of duct downstream to avoid boundary effects on the test section. The upstream boundary condition was set with the conditions shown in the table below along with synthetic eddy method inputs using the rms velocity determine from the scoping simulations. The outlet was defined as an {\ct OPEN} boundary. The experiments measured temperature 1.5~cm into the aluminum plate along the plate centerline. The test measured condensation heat transfer was used with the inside plate temperature to derive the plate surface temperature. The condensation plate {\ct TMP\_FRONT} was set to derived temperature as a function of length along the plate.
@@ -1942,6 +2126,16 @@ Test    & Width     & Height        & $\dot{Q}$  & Location     & Test  & Width 
 Fires fueled by methanol and propane ranging from 5.6~kW to 16.8~kW were conducted in a 1:20 reduced-scale tunnel at Southwest Jiaotong University, Chengdu, China~\cite{Wang:TUST2019}. The tunnel was 0.45~m wide, 0.23~m high and 20.8~m long. The burner was located at the center of the tunnel and both ends were open. Temperatures and gas concentrations (i.e., O$_2$, CO and CO$_2$) were measured. The results showed that both methanol and propane fires self-extinguished in the 20.8~m long tunnel within approximately 10~min, except for the 5.6~kW methanol fire. The larger the heat release rate, the faster the self-extinction of the fire. The oxygen concentrations in the 20.8~m long tunnel decreased to approximately 12~\% except for the 5.6~kW methanol fire, which remained well above the limiting oxygen concentration.  Self-extinction was not observed for fires of the same heat release rates in a 10~m long tunnel of the same cross section. The oxygen concentrations in the 10~m long tunnel decreased to approximately 17~\%.  In the long tunnel with large fire sizes, the smoke layer descended to the floor, inhibiting the supply of fresh air reaching the fire.
 
 
+\section{Wu Bakar Tunnel Experiments}
+\label{Wu_Bakar_Tunnels_Description}
+
+An important issue in road tunnel design with respect to fire safety is {\em back-layering}. In the event of a fire in a tunnel, a common strategy is to blow the smoke in one direction to allow occupants to escape and first responders to find the fire. The extent to which smoke from the fire spreads against imposed ventilation is known as back-layering. Experiments to quantify back-layering have been conducted at both small and full-scale. One important set of small-scale experiments was performed by Wu and Bakar~\cite{Wu:FSJ2000}. The experiments were conducted in 15~m long tunnels with 5 different cross sections. Tunnels~A, B, C, and D were rectangular in cross section with a height of 25~cm and widths of 13.6~cm, 25~cm, 50~cm, and 100~cm, respectively. Tunnel~E was 24.4~cm high, 27.4~cm wide at the base, with walls slanted inwards 7$^\circ$ from the vertical leading to a circular arch ceiling.
+
+A 12~cm diameter circular propane burner was placed flush with the floor at a distance of approximately 6~m from the upstream opening. For a range of fire sizes, the air velocity through the tunnel was ramped up until the back-layer length was reduced to zero; that is, the upstream extent of the smoke layer coincided with the upstream edge of the burner. These results were then used to develop an empirical correlation relating the {\em critical velocity}, tunnel cross section, and heat release rate.
+
+\subsubsection{Modeling Notes}
+
+Five simulations are conducted; one for each tunnel type. In each, the heat release rate is stepped over from the lowest to highest reported value in 20~s increments. During each steady period, the near-ceiling temperatures are recorded and used to infer the location of the back-layer; that is, the back-layer extent coincides with a drop in the ceiling jet temperature to within 10~$^\circ$C of ambient. The surface roughness of the tunnel walls is estimated to be 1~mm. The wall material is taken as generic steel.
 
 
 \section{UL/NIST Vent Experiments}
@@ -2677,15 +2871,15 @@ Additional measurements of a 30.5~cm diameter methanol pool fire were made by Ha
 
 The methanol pool fire is modeled at three different grid resolutions---2~cm, 1~cm, and 0.5~cm. Two sets of simulations are performed, one in which the mass loss rate of fuel is specified, and one in which it is predicted. The gas phase measurements are compared with the simulations for which the burning rate is specified.
 
-Because measurements of CO were made within the flame envelop, a two-step reaction mechanism is implemented. In the first reaction, fuel is converted to CO and H$_2$O, and in the second reaction, CO is converted to CO$_2$. Both reactions employ fast kinetics.
+Because measurements of CO were made within the flame envelop, a two-step reaction mechanism is implemented. In the first reaction, fuel is converted to CO and H$_2$O, and in the second reaction, CO is converted to CO$_2$. Both reactions employ fast kinetics and performed serially. It is assumed that no soot is formed in either reaction.
 
 Physical properties of methanol are taken from a data sheet published by the Methanol Institute~\cite{Methanol}: boiling temperature, 64.6~$^\circ$C, heat of vaporization at 64.6~$^\circ$C, 1098.3~kJ/kg, thermal conductivity, 0.2~W/(m$\cdot$K), specific heat at 25~$^\circ$C, 2.53~kJ/(kg$\cdot$K), density at 20~$^\circ$C, 792~kg/m$^3$. The heat of combustion is given as 19.9~kJ/g, but this value is not input directly, but rather calculated based on the heats of formation of the reactants and products of combustion.
 
-The radiative fraction is specified to be 16~\% (Table A.39, {\em SFPE~Handbook}~\cite{SFPE}). The path length used by RadCal to compute the table of effective radiative absorption coefficients for the gas mixture is set to 10~cm. Normally, its value is a function of grid size, but has been fixed so as not to influence the grid convergence study. The absorption coefficient of the liquid methanol is given as 52~m$^{-1}$, based on the discussion found in Appendix~L of the FDS Technical Reference Guide~\cite{FDS_Tech_Guide}, ``Absorption Coefficients of Liquid Fuels.''
+The radiative fraction is {\em predicted} by the model, not specified by the user, for all cases. The path length used by RadCal to compute the table of effective radiative absorption coefficients for the gas mixture is set to 10~cm, the default value. The absorption coefficient of the liquid methanol is given as 1140~m$^{-1}$.
 
 The modeled thermocouple has a bead diameter of 100~$\mu$m to match the experiments.
 
-For the simulations where the burning rate is not specified, a one-step, first-order reaction converting liquid methanol to fuel vapor was used. The boiling temperature of the liquid was specified as the temperature at which the reaction rate is at its peak, 64.5~$^\circ$C. This approach is different than the liquid fuel burning model in FDS. It is more like that used for non-charring polymers.
+For the simulations where the burning rate is not specified, a liquid fuel evaporation model is used with a boiling temperature of 64.6~$^\circ$C.
 
 
 \section{WTC Spray Burner Experiments}

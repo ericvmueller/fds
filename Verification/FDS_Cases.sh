@@ -51,6 +51,7 @@ $QFDS -d Complex_Geometry geom_sphere3a.fds
 $QFDS -d Complex_Geometry geom_sphere3c.fds
 $QFDS -d Complex_Geometry geom_sphere3e.fds
 $QFDS -d Complex_Geometry geom_terrain.fds
+$QFDS -d Complex_Geometry geom_terrain2.fds
 $QFDS -d Complex_Geometry geom_texture.fds
 $QFDS -d Complex_Geometry geom_texture2.fds
 $QFDS -d Complex_Geometry geom_texture3a.fds
@@ -65,11 +66,11 @@ $QFDS -d Complex_Geometry sphere_leak.fds
 $QFDS -d Complex_Geometry saad_CC_explicit_512_cfl_p25.fds
 $QFDS -d Complex_Geometry saad_CC_explicit_512_cfl_p125.fds
 $QFDS -d Complex_Geometry saad_CC_explicit_512_cfl_p0625.fds
-$QFDS -d Complex_Geometry shunn3_32_cc_exp_cen.fds
-$QFDS -d Complex_Geometry shunn3_64_cc_exp_cen.fds
-$QFDS -d Complex_Geometry shunn3_128_cc_exp_cen.fds
-$QFDS -d Complex_Geometry shunn3_256_cc_exp_cen.fds
-$QFDS -d Complex_Geometry shunn3_384_cc_exp_cen.fds
+$QFDS -d Complex_Geometry shunn3_32_cc_exp_chm.fds
+$QFDS -d Complex_Geometry shunn3_64_cc_exp_chm.fds
+$QFDS -d Complex_Geometry shunn3_128_cc_exp_chm.fds
+$QFDS -d Complex_Geometry shunn3_256_cc_exp_chm.fds
+$QFDS -d Complex_Geometry shunn3_384_cc_exp_chm.fds
 $QFDS -d Complex_Geometry shunn3_32_cc_exp_gdv.fds
 $QFDS -d Complex_Geometry shunn3_64_cc_exp_gdv.fds
 $QFDS -d Complex_Geometry shunn3_128_cc_exp_gdv.fds
@@ -227,7 +228,6 @@ $QFDS -d Flowfields species_conservation_3.fds
 $QFDS -d Flowfields species_conservation_4.fds
 $QFDS -d Flowfields hot_layer_360.fds
 $QFDS -d Flowfields realizable_mass_fractions.fds
-$QFDS -d Flowfields mean_forcing_hole.fds
 $QFDS -p 4 -d Flowfields parabolic_profile.fds
 $QFDS -p 5 -d Flowfields simple_duct.fds
 $QFDS -p 8 -d Flowfields symmetry_test_mpi.fds
@@ -316,6 +316,7 @@ $QFDS -d HVAC HVAC_tee_loss_1.fds
 $QFDS -d HVAC HVAC_tee_loss_2.fds
 $QFDS -d HVAC leak_test.fds
 $QFDS -d HVAC leak_test_2.fds
+$QFDS -d HVAC leak_enthalpy.fds
 $QFDS -p 2 -d HVAC leak_test_3.fds
 $QFDS -d HVAC leak_test_4.fds
 $QFDS -d HVAC HVAC_leak_exponent.fds
@@ -359,7 +360,7 @@ $QFDS -p 8 -d Pressure_Effects zone_shape_2.fds
 $QFDS -d Pressure_Solver dancing_eddies_1mesh.fds
 $QFDS -p 4 -d Pressure_Solver dancing_eddies_uglmat.fds
 $QFDS -p 4 -d Pressure_Solver dancing_eddies_tight.fds
-$QFDS -p 4 -d Pressure_Solver dancing_eddies_tight_overlap.fds
+$QFDS -p 4 -d Pressure_Solver dancing_eddies_tight_no_precon.fds
 $QFDS -p 4 -d Pressure_Solver dancing_eddies_default.fds
 $QFDS -p 4 -d Pressure_Solver dancing_eddies_scarc.fds
 $QFDS -p 4 -d Pressure_Solver dancing_eddies_scarc_tight.fds
@@ -395,6 +396,8 @@ $QFDS -d Pyrolysis cone_demo_2.fds
 $QFDS -d Pyrolysis birch_tga_1step_2.fds
 $QFDS -d Pyrolysis birch_tga_1step_20.fds
 $QFDS -d Pyrolysis enthalpy.fds
+$QFDS -d Pyrolysis liquid_mixture.fds
+$QFDS -p 8 -d Pyrolysis methanol_evaporation.fds
 $QFDS -d Pyrolysis pyrolysis_1.fds
 $QFDS -d Pyrolysis pyrolysis_2.fds
 $QFDS -d Pyrolysis specified_hrr.fds
@@ -439,7 +442,6 @@ $QFDS -d Pyrolysis surf_mass_two_species_spher.fds
 $QFDS -d Pyrolysis tga_analysis.fds
 $QFDS -d Pyrolysis tga_sample.fds
 $QFDS -d Pyrolysis two_step_solid_reaction.fds
-$QFDS -d Pyrolysis water_ice_water.fds
 $QFDS -d Pyrolysis pcm_slab.fds
 $QFDS -d Pyrolysis pyro3d_wood_char.fds
 $QFDS -d Pyrolysis pyro3d_vs_pyro1d.fds
@@ -448,6 +450,8 @@ $QFDS -d Pyrolysis pyro3d_transport.fds
 $QFDS -d Pyrolysis solid_particle_decomposition_1.fds
 $QFDS -d Pyrolysis solid_particle_decomposition_2.fds
 $QFDS -d Pyrolysis solid_particle_decomposition_3.fds
+$QFDS -d Pyrolysis water_ice_water.fds
+$QFDS -d Pyrolysis water_pool.fds
 
 $QFDS -d Radiation adiabatic_surface_temperature.fds
 $QFDS -d Radiation droplet_absorption_cart.fds
@@ -579,6 +583,7 @@ $QFDS -d Species humidity.fds
 $QFDS -d Species mass_flux_wall_yindex.fds
 $QFDS -d Species mass_flux_wall_zindex.fds
 $QFDS -p 8 -d Species mass_balance_reac.fds
+$QFDS -p 3 -d Species favre_test.fds
 
 $QFDS -d Sprinklers_and_Sprays activate_sprinklers.fds
 $QFDS -d Sprinklers_and_Sprays adiabatic_surf_temp_spray.fds
@@ -621,6 +626,7 @@ $QFDS -d Sprinklers_and_Sprays water_evaporation_1.fds
 $QFDS -d Sprinklers_and_Sprays water_evaporation_2.fds
 $QFDS -d Sprinklers_and_Sprays water_evaporation_3.fds
 $QFDS -d Sprinklers_and_Sprays water_evaporation_4.fds
+$QFDS -d Sprinklers_and_Sprays water_evaporation_4_np100.fds
 $QFDS -d Sprinklers_and_Sprays water_evaporation_5.fds
 $QFDS -d Sprinklers_and_Sprays Ranz_Marshall_thermally_thick.fds
 $QFDS -d Sprinklers_and_Sprays water_evaporation_6.fds
@@ -678,6 +684,8 @@ $QFDS -d Scalar_Analytical_Solution saad_512_cfl_p5.fds
 $QFDS -d Scalar_Analytical_Solution saad_512_cfl_p25.fds
 $QFDS -d Scalar_Analytical_Solution saad_512_cfl_p125.fds
 $QFDS -d Scalar_Analytical_Solution saad_512_cfl_p0625.fds
+$QFDS -d Scalar_Analytical_Solution shunn3_FavreZ_32.fds
+$QFDS -d Scalar_Analytical_Solution shunn3_FavreZ_64.fds
 $QFDS -p 4 -d Scalar_Analytical_Solution shunn3_4mesh_32.fds
 $QFDS -p 4 -d Scalar_Analytical_Solution shunn3_4mesh_64.fds
 $QFDS -p 4 -d Scalar_Analytical_Solution shunn3_4mesh_128.fds
@@ -730,11 +738,11 @@ $QFDS -d Turbulence yplus_32.fds
 $QFDS -d Turbulence ribbed_channel_20.fds
 $QFDS -d Turbulence ribbed_channel_40.fds
 $QFDS -d Turbulence ribbed_channel_80.fds
-# $QFDS -d Turbulence ribbed_channel_160.fds # output file committed to fds/Verification/Turbulence/
-# $QFDS -d Turbulence ribbed_channel_geom_20.fds
-# $QFDS -d Turbulence ribbed_channel_geom_40.fds
-# $QFDS -d Turbulence ribbed_channel_geom_80.fds
-# $QFDS -d Turbulence ribbed_channel_geom_160.fds # output file committed to fds/Verification/Turbulence/
+# $QFDS -p 4 -d Turbulence ribbed_channel_160.fds # output file committed to fds/Verification/Turbulence/
+$QFDS -d Turbulence ribbed_channel_geom_20.fds
+$QFDS -d Turbulence ribbed_channel_geom_40.fds
+$QFDS -d Turbulence ribbed_channel_geom_80.fds
+# $QFDS -p 4 -d Turbulence ribbed_channel_geom_160.fds # output file committed to fds/Verification/Turbulence/
 $QFDS -d Turbulence sem_flat_leddy_p2.fds
 $QFDS -d Turbulence sem_par_leddy_p2.fds
 $QFDS -d Turbulence sem_atm_leddy_p2.fds
@@ -754,6 +762,14 @@ $QFDS -p 2 -d WUI ground_vegetation_load.fds
 $QFDS -p 2 -d WUI ground_vegetation_radi.fds
 $QFDS -d WUI hot_rods.fds
 $QFDS -d WUI level_set_fuel_model_1.fds
+$QFDS -d WUI Needle_TGA_A.fds
+$QFDS -d WUI Needle_TGA_B.fds
+$QFDS -d WUI Needle_TGA_C.fds
+$QFDS -d WUI Needle_TGA_D.fds
+$QFDS -d WUI Needle_TGA_E.fds
+$QFDS -d WUI Needle_TGA_F.fds
+$QFDS -d WUI Needle_TGA_G.fds
+$QFDS -d WUI Needle_TGA_H.fds
 $QFDS -d WUI pine_needles.fds
 $QFDS -d WUI radiation_gas-veg_consistency_gas.fds
 $QFDS -d WUI radiation_gas-veg_consistency_veg.fds
