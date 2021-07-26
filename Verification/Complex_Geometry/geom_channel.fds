@@ -13,10 +13,11 @@
 &SPEC ID='MY AIR', SPEC_ID(1)='LJ AIR', BACKGROUND=T, MASS_FRACTION(1)=1./
 &SPEC ID='TRACER', SPEC_ID(1)='LJ AIR', MASS_FRACTION(1)=1. /
 
-&MISC SIMULATION_MODE='LES', NOISE=F, STRATIFICATION=F / ! Stress method enabled by default.
-&SURF ID='INLET', FREE_SLIP=T, MASS_FRACTION(1)=1., SPEC_ID(1)='TRACER', VEL=-1/ #, TAU_V=0./
-#&WIND U0=1./ 
-&PRES SOLVER='UGLMAT'/
+! use for interpolating geometry slice files
+MISC GEOM_SLICE_AVG=2, NOISE=F, STRATIFICATION=F / ! Stress method enabled by default.
+
+&MISC NOISE=F, STRATIFICATION=F / ! Stress method enabled by default.
+&SURF ID='INLET', FREE_SLIP=T, MASS_FRACTION(1)=1., SPEC_ID(1)='TRACER', VEL=-1, TAU_V=0./
 
 &VENT MB='XMIN', SURF_ID='INLET' /
 &VENT MB='XMAX', SURF_ID='OPEN' /
@@ -26,11 +27,13 @@
 &GEOM XB=-0.25,1.25,0.,1.,    1.00,1.25 , SURF_ID='default wall' / top
 &GEOM XB=-0.25,1.25,0.,1.,   -0.25,0.00 , SURF_ID='default wall' / bottom
 
-#&OBST XB=-0.25,1.25,0.,1.,   1.00,1.25 , SURF_ID='default wall' / top
-#&OBST XB=-0.25,1.25,0.,1.,  -0.25,0.00 , SURF_ID='default wall' / bottom
+! &OBST XB=-0.25,1.25,0.,1.,   1.00,1.25 , SURF_ID='default wall' / top
+! &OBST XB=-0.25,1.25,0.,1.,  -0.25,0.00 , SURF_ID='default wall' / bottom
 
-&SLCF DB='YMID', QUANTITY='VELOCITY', VECTOR=T /
-&SLCF DB='YMID', QUANTITY='U-VELOCITY', CELL_CENTERED=T/
+&SLCF DB='YMID', QUANTITY='VELOCITY' /
+&SLCF DB='YMID', QUANTITY='U-VELOCITY' /
+&SLCF DB='YMID', QUANTITY='V-VELOCITY' /
+&SLCF DB='YMID', QUANTITY='W-VELOCITY' /
 &SLCF DB='YMID', QUANTITY='TEMPERATURE', CELL_CENTERED=T /
 &SLCF DB='YMID', QUANTITY='MASS FRACTION', SPEC_ID='TRACER', CELL_CENTERED=T /
 

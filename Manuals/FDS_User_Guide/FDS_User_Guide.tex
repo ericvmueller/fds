@@ -6652,7 +6652,7 @@ Figure~\ref{hot_rods_image} displays the distribution of radii and the mass of r
 \subsection{Solid Particle Movement on Solid Surfaces}
 \label{info:surface_solid_particles}
 
-By default, solid particles do not ``stick'' or adhere to solid surfaces like liquid droplets do. However, you can make solid particles act like liquid droplets by setting {\ct ADHERE\_TO\_SOLID=T} on the {\ct PART} line, in which case the particles will stick and be reassigned a new speed and direction. If the surface is horizontal, the direction is randomly chosen. If vertical, the direction is downwards. The parameters {\ct HORIZONTAL\_VELOCITY} and {\ct VERTICAL\_VELOCITY} on the {\ct PART} line allow you to control the speed at which particles move horizontally or vertically (downward). The defaults are 0.2~m/s and 0.5~m/s, respectively. If you want the particle to truly stick and not move on a surface, set these values to 0.
+By default, solid particles do not ``stick'' or adhere to solid surfaces like liquid droplets do. However, you can make solid particles act like liquid droplets by setting {\ct ADHERE\_TO\_SOLID=1} on the {\ct PART} line, in which case the particles will stick and be reassigned a new speed and direction. If the surface is horizontal, the direction is randomly chosen. If vertical, the direction is downwards. The parameters {\ct HORIZONTAL\_VELOCITY} and {\ct VERTICAL\_VELOCITY} on the {\ct PART} line allow you to control the speed at which particles move horizontally or vertically (downward). The defaults are 0.2~m/s and 0.5~m/s, respectively. If you want the particle to truly stick and not move on a surface, set these values to 0.
 
 
 \subsection{Splitting Particles}
@@ -6989,7 +6989,7 @@ Modeling fire suppression by water has three principal components: transporting 
 \label{info:surface_droplets}
 \label{cascade}
 
-When a liquid\footnote{Solid particles do not stick to solid surfaces by default like liquid droplets. However, you can make solid particles act like liquid droplets by setting {\ct ADHERE\_TO\_SOLID=T} on the {\ct PART} line.} droplet strikes a solid surface\footnote{If you do not want droplets to accumulate on solid surfaces, set {\ct ALLOW\_SURFACE\_PARTICLES=F} on the {\ct MISC} line. It is normally {\ct T}}, it sticks and is reassigned a new speed and direction. If the surface is horizontal, the direction is randomly chosen. If vertical, the direction is downwards. The parameters {\ct HORIZONTAL\_VELOCITY} and {\ct VERTICAL\_VELOCITY} on the {\ct PART} line allow you to control the speed at which droplets move horizontally or vertically (downward). The defaults are 0.2~m/s and 0.5~m/s, respectively.
+When a liquid\footnote{Solid particles do not stick to solid surfaces by default like liquid droplets. However, you can make solid particles act like liquid droplets by setting {\ct ADHERE\_TO\_SOLID=1} on the {\ct PART} line.} droplet strikes a solid surface\footnote{If you do not want droplets to accumulate on solid surfaces, set {\ct ADHERE\_TO\_SOLID=-1} on the {\ct PART} line. It is normally 1 for liquid droplets.}, it sticks and is reassigned a new speed and direction. If the surface is horizontal, the direction is randomly chosen. If vertical, the direction is downwards. The parameters {\ct HORIZONTAL\_VELOCITY} and {\ct VERTICAL\_VELOCITY} on the {\ct PART} line allow you to control the speed at which droplets move horizontally or vertically (downward). The defaults are 0.2~m/s and 0.5~m/s, respectively.
 
 When a liquid droplet hits a solid surface, it is assumed to form a thin film that is assumed to be no less than 0.00001~m thick. This value, {\ct MINIMUM\_FILM\_THICKNESS} (m), can be changed on the {\ct MISC} line. The diameter of the droplet, once it strikes a solid surface, is not important because it is assumed to mix with other droplets forming the film. However, when the droplet leaves the solid surface in the form of a ``drip,'' it reforms into a droplet, and its new diameter is assumed to be 1000~$\mu$m unless you specify an alternative {\ct SURFACE\_DIAMETER} on the {\ct PART} line in units of $\mu$m.
 
@@ -8845,6 +8845,13 @@ Sometimes it is convenient to calculate a steady-state profile. For example, the
       STATISTICS_START=20., STATISTICS_END=40. /
 \end{lstlisting}
 In a file called {\ct CHID\_line.csv}, there will be between 1 and 4 columns of data associated with this single {\ct DEVC} line. If {\ct X1} is different than {\ct X2}, there will be a column of $x$ coordinates associated with the linear array of points. The same holds for the $y$ and $z$ coordinates. The last column contains the 20 temperature points time-averaged over the interval between {\ct STATISTICS\_START} and {\ct STATISTICS\_END}. The default value of the latter is {\ct T\_END} and the former is half the total simulation time. This is a convenient way to output a time-averaged linear profile of a quantity, like an array of thermocouples.  Note that the statistics output to the {\ct \_line.csv} file start being averaged at {\ct T=STATISTICS\_START}.  Prior to this time, the values are zero.  This prevents initial transient from biasing the final average value or other temporal statistics.
+
+By default, the points are uniformly spaced between $(x_1,y_1,z_1)$ and $(x_2,y_2,z_2)$. To change this, you can add arrays of coordinate values {\ct POINTS\_ARRAY\_X}, {\ct POINTS\_ARRAY\_Y}, and/or {\ct POINTS\_ARRAY\_Z}. For example, the line
+\begin{lstlisting}
+&DEVC XBP=0,0,0,0,0,1, QUANTITY='TEMPERATURE', ID='T', POINTS=4,
+      POINTS_ARRAY_Z=0.1,0.2,0.3,0.7 /
+\end{lstlisting}
+creates an array of four points in the vertical direction that are not uniformly spaced. The original values of 0 and 1 in the array {\ct XBP} are ignored. Using all three {\ct POINTS\_ARRAY}s, you can create a curved line of points. The upper dimension of these arrays is 100.
 
 A single ``line'' file can hold more than a single line of data. By default, the coordinate columns are labeled using the {\ct ID} of the {\ct DEVC} appended with either {\ct -x}, {\ct -y}, or {\ct -z}. To change these labels, use {\ct X\_ID}, {\ct Y\_ID}, and/or {\ct Z\_ID}. To suppress the coordinate columns altogether, add {\ct HIDE\_COORDINATES=T} to the {\ct DEVC} line. This is convenient if you have multiple arrays of data that use the same coordinates. If you want the data plotted as a function of the distance from the origin, $r=\sqrt{x^2+y^2+z^2}$, provide the label {\ct R\_ID}. If you want the data plotted as a function of the distance from the first point on the line, ({\ct X1,Y1,Z1}), provide the label {\ct D\_ID}.
 
@@ -10861,6 +10868,9 @@ properties be specified as well. Simply prescribing as many properties as possib
 {\ct PART\_ID}              & Character       & Section~\ref{info:outputquantities}                             &       &               \\ \hline
 {\ct PIPE\_INDEX}           & Integer         & Section~\ref{info:pressureramp}                                 &       &  1            \\ \hline
 {\ct POINTS}                & Integer         & Section~\ref{info:line_file}                                    &       & 1             \\ \hline
+{\ct POINTS\_ARRAY\_X}      & Real Array      & Section~\ref{info:line_file}                                    & m     &               \\ \hline
+{\ct POINTS\_ARRAY\_Y}      & Real Array      & Section~\ref{info:line_file}                                    & m     &               \\ \hline
+{\ct POINTS\_ARRAY\_Z}      & Real Array      & Section~\ref{info:line_file}                                    & m     &               \\ \hline
 {\ct PROP\_ID}              & Character       & Section~\ref{info:DEVC}                                         &       &               \\ \hline
 {\ct QUANTITY}              & Character       & Section~\ref{info:DEVC}                                         &       &               \\ \hline
 {\ct QUANTITY2}             & Character       & Section~\ref{info:line_file}                                    &       &               \\ \hline
@@ -11618,7 +11628,7 @@ $\Delta t$={\ct T\_END-T\_BEGIN}
 \multicolumn{5}{|c|}{{\ct PART} (Lagrangian Particles/Droplets)} \\
 \hline \hline
 \endhead
-{\ct ADHERE\_TO\_SOLID}                  & Logical     & Section~\ref{info:surface_solid_particles}                            &                   & {\ct F}         \\ \hline
+{\ct ADHERE\_TO\_SOLID}                  & Integer     & Section~\ref{info:surface_solid_particles}                            &                   & 0                     \\ \hline
 {\ct AGE}                                & Real        & Section~\ref{info:part_output}                                        & s                 & $1\times 10^5$        \\ \hline
 {\ct BREAKUP}                            & Logical     & Section~\ref{info:secondary_breakup}                                  &                   & {\ct F}         \\ \hline
 {\ct BREAKUP\_CNF\_RAMP\_ID}             & Character   & Section~\ref{info:secondary_breakup}                                  &                   &                       \\ \hline
