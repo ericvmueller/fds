@@ -861,13 +861,12 @@ The experiments are simulated using the specified fuel burning rate. The fuel is
 \section{Loughborough Jet Fire Experiments}
 \label{Loughborough_Jet_Fires_Description}
 
-Researchers at Loughborough University, UK, conducted a series of six large-scale, high pressure jet fires using natural gas and natural gas/hydrogen mixtures. For each fuel, the gas was released horizontally at high pressure (approximately 60~bar) through 20~mm, 35~mm and 50~mm diameter holes at the end of a 15~cm diameter pipe. The jet fires engulfed a 0.9~m diameter, 16~m long pipe section normal to the flow direction. Heat flux measurements were made at various locations on the pipe and further afield. 
+Researchers at Loughborough University, UK, conducted a series of six large-scale, high pressure jet fire experiments using natural gas and natural gas/hydrogen mixtures. For each fuel, the gas was released horizontally at high pressure (approximately 60~bar) through 20~mm, 35~mm and 50~mm diameter holes at the end of a 15~cm diameter pipe. The jet fires engulfed a 0.9~m diameter, 16~m long pipe section perpendicular to the flow direction. Heat flux measurements were made at various locations on the pipe and further afield. 
 
-Table~\ref{Loughborough_Parameters} lists the key parameters for the natural gas experiments which have been chosen for this study. Note that the direction of the jet was nominally to the east, parallel to the prevailing wind. The wind deviated slightly, as indicated in the table.
+Table~\ref{Loughborough_Parameters} lists the key parameters for the natural gas experiments which have been chosen for this study. Note that the direction of the jet was nominally to the east, parallel to the prevailing wind. The wind deviated slightly in each experiment, as indicated in the table.
 
 \begin{table}[!ht]
 \caption[Summary of the Loughborough Jet Fire Experiments]{Summary of the Loughborough Jet Fire Experiments.}
-\begin{center}
 \begin{tabular}{|c|c|c|c|c|c|c|c|c|c|c|}
 \hline
 Test    & Fuel     & Hole  & Dist.    & Wind          & Wind    & Mass   & Heat Rel.    & Flame     & Stand-Off  & Rad.      \\
@@ -877,17 +876,22 @@ No.     & Type     & Diam. & to Pipe  & Dir.          & Speed   & Flow   & Rate 
 2       & Nat.~Gas & 35    & 15.45    & 297           & 6.2     & 9.6    & 462          & 37.8      & 7.5        & 17.9      \\
 3       & Nat.~Gas & 50    & 21.61    & 267           & 3.6     & 19.5   & 939          & 49.9      & 8.7        & 20.2      \\ \hline
 \end{tabular}
-\end{center}
 \label{Loughborough_Parameters}
 \end{table}
 
 \subsubsection{Modeling Notes}
 
-FDS is a low Mach number code and cannot model directly the supersonic flow at the jet orifice. Instead, cold (-160~$^\circ$C) droplets with a median volumetric diameter of 1000~$\mu$m are injected wtih an initial velocity of 1000~m/s and spray angle of 10$^\circ$. These droplets evaporate readily to form methane gas. No attempt is made to model the stand-off distance because there is no mechanism in FDS to account for flame suppression due to high shear.
+FDS is a low Mach number code and cannot model directly the supersonic flow at the pipe orifice. Instead, cold (-160~$^\circ$C) droplets with a median volumetric diameter of 1000~$\mu$m are injected wtih an initial velocity of 1000~m/s and spray angle of 10$^\circ$. These droplets evaporate readily to form methane gas. No attempt is made to model the stand-off distance because there is no mechanism in FDS to account for flame suppression due to high shear.
 
-The grid resolution is 20~cm; thus, the circular pipe is modeled as a collection of 20~cm square rods with a cross section that is 0.8~m by 0.8~m, but with the corners removed. The velocity boundary condition is assumed to be free-slip because otherwise the polygonally-shaped obstruction would exert a fictitiously high drag force on the flow. The empirical heat transfer coefficient for the pipe is calculated using parameters appropriate for a cylindrical rather than a flat plate. 
+The grid resolution is 20~cm; thus, the circular pipe is modeled as a collection of 20~cm square rods with a cross section that is 0.8~m by 0.8~m, but with the corners removed. The velocity boundary condition is assumed to be free-slip because otherwise the polygonally-shaped obstruction would exert a fictitiously high drag force on the flow. The empirical heat transfer coefficient for the pipe is calculated using parameters appropriate for a cylindrical rather than a flat plate. The Nusselt number is taken as 
+\be
+   \NU = 0.027 \, \RE^{0.805} \, \PR^{1/3} \quad ; \quad \RE = \frac{\rho D \|\bu_{\rm t}\| }{\mu} \quad ; \quad \PR=0.7
+\ee
+This correlation is appropriate for $40,000 < \RE < 400,000$~\cite{Incropera:1}.
 
 To resolve the radiation field at the far-field radiometers, 600~angles are used in solving the radiation transport equation rather than the default 100. The radiation absorption coefficients are calculated by RadCal assuming a path length of 100~m rather than the default value of 0.1~m. 
+
+The wind profile is based on measurements made 10.85~m above the relatively flat terrain. The aerodynamic roughness length, $z_0$, is set to 0.03~m, appropriate for relatively flat grasslands, prairies, farms, etc. The Obukhov length, $L$, is set to 100,000~m, typical of a neutral atmosphere. Synthetic turbulence is generated at the upstream boundary of the computational domain, with a characteristic eddy length scale of 1~m and root-mean-square velocity fluctuation of 0.1~m/s.
 
 
 
@@ -1933,6 +1937,28 @@ The condensation simulations included a 4~m portion of duct upstream to allow fo
 	\end{center}
 	\label{SETCOM_condensation_Summary}
 \end{table}
+
+\FloatBarrier
+
+
+\section{Shell LNG Fireball Experiments}
+\label{Shell_LNG_Fireballs_Description}
+
+Shell Research Ltd.~commissioned four large-scale BLEVE (Boiling Liquid Expanding Vapor Explosion) experiments using LNG (Liquified Natural Gas) at the DNV (Det Norske Veritas) GL test facility at Spadeadam, UK~\cite{Betteridge:2015}. For Experiments 2-4, the cylindrical containment vessel was constructed of 6~mm stainless steel plates and had a length of approximately 6.5 m and diameter of approximately 1~m, with a total volume of 5.055~m$^3$. The mass of LNG for Experiments~2-4 was approximately 681~kg, 1306~kg, and 1251~kg, respectively. The LNG consisted of 96.7~\% methane, 3.0~\% ethane, 0.2~\% nitrogen, and 0.1~\% propane, by volume. The reservoir pressure for Experiments~2-4 was maintained at 13.01~bar, 6.07~bar, and 13.62~bar; and the temperatures were $-115 \; ^\circ$C, $-131 \; ^\circ$C, and $-115 \; ^\circ$C, respectively.
+
+The rupture of the vessels was initiated by an explosive cutting charge designed to rip open the vessel from end to end. Commercial fireworks were ignited just prior to the explosive charge to ensure ignition of the released gas.
+
+Radiometers and pressure transducers were positioned at various distances from the vessel. Only a fraction of the data has been made public, including radiometer measurements at distances of 40~m, 70~m, and 100~m.
+
+\subsubsection{Modeling Notes}
+
+The FDS simulations of the three BLEVE experiments are performed with 0.5~m resolution spanning a volume that is 160~m long, 100~m wide, and 120~m high. The specified mass of LNG is injected uniformly for 0.2~s at the ground over an area 6.4~m long and 3.2~m wide. An inert obstruction that is 3.2~m long by 1.6~m wide and 0.8~m tall is suspended above the spill region to represent the remains of the containment vessel. No attempt is made to model the destuction of the vessel or the subsequent spill of LNG. 
+
+Approximately 600 angles are used in the radiative transport solver rather than the default 100. A radiative fraction of 30~\% is used, rather than the default of 20~\% for methane.
+
+
+
+
 
 \section{Sippola Aerosol Deposition Experiments}
 \label{Sippola_Aerosol_Deposition_Description}
