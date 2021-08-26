@@ -1739,14 +1739,14 @@ PARTICLE_LOOP: DO IP=1,NLP
 
       CALL GET_IJK(LP%X,LP%Y,LP%Z,NM,XI,YJ,ZK,LP%ONE_D%IIG,LP%ONE_D%JJG,LP%ONE_D%KKG)
 
-      ! Remove firebrands that have landed - still needs much improvement
-      IF (FBRAND .AND. LP%Z<0.01_EB) THEN
-         !IF (LP%U==0._EB .AND. LP%V==0._EB .AND. LP%W==0._EB) THEN
-            !HIT_SOLID=.TRUE.
-            LP%ONE_D%BURNAWAY = .TRUE.
-            CYCLE PARTICLE_LOOP
-         !ENDIF
-      ENDIF
+      ! ! Remove firebrands that have landed - still needs much improvement
+      ! IF (FBRAND .AND. LP%Z<0.01_EB) THEN
+      !    !IF (LP%U==0._EB .AND. LP%V==0._EB .AND. LP%W==0._EB) THEN
+      !       !HIT_SOLID=.TRUE.
+      !       LP%ONE_D%BURNAWAY = .TRUE.
+      !       CYCLE PARTICLE_LOOP
+      !    !ENDIF
+      ! ENDIF
 
       ! If the particle is not near a boundary cell, cycle.
 
@@ -2652,6 +2652,14 @@ IF ( ONE_D%U_NORMAL>SURFACE(SURF_INDEX)%PARTICLE_EXTRACTION_VELOCITY .OR. &
       LP%X=-1.E6_EB
       EXTRACT = .TRUE.
    ENDIF
+ENDIF
+
+! Write final location if particle is a firebrand
+IF (FBRAND) THEN
+   WRITE(LU_FBRAND(NM),'(6(F10.2,A),2(F10.3,A),E10.3)') T,',',(T-LP%T_INSERT),',',LP%X,',',LP%Y,',',LP%Z,',',LP%ZI,',', &
+      2.E6*SUM(LP%ONE_D%LAYER_THICKNESS),',',1.E6*LP%MASS,',',LP%ONE_D%AREA/2._EB
+   LP%X=-1.E6_EB
+   EXTRACT = .TRUE.
 ENDIF
 
 END SUBROUTINE VENT_PARTICLE_EXTRACTION
@@ -3779,11 +3787,6 @@ PARTICLE_LOOP: DO IP=1,NLP
       ! Remove particles that are too small
 
       IF (LPC%SOLID_PARTICLE .AND. SF%THERMAL_BC_INDEX==THERMALLY_THICK .AND. LP%ONE_D%BURNAWAY) THEN
-         ! Write final location if particle is a firebrand
-         IF (FBRAND) THEN
-            WRITE(LU_FBRAND(NM),'(6(F10.2,A),2(F10.3,A),E10.3)') T,',',(T-LP%T_INSERT),',',LP%X,',',LP%Y,',',LP%Z,',',LP%ZI,',', &
-               2.E6*SUM(LP%ONE_D%LAYER_THICKNESS),',',1.E6*LP%MASS,',',LP%ONE_D%AREA/2._EB
-         ENDIF
          CALL PARTICLE_ORPHANAGE
          CYCLE WEED_LOOP
       ENDIF
