@@ -12814,6 +12814,7 @@ READ_DEVC_LOOP: DO NN=1,N_DEVC_READ
       CASE('TIME MAX')        ; TEMPORAL_STATISTIC = 'MAX'
       CASE('TIME MIN')        ; TEMPORAL_STATISTIC = 'MIN'
       CASE('RMS')             ; TEMPORAL_STATISTIC = 'RMS'
+      CASE('FAVRE RMS')       ; TEMPORAL_STATISTIC = 'FAVRE RMS'
       CASE('COV')             ; TEMPORAL_STATISTIC = 'COV'
       CASE('CORRCOEF')        ; TEMPORAL_STATISTIC = 'CORRCOEF'
 
@@ -12912,41 +12913,12 @@ READ_DEVC_LOOP: DO NN=1,N_DEVC_READ
       ORIENTATION_INDEX = N_ORIENTATION_VECTOR
    ENDIF
 
-   ! Check if there are any devices with specified XB that do not fall within a mesh.
-
-   IF (POINTS==1 .AND. XB(1)>-1.E5_EB) THEN
-
-      IF (QUANTITY/='PATH OBSCURATION' .AND. QUANTITY/='TRANSMISSION') CALL CHECK_XB(XB)
-
-      MESH_DEVICE = 0
-
-      BAD = .TRUE.
-      CHECK_MESH_LOOP: DO NM=1,NMESHES
-         IF (DO_EVACUATION) CYCLE CHECK_MESH_LOOP
-         M=>MESHES(NM)
-         OVERLAPPING_X = .TRUE.
-         OVERLAPPING_Y = .TRUE.
-         OVERLAPPING_Z = .TRUE.
-         IF (XB(1)==XB(2) .AND. (XB(1)> M%XF .OR. XB(2)< M%XS)) OVERLAPPING_X = .FALSE.
-         IF (XB(1)/=XB(2) .AND. (XB(1)>=M%XF .OR. XB(2)<=M%XS)) OVERLAPPING_X = .FALSE.
-         IF (XB(3)==XB(4) .AND. (XB(3)> M%YF .OR. XB(4)< M%YS)) OVERLAPPING_Y = .FALSE.
-         IF (XB(3)/=XB(4) .AND. (XB(3)>=M%YF .OR. XB(4)<=M%YS)) OVERLAPPING_Y = .FALSE.
-         IF (XB(5)==XB(6) .AND. (XB(5)> M%ZF .OR. XB(6)< M%ZS)) OVERLAPPING_Z = .FALSE.
-         IF (XB(5)/=XB(6) .AND. (XB(5)>=M%ZF .OR. XB(6)<=M%ZS)) OVERLAPPING_Z = .FALSE.
-         IF (OVERLAPPING_X .AND. OVERLAPPING_Y .AND. OVERLAPPING_Z) THEN
-            BAD = .FALSE.
-            IF (PROCESS(NM)==MY_RANK) MESH_DEVICE(NM) = 1
-            MESH_NUMBER = NM
-         ENDIF
-      ENDDO CHECK_MESH_LOOP
-
-   ENDIF
-
    ! Process the point devices along a line, if necessary
 
    POINTS_LOOP: DO I_POINT=1,POINTS
 
-      IF (POINTS>1 .OR. XB(1)<-1.E5_EB) MESH_DEVICE = 0
+      MESH_DEVICE = 0               ! MESH_DEVICE(NM)=1 means that the device involves mesh NM
+      IF (I_POINT>1) XB = -1.E6_EB  ! Reset XB for new point along a linear array of POINTS
 
       ! Create a straight line of point devices
 
@@ -12967,6 +12939,31 @@ READ_DEVC_LOOP: DO NN=1,N_DEVC_READ
             XB(5) = XYZ(3) - DZ
             XB(6) = XYZ(3) + DZ
          ENDIF
+      ENDIF
+
+      ! Check if there are any devices with specified XB that do not fall within a mesh.
+
+      IF (XB(1)>-1.E5_EB) THEN
+         IF (QUANTITY/='PATH OBSCURATION' .AND. QUANTITY/='TRANSMISSION') CALL CHECK_XB(XB)
+         BAD = .TRUE.
+         CHECK_MESH_LOOP: DO NM=1,NMESHES
+            IF (DO_EVACUATION) CYCLE CHECK_MESH_LOOP
+            M=>MESHES(NM)
+            OVERLAPPING_X = .TRUE.
+            OVERLAPPING_Y = .TRUE.
+            OVERLAPPING_Z = .TRUE.
+            IF (XB(1)==XB(2) .AND. (XB(1)> M%XF .OR. XB(2)< M%XS)) OVERLAPPING_X = .FALSE.
+            IF (XB(1)/=XB(2) .AND. (XB(1)>=M%XF .OR. XB(2)<=M%XS)) OVERLAPPING_X = .FALSE.
+            IF (XB(3)==XB(4) .AND. (XB(3)> M%YF .OR. XB(4)< M%YS)) OVERLAPPING_Y = .FALSE.
+            IF (XB(3)/=XB(4) .AND. (XB(3)>=M%YF .OR. XB(4)<=M%YS)) OVERLAPPING_Y = .FALSE.
+            IF (XB(5)==XB(6) .AND. (XB(5)> M%ZF .OR. XB(6)< M%ZS)) OVERLAPPING_Z = .FALSE.
+            IF (XB(5)/=XB(6) .AND. (XB(5)>=M%ZF .OR. XB(6)<=M%ZS)) OVERLAPPING_Z = .FALSE.
+            IF (OVERLAPPING_X .AND. OVERLAPPING_Y .AND. OVERLAPPING_Z) THEN
+               BAD = .FALSE.
+               IF (PROCESS(NM)==MY_RANK) MESH_DEVICE(NM) = 1
+               MESH_NUMBER = NM
+            ENDIF
+         ENDDO CHECK_MESH_LOOP
       ENDIF
 
       ! Assign a dummy XYZ triplet for devices that use a SPATIAL_STATISTIC
@@ -12999,12 +12996,12 @@ READ_DEVC_LOOP: DO NN=1,N_DEVC_READ
          CALL SEARCH_OTHER_MESHES(XYZ(1),XYZ(2),XYZ(3),NM,IIG,JJG,KKG,XI,YJ,ZK)
          IF (IIG>0 .AND. JJG>0 .AND. KKG>0) THEN
             M => MESHES(NM)
-            XB(1) = M%X(NINT(XI)) - M%DX(IIG)
-            XB(2) = M%X(NINT(XI)) + M%DX(IIG)
-            XB(3) = M%Y(NINT(YJ)) - M%DY(JJG)
-            XB(4) = M%Y(NINT(YJ)) + M%DY(JJG)
-            XB(5) = M%Z(NINT(ZK)) - M%DZ(KKG)
-            XB(6) = M%Z(NINT(ZK)) + M%DZ(KKG)
+            XB(1) = M%X(NINT(XI)) - 0.5_EB*M%DX(IIG)
+            XB(2) = M%X(NINT(XI)) + 0.5_EB*M%DX(IIG)
+            XB(3) = M%Y(NINT(YJ)) - 0.5_EB*M%DY(JJG)
+            XB(4) = M%Y(NINT(YJ)) + 0.5_EB*M%DY(JJG)
+            XB(5) = M%Z(NINT(ZK)) - 0.5_EB*M%DZ(KKG)
+            XB(6) = M%Z(NINT(ZK)) + 0.5_EB*M%DZ(KKG)
          ELSE
             XB = 0._EB
          ENDIF
@@ -13012,7 +13009,8 @@ READ_DEVC_LOOP: DO NN=1,N_DEVC_READ
 
       ! Force MASS MEAN spatial statistic for FAVRE average
 
-      IF (TEMPORAL_STATISTIC=='FAVRE AVERAGE') THEN
+      IF ( (TEMPORAL_STATISTIC=='FAVRE AVERAGE' .OR. TEMPORAL_STATISTIC=='FAVRE RMS') &
+         .AND. SPATIAL_STATISTIC/='INTERPOLATION') THEN
          SPATIAL_STATISTIC='MASS MEAN'
          CALL SEARCH_OTHER_MESHES(XYZ(1),XYZ(2),XYZ(3),NM,IIG,JJG,KKG,XI,YJ,ZK)
          IF (IIG>0 .AND. JJG>0 .AND. KKG>0) THEN
@@ -13578,6 +13576,8 @@ READ_CTRL_LOOP: DO NC=1,N_CTRL
          CF%CONTROL_INDEX = CF_ASIN
       CASE('ACOS')
          CF%CONTROL_INDEX = CF_ACOS
+      CASE('ATAN')
+         CF%CONTROL_INDEX = CF_ATAN
       CASE('MIN')
          CF%CONTROL_INDEX = CF_MIN
       CASE('MAX')

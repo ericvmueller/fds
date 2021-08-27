@@ -1542,7 +1542,7 @@ ENDIF
 
 OPEN(LU_SMV,FILE=FN_SMV,FORM='FORMATTED',STATUS='REPLACE')
 
-IF (EVACUATION_MC_MODE .AND. .NOT.EVACUATION_DRILL) THEN
+EVACUATION_SMV_APPEND: IF (EVACUATION_MC_MODE .AND. .NOT.EVACUATION_DRILL) THEN
    ! Evacuation smv file format: evacuation stuff appended to the fire smv file
    
    I = LEN_TRIM(CHID)-5
@@ -1570,9 +1570,8 @@ IF (EVACUATION_MC_MODE .AND. .NOT.EVACUATION_DRILL) THEN
 30 CONTINUE
    CLOSE (LU_EVACXYZ)
 
-ENDIF
-
-
+ELSE
+   
 ! Write out TITLE
 
 WRITE(LU_SMV,'(A)') 'TITLE'
@@ -1621,8 +1620,6 @@ WRITE(LU_SMV,'(A)') REVISION
 
 WRITE(LU_SMV,'(/A)') 'CHID'
 WRITE(LU_SMV,'(1X,A)') TRIM(CHID)
-
-EVACUATION_IF_SMV_1: IF (.NOT.DO_EVACUATION) THEN
 
 ! Write out SOLID_HT3D
 
@@ -1674,8 +1671,6 @@ ENDDO
 WRITE(LU_SMV,'(/A)') 'NMESHES'
 WRITE(LU_SMV,'(I3)') NMESHES
 
-ENDIF EVACUATION_IF_SMV_1
-
 ! Information used for touring in Smokeview
 
 WRITE(LU_SMV,'(/A)') 'VIEWTIMES'
@@ -1725,6 +1720,8 @@ DO N=0,N_SURF
    WRITE(LU_SMV,'(I2,6F13.5)') SF%SURF_TYPE,SF%TEXTURE_WIDTH,SF%TEXTURE_HEIGHT,REAL(SF%RGB,FB)/255._FB,SF%TRANSPARENCY
    WRITE(LU_SMV,'(1X,A)') SF%TEXTURE_MAP
 ENDDO
+
+ENDIF EVACUATION_SMV_APPEND
 
 EVAC_ONLY3: IF (.NOT.ALL(EVACUATION_ONLY)) THEN
 
@@ -3118,7 +3115,7 @@ ENDDO SURFLOOP
 
 ! Print out information about all Devices
 
-IF (N_PROP > 0) WRITE(LU_OUTPUT,'(//A,I2)')  ' Device Properties'
+IF (N_PROP > 0) WRITE(LU_OUTPUT,'(//A,I2)')  ' PROPerty Information'
 
 PROPERTY_LOOP: DO N=1,N_PROP
    PY => PROPERTY(N)
@@ -3159,25 +3156,19 @@ WRITE(LU_OUTPUT,'(A,ES10.3,A)') '    Maximum Density: ',RHOMAX,' kg/m3'
 ! Print out DEVICE locations and info
 
 IF (N_DEVC>0) THEN
-   WRITE(LU_OUTPUT,'(//A/)')   ' Device Coordinates'
+   WRITE(LU_OUTPUT,'(//A/)')   ' Device Information'
    DO N=1,N_DEVC
       DV => DEVICE(N)
-      IF (DV%Y_INDEX>0) THEN
-         WRITE(LU_OUTPUT,'(I6,A,3F14.6,A,A,A,A,A,A,A,A)') N,' Coords:',DV%X,DV%Y,DV%Z, &
-            ', Make: ',TRIM(PROPERTY(DV%PROP_INDEX)%ID), ', ID: ',TRIM(DV%ID), ', Quantity: ',TRIM(DV%QUANTITY(1)), &
-            ', Species: ',TRIM(SPECIES(DV%Y_INDEX)%ID)
-      ELSEIF (DV%Z_INDEX>=0) THEN
-         WRITE(LU_OUTPUT,'(I6,A,3F14.6,A,A,A,A,A,A,A,A)') N,' Coords:',DV%X,DV%Y,DV%Z, &
-            ', Make: ',TRIM(PROPERTY(DV%PROP_INDEX)%ID), ', ID: ',TRIM(DV%ID), ', Quantity: ',TRIM(DV%QUANTITY(1)), &
-            ', Species: ',TRIM(SPECIES_MIXTURE(DV%Z_INDEX)%ID)
-      ELSEIF (DV%PART_CLASS_INDEX>0) THEN
-         WRITE(LU_OUTPUT,'(I6,A,3F14.6,A,A,A,A,A,A,A,A)') N,' Coords:',DV%X,DV%Y,DV%Z, &
-            ', Make: ',TRIM(PROPERTY(DV%PROP_INDEX)%ID), ', ID: ',TRIM(DV%ID), ', Quantity: ',TRIM(DV%QUANTITY(1)), &
-            ', Particle Class: ',TRIM(LAGRANGIAN_PARTICLE_CLASS(DV%PART_CLASS_INDEX)%ID)
-      ELSE
-         WRITE(LU_OUTPUT,'(I6,A,3F14.6,A,A,A,A,A,A)') N,' Coords:',DV%X,DV%Y,DV%Z, &
-            ', Make: ',TRIM(PROPERTY(DV%PROP_INDEX)%ID), ', ID: ',TRIM(DV%ID), ', Quantity: ',TRIM(DV%QUANTITY(1))
-      ENDIF
+      WRITE(LU_OUTPUT,'(I4,A,A)') N,' ID: ',TRIM(DV%ID)
+      WRITE(LU_OUTPUT,'(4X,A,A)') ' QUANTITY: ',TRIM(DV%QUANTITY(1))
+      IF (DV%Y_INDEX>0) WRITE(LU_OUTPUT,'(4X,A,A)') ' Species ID: ',TRIM(SPECIES(DV%Y_INDEX)%ID)
+      IF (DV%Z_INDEX>0) WRITE(LU_OUTPUT,'(4X,A,A)') ' Species ID: ',TRIM(SPECIES_MIXTURE(DV%Z_INDEX)%ID)
+      WRITE(LU_OUTPUT,'(4X,A,3E12.3)') ' Coordinates (X,Y,Z):',DV%X,DV%Y,DV%Z
+      IF (DV%SPATIAL_STATISTIC/='null') WRITE(LU_OUTPUT,'(4X,A,A)')   ' SPATIAL STATISTIC: ',TRIM(DV%SPATIAL_STATISTIC)
+      IF (DV%TEMPORAL_STATISTIC/='null') WRITE(LU_OUTPUT,'(4X,A,A)')   ' TEMPORAL STATISTIC: ',TRIM(DV%TEMPORAL_STATISTIC)
+      IF (DV%PROP_INDEX>0) WRITE(LU_OUTPUT,'(A,A)') '  Property ID: ',TRIM(PROPERTY(DV%PROP_INDEX)%ID)
+      IF (DV%PART_CLASS_INDEX>0) WRITE(LU_OUTPUT,'(4X,A,A)') ' Particle Class: ',&
+         TRIM(LAGRANGIAN_PARTICLE_CLASS(DV%PART_CLASS_INDEX)%ID)
    ENDDO
 ENDIF
 
@@ -6318,6 +6309,8 @@ DEVICE_LOOP: DO N=1,N_DEVC
                               SDV%VALUE_2 = SDV%VALUE_2 + 1._EB
                            CASE('INTERPOLATION')
                               WGT = (1._EB-ABS(DV%X-XC(I))*RDX(I))*(1._EB-ABS(DV%Y-YC(J))*RDY(J))*(1._EB-ABS(DV%Z-ZC(K))*RDZ(K))
+                              IF (DV%TEMPORAL_STATISTIC=='FAVRE AVERAGE' .OR. &
+                                  DV%TEMPORAL_STATISTIC=='FAVRE RMS')         WGT = WGT*VOL*RHO(I,J,K)
                               SDV%VALUE_1 = SDV%VALUE_1 + VALUE*WGT
                               SDV%VALUE_2 = SDV%VALUE_2 + WGT
                            CASE('VOLUME INTEGRAL')
@@ -6350,7 +6343,7 @@ DEVICE_LOOP: DO N=1,N_DEVC
                               SDV%VALUE_1 = SDV%VALUE_1 + VALUE*VOL
                               SDV%VALUE_2 = SDV%VALUE_2 + VOL
                            CASE('MASS MEAN')
-                              SDV%VALUE_1 = SDV%VALUE_1 + VALUE*RHO(I,J,K)*VOL
+                              SDV%VALUE_1 = SDV%VALUE_1 + VALUE*VOL*RHO(I,J,K)
                               SDV%VALUE_2 = SDV%VALUE_2 + VOL*RHO(I,J,K)
                            CASE('SUM')
                               IF (VALUE <= DV%QUANTITY_RANGE(2) .AND. VALUE >=DV%QUANTITY_RANGE(1)) &
@@ -6524,6 +6517,7 @@ DEVICE_LOOP: DO N=1,N_DEVC
 
    ! Convert units of device quantity
 
+   ! Note: not used for FAVRE AVERAGE or FAVRE RMS
    DV%INSTANT_VALUE = DV%CONVERSION_FACTOR*DV%INSTANT_VALUE + DV%CONVERSION_ADDEND
 
    ! Record initial value and then subtract from computed value
@@ -6621,7 +6615,16 @@ DEVICE_LOOP: DO N=1,N_DEVC
          WGT = DT/MAX(DT,T-DV%STATISTICS_START)
          DV%AVERAGE_VALUE = (1._EB-WGT)*DV%AVERAGE_VALUE + WGT*DV%VALUE_1
          DV%AVERAGE_VALUE2 = (1._EB-WGT)*DV%AVERAGE_VALUE2 + WGT*DV%VALUE_2
-         DV%VALUE = DV%AVERAGE_VALUE/DV%AVERAGE_VALUE2
+         DV%VALUE = DV%AVERAGE_VALUE/DV%AVERAGE_VALUE2 * DV%CONVERSION_FACTOR + DV%CONVERSION_ADDEND
+         DV%TIME_INTERVAL = 1._EB
+      CASE('FAVRE RMS')
+         WGT = DT/MAX(DT,T-DV%STATISTICS_START)
+         DV%AVERAGE_VALUE = (1._EB-WGT)*DV%AVERAGE_VALUE + WGT*DV%VALUE_1
+         DV%AVERAGE_VALUE2 = (1._EB-WGT)*DV%AVERAGE_VALUE2 + WGT*DV%VALUE_2
+         WGT_UNBIASED = DT/MAX(DT,T-DV%STATISTICS_START+DT)
+         DV%RMS_VALUE = (1._EB-WGT_UNBIASED)*DV%RMS_VALUE &
+                      + WGT_UNBIASED*(DV%VALUE_1/DV%VALUE_2-DV%AVERAGE_VALUE/DV%AVERAGE_VALUE2)**2
+         DV%VALUE = SQRT(DV%RMS_VALUE) * DV%CONVERSION_FACTOR + DV%CONVERSION_ADDEND
          DV%TIME_INTERVAL = 1._EB
    END SELECT
 
