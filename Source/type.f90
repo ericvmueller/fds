@@ -64,7 +64,8 @@ TYPE LAGRANGIAN_PARTICLE_CLASS_TYPE
    REAL(EB) :: PRIMARY_BREAKUP_TIME       !< Time (s) after insertion when droplet breaks up
    REAL(EB) :: PRIMARY_BREAKUP_DRAG_REDUCTION_FACTOR   !< Drag reduction factor
    REAL(EB) :: RUNNING_AVERAGE_FACTOR_WALL             !< Fraction of old value used in summations of droplets stuck to walls
-
+   REAL(EB) :: LENGTH                     !< Cylinder or plate length used for POROUS_DRAG or SCREEN_DRAG (m)
+ 
    REAL(EB), ALLOCATABLE, DIMENSION(:) :: R_CNF         !< Independent variable (radius) in particle size distribution
    REAL(EB), ALLOCATABLE, DIMENSION(:) :: CNF           !< Cumulative Number Fraction particle size distribution
    REAL(EB), ALLOCATABLE, DIMENSION(:) :: CVF           !< Cumulative Volume Fraction particle size distribution
@@ -146,7 +147,7 @@ END TYPE BAND_TYPE
 
 ! Note: If you change the number of scalar variables in ONE_D_M_AND_E_XFER_TYPE, adjust the numbers below
 
-INTEGER, PARAMETER :: N_ONE_D_SCALAR_REALS=38,N_ONE_D_SCALAR_INTEGERS=12,N_ONE_D_SCALAR_LOGICALS=1
+INTEGER, PARAMETER :: N_ONE_D_SCALAR_REALS=30,N_ONE_D_SCALAR_INTEGERS=10,N_ONE_D_SCALAR_LOGICALS=1
 
 !> \brief Variables associated with a WALL, PARTICLE, or CFACE boundary cell
 
@@ -158,7 +159,6 @@ TYPE ONE_D_M_AND_E_XFER_TYPE
    REAL(EB), POINTER, DIMENSION(:) :: M_DOT_G_PP_ACTUAL   !< (1:N_TRACKED_SPECIES) Actual mass production rate per unit area
    REAL(EB), POINTER, DIMENSION(:) :: M_DOT_S_PP          !< (1:SF\%N_MATL) Mass production rate of solid species
    REAL(EB), POINTER, DIMENSION(:) :: M_DOT_G_PP_ADJUST   !< (1:N_TRACKED_SPECIES) Adjusted mass production rate per unit area
-   REAL(EB), POINTER, DIMENSION(:) :: IL                  !< (1:NSB) Radiance (W/m2/sr); output only
    REAL(EB), POINTER, DIMENSION(:) :: ZZ_G                !< (1:N_TRACKED_SPECIES) Species mixture mass fraction in gas grid cell
    REAL(EB), POINTER, DIMENSION(:) :: ZZ_F                !< (1:N_TRACKED_SPECIES) Species mixture mass fraction at surface
    REAL(EB), POINTER, DIMENSION(:) :: RHO_D_F             !< (1:N_TRACKED_SPECIES) Diffusion at surface, \f$ \rho D_\alpha \f$
@@ -173,11 +173,9 @@ TYPE ONE_D_M_AND_E_XFER_TYPE
 
    TYPE(MATL_COMP_TYPE), ALLOCATABLE, DIMENSION(:) :: MATL_COMP !< (1:SF\%N_MATL) Material component
    TYPE(SPEC_COMP_TYPE), ALLOCATABLE, DIMENSION(:) :: SPEC_COMP !< (1:SF\%N_SPEC) Gas component
-   TYPE(BAND_TYPE), ALLOCATABLE, DIMENSION(:) :: BAND           !< 1:NSB) Radiation wavelength band
+
    INTEGER, POINTER, DIMENSION(:) :: N_LAYER_CELLS              !< (1:SF\%N_LAYERS) Number of cells in the layer
 
-   INTEGER, POINTER :: ARRAY_INDEX    !< WALL, LAGRANGIAN_PARTICLE, or CFACE index
-   INTEGER, POINTER :: STORAGE_INDEX  !< Index in the WALL, LP, or CFACE storate array
    INTEGER, POINTER :: II             !< Ghost cell \f$ x \f$ index
    INTEGER, POINTER :: JJ             !< Ghost cell \f$ y \f$ index
    INTEGER, POINTER :: KK             !< Ghost cell \f$ z \f$ index
@@ -211,20 +209,12 @@ TYPE ONE_D_M_AND_E_XFER_TYPE
    REAL(EB), POINTER :: RDN             !< \f$ 1/ \delta n \f$ at the surface (1/m)
    REAL(EB), POINTER :: MU_G            !< Viscosity, \f$ \mu \f$, in adjacent gas phase cell
    REAL(EB), POINTER :: K_G             !< Thermal conductivity, \f$ k \f$, in adjacent gas phase cell
-   REAL(EB), POINTER :: U_TAU           !< Friction velocity (m/s)
-   REAL(EB), POINTER :: Y_PLUS          !< Dimensionless boundary layer thickness unit
-   REAL(EB), POINTER :: Z_STAR          !< Dimensionless boundary layer unit
-   REAL(EB), POINTER :: PHI_LS          !< Level Set value for output only
-   REAL(EB), POINTER :: WORK1           !< Work array
-   REAL(EB), POINTER :: WORK2           !< Work array
    REAL(EB), POINTER :: Q_DOT_G_PP      !< Heat release rate per unit area (W/m2)
    REAL(EB), POINTER :: Q_DOT_O2_PP     !< Heat release rate per unit area (W/m2) due to oxygen consumption
    REAL(EB), POINTER :: Q_CONDENSE      !< Heat release rate per unit area (W/m2) due to gas condensation
-   REAL(EB), POINTER :: K_SUPPRESSION   !< Suppression coefficent (m2/kg/s)
    REAL(EB), POINTER :: BURN_DURATION   !< Duration of a specified fire (s)
    REAL(EB), POINTER :: T_SCALE         !< Scaled time for a surface with CONE_HEAT_FLUX (s)
    REAL(EB), POINTER :: Q_SCALE         !< Scaled integrated heat release for a surface with CONE_HEAT_FLUX
-   REAL(EB), POINTER :: L_OBUKHOV       !< Obukhov length (m)
    REAL(EB), POINTER :: T_MATL_PART     !< Time interval for current value in PART_MASS and PART_ENTHALPY arrays (s)
    REAL(EB), POINTER :: B_NUMBER        !< B number for droplet or wall
 
@@ -234,7 +224,7 @@ END TYPE ONE_D_M_AND_E_XFER_TYPE
 
 ! Note: If you change the number of scalar variables in BOUNDARY_PROPERTY_TYPE, adjust the numbers below
 
-INTEGER, PARAMETER :: N_BOUNDARY_PROPERTY_SCALAR_REALS=0,N_BOUNDARY_PROPERTY_SCALAR_INTEGERS=0,N_BOUNDARY_PROPERTY_SCALAR_LOGICALS=0
+INTEGER, PARAMETER :: N_BOUNDARY_PROPERTY_SCALAR_REALS=8,N_BOUNDARY_PROPERTY_SCALAR_INTEGERS=0,N_BOUNDARY_PROPERTY_SCALAR_LOGICALS=0
 INTEGER, DIMENSION(30) :: BOUNDARY_PROPERTY_REALS_ARRAY_SIZE=0,BOUNDARY_PROPERTY_INTEGERS_ARRAY_SIZE=0,&
                           BOUNDARY_PROPERTY_LOGICALS_ARRAY_SIZE=0
 INTEGER :: N_BOUNDARY_PROPERTY_STORAGE_REALS,N_BOUNDARY_PROPERTY_STORAGE_INTEGERS,N_BOUNDARY_PROPERTY_STORAGE_LOGICALS
@@ -247,6 +237,18 @@ TYPE BOUNDARY_PROPERTY_TYPE
    REAL(EB), POINTER, DIMENSION(:) :: LP_CPUA             !< Liquid droplet cooling rate unit area (W/m2)
    REAL(EB), POINTER, DIMENSION(:) :: LP_MPUA             !< Liquid droplet mass per unit area (kg/m2)
    REAL(EB), POINTER, DIMENSION(:) :: LP_TEMP             !< Liquid droplet mean temperature (K)
+   REAL(EB), POINTER, DIMENSION(:) :: IL                  !< (1:NSB) Radiance (W/m2/sr); output only
+
+   TYPE(BAND_TYPE), ALLOCATABLE, DIMENSION(:) :: BAND     !< (1:NSB) Radiation wavelength band
+
+   REAL(EB), POINTER :: U_TAU           !< Friction velocity (m/s)
+   REAL(EB), POINTER :: Y_PLUS          !< Dimensionless boundary layer thickness unit
+   REAL(EB), POINTER :: Z_STAR          !< Dimensionless boundary layer unit
+   REAL(EB), POINTER :: PHI_LS          !< Level Set value for output only
+   REAL(EB), POINTER :: WORK1           !< Work array
+   REAL(EB), POINTER :: WORK2           !< Work array
+   REAL(EB), POINTER :: K_SUPPRESSION   !< Suppression coefficent (m2/kg/s)
+   REAL(EB), POINTER :: L_OBUKHOV       !< Obukhov length (m)
 
 END TYPE BOUNDARY_PROPERTY_TYPE
 
@@ -255,11 +257,14 @@ END TYPE BOUNDARY_PROPERTY_TYPE
 
 INTEGER, PARAMETER :: N_PARTICLE_SCALAR_REALS=20,N_PARTICLE_SCALAR_INTEGERS=11,N_PARTICLE_SCALAR_LOGICALS=4
 
-!> \brief Variables assoicated with a single Lagrangian particle
+!> \brief Variables associated with a single Lagrangian particle
 
 TYPE LAGRANGIAN_PARTICLE_TYPE
 
-   TYPE (ONE_D_M_AND_E_XFER_TYPE) :: ONE_D  !< Most of the particle properties are contained within this derived type
+   TYPE (ONE_D_M_AND_E_XFER_TYPE) :: ONE_D             !< Variables devoted to 1-D heat conduction in depth
+   TYPE(BAND_TYPE), ALLOCATABLE, DIMENSION(:) :: BAND  !< (1:NSB) Radiation wavelength band
+
+   REAL(EB), POINTER, DIMENSION(:) :: IL               !< (1:NSB) Radiance (W/m2/sr); output only
 
    LOGICAL, POINTER :: SHOW                 !< Show the particle in Smokeview
    LOGICAL, POINTER :: SPLAT                !< The liquid droplet has hit a solid
@@ -620,7 +625,7 @@ TYPE SURFACE_TYPE
    INTEGER, DIMENSION(2) :: LEAK_PATH,DUCT_PATH
    INTEGER :: THERMAL_BC_INDEX,NPPC,SPECIES_BC_INDEX,VELOCITY_BC_INDEX,SURF_TYPE,N_CELLS_INI,N_CELLS_MAX=0, &
               PART_INDEX,PROP_INDEX=-1,RAMP_T_I_INDEX=-1, RAMP_T_B_INDEX=0
-   INTEGER :: PYROLYSIS_MODEL,NRA,NSB
+   INTEGER :: PYROLYSIS_MODEL
    INTEGER :: N_LAYERS,N_MATL,SUBSTEP_POWER=2,N_SPEC=0,N_LPC=0
    INTEGER :: N_ONE_D_STORAGE_REALS,N_ONE_D_STORAGE_INTEGERS,N_ONE_D_STORAGE_LOGICALS
    INTEGER :: N_WALL_STORAGE_REALS,N_WALL_STORAGE_INTEGERS,N_WALL_STORAGE_LOGICALS

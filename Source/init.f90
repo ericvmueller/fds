@@ -534,7 +534,7 @@ ENDDO
 ! Allocate lagrangian particle storage array and compute the dimensions of its components
 
 M%NLP = 0
-M%NLPDIM = 1000
+M%NLPDIM = 50
 M%PARTICLE_TAG = NM
 
 IF (PARTICLE_FILE .AND. .NOT.DO_EVACUATION) THEN
@@ -2459,9 +2459,9 @@ IF (DO_EVACUATION) WC%ONE_D%U_NORMAL = 0._EB
 ! Assign internal values of temp, density, and mass fraction
 
 WC%ONE_D%RHO_F = M%RHO(IIG,JJG,KKG)
-WC%ONE_D%U_TAU = 0._EB
-WC%ONE_D%Y_PLUS = 1._EB
-WC%ONE_D%Z_STAR = 1._EB
+WC%BOUNDARY_PROPERTY%U_TAU = 0._EB
+WC%BOUNDARY_PROPERTY%Y_PLUS = 1._EB
+WC%BOUNDARY_PROPERTY%Z_STAR = 1._EB
 WC%ONE_D%RHO_D_F = 0._EB
 WC%ONE_D%RHO_D_DZDN_F = 0._EB
 

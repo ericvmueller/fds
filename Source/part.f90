@@ -1388,23 +1388,27 @@ IF (LPC%SOLID_PARTICLE) THEN
                  ABS(ORIENTATION_VECTOR(3,LPC%ORIENTATION_INDEX))*DX(ONE_D%IIG)*DY(ONE_D%JJG)) * &
                  LAGRANGIAN_PARTICLE_CLASS(LP%CLASS_INDEX)%FREE_AREA_FRACTION
          SELECT CASE (SF%GEOMETRY)
-            CASE (SURF_CARTESIAN)
+         CASE (SURF_CARTESIAN)
                LP%ONE_D%AREA = AREA
+               LPC%LENGTH = SQRT(AREA)               
                IF (SF%THERMAL_BC_INDEX==THERMALLY_THICK) THEN
                   DO N=1,SF%N_LAYERS
-                     LP%MASS = LP%MASS + AREA*SF%LAYER_THICKNESS(N)*SF%LAYER_DENSITY(N)
+                     LP%MASS = LP%MASS + SF%LAYER_THICKNESS(N)*SF%LAYER_DENSITY(N)
                   END DO
+                  LP%MASS = LP%MASS*AREA
                ENDIF
             CASE (SURF_CYLINDRICAL)
                LP%ONE_D%AREA = AREA*PI
+               X1 = SUM(SF%LAYER_THICKNESS)+SF%INNER_RADIUS
+               LPC%LENGTH = 0.5_EB * AREA / X1
                IF (SF%THERMAL_BC_INDEX==THERMALLY_THICK) THEN
-                  X1 = SUM(SF%LAYER_THICKNESS)+SF%INNER_RADIUS
                   LENGTH = AREA / (2._EB*X1)
                   DO N=SF%N_LAYERS,1,-1
                      X2 = X1 - SF%LAYER_THICKNESS(N)
-                     LP%MASS = LP%MASS + LENGTH*SF%LAYER_DENSITY(N)*PI*(X1**2-X2**2)
+                     LP%MASS = LP%MASS + SF%LAYER_DENSITY(N)*PI*(X1**2-X2**2)
                      X1 = X2
                   END DO
+                  LP%MASS = LP%MASS*LPC%LENGTH
                ENDIF
             CASE (SURF_SPHERICAL)
                LP%ONE_D%AREA = AREA*4._EB
@@ -1428,6 +1432,7 @@ IF (LPC%SOLID_PARTICLE) THEN
          SELECT CASE (SF%GEOMETRY)
             CASE (SURF_CARTESIAN)
                LP%ONE_D%AREA = LP_VOLUME/SF%THICKNESS
+               LPC%LENGTH = SQRT(LP%ONE_D%AREA )                              
                IF (SF%THERMAL_BC_INDEX==THERMALLY_THICK) THEN
                   DO N=1,SF%N_LAYERS
                      LP%MASS = LP%MASS + SF%LAYER_THICKNESS(N)*SF%LAYER_DENSITY(N)
@@ -1435,15 +1440,16 @@ IF (LPC%SOLID_PARTICLE) THEN
                   LP%MASS = LP%MASS*LP%ONE_D%AREA
                ENDIF
             CASE (SURF_CYLINDRICAL)
-               LP%ONE_D%AREA = 2._EB*LP_VOLUME/(SF%THICKNESS+SF%INNER_RADIUS)
+               X1 = SUM(SF%LAYER_THICKNESS)+SF%INNER_RADIUS
+               LP%ONE_D%AREA = 2._EB*LP_VOLUME/X1
+               LPC%LENGTH = LP_VOLUME /(PI*X1**2)
                IF (SF%THERMAL_BC_INDEX==THERMALLY_THICK) THEN
-                  X1 = SUM(SF%LAYER_THICKNESS)+SF%INNER_RADIUS
-                  LENGTH = LP_VOLUME/(PI*X1**2)
                   DO N=SF%N_LAYERS,1,-1
                      X2 = X1 - SF%LAYER_THICKNESS(N)
-                     LP%MASS = LP%MASS + LENGTH*SF%LAYER_DENSITY(N)*PI*(X1**2-X2**2)
+                     LP%MASS = LP%MASS + SF%LAYER_DENSITY(N)*PI*(X1**2-X2**2)
                      X1 = X2
                   END DO
+                  LP%MASS = LP%MASS*LPC%LENGTH
                ENDIF
             CASE (SURF_SPHERICAL)
                LP%ONE_D%AREA = 3._EB*LP_VOLUME/(SF%THICKNESS+SF%INNER_RADIUS)
@@ -2885,10 +2891,10 @@ IF (N_LP_ARRAY_INDICES>0) THEN
    MVAP_TOT => WORK7
    MVAP_TOT = 0._EB
    DO IW = 1,N_EXTERNAL_WALL_CELLS+N_INTERNAL_WALL_CELLS
-      WALL(IW)%ONE_D%WORK1    = WALL(IW)%ONE_D%TMP_F
+      WALL(IW)%BOUNDARY_PROPERTY%WORK1 = WALL(IW)%ONE_D%TMP_F
    ENDDO
    DO ICF = N_EXTERNAL_CFACE_CELLS+1,N_EXTERNAL_CFACE_CELLS+N_INTERNAL_CFACE_CELLS
-      CFACE(ICF)%ONE_D%WORK1    = CFACE(ICF)%ONE_D%TMP_F
+      CFACE(ICF)%BOUNDARY_PROPERTY%WORK1 = CFACE(ICF)%ONE_D%TMP_F
    ENDDO
 ENDIF
 
@@ -2935,10 +2941,10 @@ SPECIES_LOOP: DO Z_INDEX = 1,N_TRACKED_SPECIES
    I_MELT   = INT(TMP_MELT)
 
    DO IW = 1,N_EXTERNAL_WALL_CELLS+N_INTERNAL_WALL_CELLS
-      WALL(IW)%ONE_D%WORK2 = 0._EB  ! FILM_THICKNESS
+      WALL(IW)%BOUNDARY_PROPERTY%WORK2 = 0._EB  ! FILM_THICKNESS
    ENDDO
    DO ICF = N_EXTERNAL_CFACE_CELLS+1,N_EXTERNAL_CFACE_CELLS+N_INTERNAL_CFACE_CELLS
-      CFACE(ICF)%ONE_D%WORK2 = 0._EB
+      CFACE(ICF)%BOUNDARY_PROPERTY%WORK2 = 0._EB
    ENDDO
 
    ! Loop through all PARTICLEs in the class and determine the depth of the liquid film on each surface cell
@@ -2951,21 +2957,21 @@ SPECIES_LOOP: DO Z_INDEX = 1,N_TRACKED_SPECIES
       IF (LP%ONE_D%X(1)<=LPC%KILL_RADIUS) CYCLE FILM_SUMMING_LOOP
       IF (LP%WALL_INDEX>0) THEN
          ONE_D => WALL(LP%WALL_INDEX)%ONE_D
+         BP    => WALL(LP%WALL_INDEX)%BOUNDARY_PROPERTY
       ELSEIF (LP%CFACE_INDEX>0) THEN
          ONE_D => CFACE(LP%CFACE_INDEX)%ONE_D
+         BP    => CFACE(LP%CFACE_INDEX)%BOUNDARY_PROPERTY
       ELSE
          CYCLE FILM_SUMMING_LOOP
       ENDIF
-      ONE_D%WORK2 = ONE_D%WORK2 + LP%PWT*LP%ONE_D%X(1)**3/ONE_D%AREA  ! FILM_THICKNESS
+      BP%WORK2 = BP%WORK2 + LP%PWT*LP%ONE_D%X(1)**3/ONE_D%AREA  ! FILM_THICKNESS
    ENDDO FILM_SUMMING_LOOP
 
    DO IW = 1,N_EXTERNAL_WALL_CELLS+N_INTERNAL_WALL_CELLS
-      ONE_D => WALL(IW)%ONE_D
-      ONE_D%WORK2 = MAX(MINIMUM_FILM_THICKNESS,FOTHPI*ONE_D%WORK2)
+      WALL(IW)%BOUNDARY_PROPERTY%WORK2 = MAX(MINIMUM_FILM_THICKNESS,FOTHPI*WALL(IW)%BOUNDARY_PROPERTY%WORK2)
    ENDDO
    DO ICF = N_EXTERNAL_CFACE_CELLS+1,N_EXTERNAL_CFACE_CELLS+N_INTERNAL_CFACE_CELLS
-      ONE_D => CFACE(ICF)%ONE_D
-      ONE_D%WORK2 = MAX(MINIMUM_FILM_THICKNESS,FOTHPI*ONE_D%WORK2)
+      CFACE(ICF)%BOUNDARY_PROPERTY%WORK2 = MAX(MINIMUM_FILM_THICKNESS,FOTHPI*CFACE(ICF)%BOUNDARY_PROPERTY%WORK2)
    ENDDO
 
    ! Loop through all PARTICLEs within the class and determine mass/energy transfer
@@ -3065,9 +3071,9 @@ SPECIES_LOOP: DO Z_INDEX = 1,N_TRACKED_SPECIES
                   CASE(3)
                      VEL = SQRT(U2**2+V2**2)
                END SELECT
-               A_DROP = M_DROP/(ONE_D%WORK2*LPC%DENSITY)  ! WORK2 is FILM_THICKNESS
+               A_DROP = M_DROP/(BP%WORK2*LPC%DENSITY)  ! WORK2 is FILM_THICKNESS
                Q_DOT_RAD = MIN(A_DROP,ONE_D%AREA/LP%PWT)*ONE_D%Q_RAD_IN
-               TMP_WALL = MAX(TMPMIN,ONE_D%WORK1)
+               TMP_WALL = MAX(TMPMIN,BP%WORK1)
             ELSE SOLID_OR_GAS_PHASE_1
                VEL = SQRT((U2-LP%U)**2+(V2-LP%V)**2+(W2-LP%W)**2)
                A_DROP   = 4._EB*PI*R_DROP**2
@@ -3125,7 +3131,7 @@ SPECIES_LOOP: DO Z_INDEX = 1,N_TRACKED_SPECIES
                ! Compute equilibrium PARTICLE vapor mass fraction, Y_DROP, and its derivative w.r.t. PARTICLE temperature
                Y_DROP  = X_DROP/(MW_RATIO + (1._EB-MW_RATIO)*X_DROP)
 
-               IF (Y_DROP > Y_GAS) ONE_D%B_NUMBER = (Y_DROP - Y_GAS) / MAX(DY_MIN_BLOWING,1._EB-Y_DROP)
+               IF (Y_DROP > Y_GAS) LP%ONE_D%B_NUMBER = (Y_DROP - Y_GAS) / MAX(DY_MIN_BLOWING,1._EB-Y_DROP)
 
                ! Compute temperature deriviative of the vapor mass fraction
                DHOR     = H_V_A*MW_DROP/R0
@@ -3207,10 +3213,10 @@ SPECIES_LOOP: DO Z_INDEX = 1,N_TRACKED_SPECIES
                         CASE(-1) ! Ranz Marshall
                            H_MASS   = MAX(2._EB,SHERWOOD)*D_FILM/LENGTH
                         CASE(0:1) !Sazhin M0 - M1, see next code block for Refs
-                           H_MASS   = MAX(2._EB,SHERWOOD)*D_FILM/LENGTH*LOG(1._EB+ONE_D%B_NUMBER)/ONE_D%B_NUMBER
+                           H_MASS   = MAX(2._EB,SHERWOOD)*D_FILM/LENGTH*LOG(1._EB+LP%ONE_D%B_NUMBER)/LP%ONE_D%B_NUMBER
                         CASE(2) !Sazhin M2, see next code block for Refs
-                           H_MASS   = MAX(2._EB,SHERWOOD)*D_FILM/LENGTH*LOG(1._EB+ONE_D%B_NUMBER)/ &
-                                     (ONE_D%B_NUMBER*F_B(ONE_D%B_NUMBER))
+                           H_MASS   = MAX(2._EB,SHERWOOD)*D_FILM/LENGTH*LOG(1._EB+LP%ONE_D%B_NUMBER)/ &
+                                     (LP%ONE_D%B_NUMBER*F_B(LP%ONE_D%B_NUMBER))
                      END SELECT
                   ENDIF
                ELSE SOLID_OR_GAS_PHASE_2
@@ -3223,8 +3229,8 @@ SPECIES_LOOP: DO Z_INDEX = 1,N_TRACKED_SPECIES
                   NU_FAC_GAS = 0.6_EB*PR_FILM**ONTH
                   LENGTH = 2._EB*R_DROP
                   RE_L = RHO_FILM*VEL*LENGTH/MU_FILM
-                  CALL DROPLET_H_MASS_H_HEAT_GAS(H_MASS,H_HEAT,D_FILM,K_FILM,CP_FILM,RHO_FILM,LENGTH,Y_DROP,Y_GAS,ONE_D%B_NUMBER, &
-                                                 NU_FAC_GAS,SH_FAC_GAS,RE_L,TMP_FILM,ZZ_GET,Z_INDEX)
+                  CALL DROPLET_H_MASS_H_HEAT_GAS(H_MASS,H_HEAT,D_FILM,K_FILM,CP_FILM,RHO_FILM,LENGTH,Y_DROP,Y_GAS,&
+                                                 LP%ONE_D%B_NUMBER,NU_FAC_GAS,SH_FAC_GAS,RE_L,TMP_FILM,ZZ_GET,Z_INDEX)
                   H_WALL   = 0._EB
                   TMP_WALL = TMPA
                   ARRAY_CASE = 1
@@ -3457,7 +3463,7 @@ SPECIES_LOOP: DO Z_INDEX = 1,N_TRACKED_SPECIES
                RHO_INTERIM(II,JJ,KK) = M_GAS_NEW*RVC
                ZZ_INTERIM(II,JJ,KK,1:N_TRACKED_SPECIES) = ZZ_GET2(1:N_TRACKED_SPECIES)
                TMP_INTERIM(II,JJ,KK) = TMP_G_NEW
-               IF (LP%ONE_D%IOR/=0) ONE_D%WORK1 = TMP_WALL_NEW
+               IF (LP%ONE_D%IOR/=0) BP%WORK1 = TMP_WALL_NEW
 
                ! Compute contribution to the divergence
 
@@ -3636,10 +3642,10 @@ SUM_PART_QUANTITIES: IF (N_LP_ARRAY_INDICES > 0) THEN
          ! Initialize work array for storing droplet total area
 
          DO IW = 1,N_EXTERNAL_WALL_CELLS+N_INTERNAL_WALL_CELLS
-            WALL(IW)%ONE_D%WORK2 = 0._EB  ! drop area
+            WALL(IW)%BOUNDARY_PROPERTY%WORK2 = 0._EB  ! drop area
          ENDDO
          DO ICF = N_EXTERNAL_CFACE_CELLS+1,N_EXTERNAL_CFACE_CELLS+N_INTERNAL_CFACE_CELLS
-            CFACE(ICF)%ONE_D%WORK2 = 0._EB
+            CFACE(ICF)%BOUNDARY_PROPERTY%WORK2 = 0._EB
          ENDDO
 
          PARTICLE_LOOP_3: DO IP=1,NLP
@@ -3655,19 +3661,19 @@ SUM_PART_QUANTITIES: IF (N_LP_ARRAY_INDICES > 0) THEN
                ENDIF
                R_DROP = LP%ONE_D%X(1)
                A_DROP = LP%PWT*PI*R_DROP**2
-               ONE_D%WORK2 = ONE_D%WORK2 + A_DROP
+               BP%WORK2 = BP%WORK2 + A_DROP
             ENDIF
 
          ENDDO PARTICLE_LOOP_3
 
          DO IW = 1,N_EXTERNAL_WALL_CELLS+N_INTERNAL_WALL_CELLS
             BP => WALL(IW)%BOUNDARY_PROPERTY
-            BP%LP_TEMP(LPC%ARRAY_INDEX) = BP%LP_TEMP(LPC%ARRAY_INDEX)/(ONE_D%WORK2+TWO_EPSILON_EB)
+            BP%LP_TEMP(LPC%ARRAY_INDEX) = BP%LP_TEMP(LPC%ARRAY_INDEX)/(BP%WORK2+TWO_EPSILON_EB)
             BP%LP_TEMP(LPC%ARRAY_INDEX) = MAX(SPECIES(LPC%Y_INDEX)%TMP_MELT,BP%LP_TEMP(LPC%ARRAY_INDEX))
          ENDDO
          DO ICF = N_EXTERNAL_CFACE_CELLS+1,N_EXTERNAL_CFACE_CELLS+N_INTERNAL_CFACE_CELLS
             BP => CFACE(ICF)%BOUNDARY_PROPERTY
-            BP%LP_TEMP(LPC%ARRAY_INDEX) = BP%LP_TEMP(LPC%ARRAY_INDEX)/(ONE_D%WORK2+TWO_EPSILON_EB)
+            BP%LP_TEMP(LPC%ARRAY_INDEX) = BP%LP_TEMP(LPC%ARRAY_INDEX)/(BP%WORK2+TWO_EPSILON_EB)
             BP%LP_TEMP(LPC%ARRAY_INDEX) = MAX(SPECIES(LPC%Y_INDEX)%TMP_MELT,BP%LP_TEMP(LPC%ARRAY_INDEX))
          ENDDO
 
