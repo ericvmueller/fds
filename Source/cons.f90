@@ -248,7 +248,7 @@ LOGICAL :: CHAR_OXIDATION=.FALSE.
 LOGICAL :: PERIODIC_DOMAIN_X=.FALSE.                !< The domain is periodic \f$ x \f$
 LOGICAL :: PERIODIC_DOMAIN_Y=.FALSE.                !< The domain is periodic \f$ y \f$
 LOGICAL :: PERIODIC_DOMAIN_Z=.FALSE.                !< The domain is periodic \f$ z \f$
-LOGICAL :: FBRAND=.FALSE.
+LOGICAL :: REMOVE_FIREBRANDS=.FALSE.                    !< Remove firebrands upon landing, save properties to csv
 LOGICAL :: OPEN_WIND_BOUNDARY=.FALSE.               !< There is a prevailing wind
 
 INTEGER, ALLOCATABLE, DIMENSION(:) :: CHANGE_TIME_STEP_INDEX      !< Flag to indicate if a mesh needs to change time step

@@ -175,11 +175,10 @@ OVERALL_INSERT_LOOP: DO
       SF => SURFACE(N)
       ILPC =  SF%PART_INDEX
       IF (ILPC < 1 .AND. SF%N_LPC == 0) CYCLE
+      IF (SF%FIREBRAND_GENERATION_RATE > 0._EB) CYCLE
       IF (T >= SF%PARTICLE_INSERT_CLOCK(NM)) SF%PARTICLE_INSERT_CLOCK(NM) = SF%PARTICLE_INSERT_CLOCK(NM) + SF%DT_INSERT
       IF (T >= SF%PARTICLE_INSERT_CLOCK(NM)) INSERT_ANOTHER_BATCH = .TRUE.
    ENDDO
-
-   IF (FBRAND) INSERT_ANOTHER_BATCH = .FALSE.
 
    IF (.NOT.INSERT_ANOTHER_BATCH) EXIT OVERALL_INSERT_LOOP
 
@@ -522,7 +521,7 @@ INTEGER, INTENT(IN), OPTIONAL :: WALL_INDEX,CFACE_INDEX
 INTEGER :: I,N_LPC, ITER,IIX,JJY,KKZ
 REAL(EB):: CFA_X, CFA_Y, CFA_Z, RN, VEL_PART, &
            C_S, H_1, H_2, TMP_PART, TMP_GUESS, &
-           GPR, X_WGT, Y_WGT, Z_WGT
+           X_WGT, Y_WGT, Z_WGT
 LOGICAL :: RETURN_FLAG
 
 TYPE(CFACE_TYPE), POINTER :: CFA=>NULL()
@@ -564,14 +563,13 @@ ILPC_IF: IF (ILPC > 0) THEN
    IF (T < ONE_D%T_IGN)                                   RETURN
    IF (T < SF%PARTICLE_INSERT_CLOCK(NM))                  RETURN
    IF (SF%PARTICLE_SURFACE_DENSITY>0._EB .AND. T>T_BEGIN) RETURN
-   IF (FBRAND) THEN
+   IF (SF%FIREBRAND_GENERATION_RATE>0._EB) THEN
    ! specify generation only for regions of burning
-      IF (.NOT. ONE_D%M_DOT_G_PP_ADJUST(REACTION(1)%FUEL_SMIX_INDEX)>0) RETURN 
+      IF (.NOT. ONE_D%M_DOT_G_PP_ADJUST(REACTION(1)%FUEL_SMIX_INDEX)>0._EB) RETURN 
 
-      GPR=55._EB*DX(II)*DY(JJ)*DT
-      SF%NPPC=FLOOR(GPR)
+      SF%NPPC=FLOOR(SF%FIREBRAND_GENERATION_RATE*DX(II)*DY(JJ)*DT)
       CALL RANDOM_NUMBER(RN)
-      IF (RN<(GPR-SF%NPPC)) THEN
+      IF (RN<(SF%FIREBRAND_GENERATION_RATE*DX(II)*DY(JJ)*DT-SF%NPPC)) THEN
          SF%NPPC=SF%NPPC+1    
       ENDIF
    ENDIF
@@ -635,10 +633,11 @@ ILPC_IF: IF (ILPC > 0) THEN
                   LP%BOUNDARY_COORD%Z = Z(KK-1) + DZ(KK)*REAL(RN2,EB)
                CASE(3)
                   IF (IOR== 3) THEN 
-                     IF (FBRAND) THEN
+                     IF (SF%FIREBRAND_GENERATION_RATE>0._EB) THEN
                         CALL RANDOM_NUMBER(RN3)
-                        LP%BOUNDARY_COORD%Z = 0.001_EB+4.999_EB*REAL(RN3,EB)
+                        LP%BOUNDARY_COORD%Z = 0.001_EB+SF%FIREBRAND_GENERATION_HEIGHT*REAL(RN3,EB)
                         LP%ZI = LP%BOUNDARY_COORD%Z
+                        LP%EMBER=.TRUE.
                      ELSE
                         LP%BOUNDARY_COORD%Z = Z(KK)   + VENT_OFFSET*DZ(KK+1)
                      ENDIF
@@ -675,7 +674,7 @@ ILPC_IF: IF (ILPC > 0) THEN
                      LP%U = SF%VEL_T(1)
                      LP%V = SF%VEL_T(2)
                      LP%W = -VEL_PART
-                     IF (FBRAND) THEN
+                     IF (SF%FIREBRAND_GENERATION_RATE>0._EB) THEN
                         CALL GET_IJK(LP%BOUNDARY_COORD%X,LP%BOUNDARY_COORD%Y,LP%BOUNDARY_COORD%Z,NM,XI,YJ,ZK,IIG,JJG,KKG)
                         IIX  = FLOOR(XI+.5_EB)
                         JJY  = FLOOR(YJ+.5_EB)
@@ -1374,7 +1373,7 @@ IF (LPC%SOLID_PARTICLE) THEN
 
    IF (LPC%SURF_INDEX==TGA_SURF_INDEX) TGA_PARTICLE_INDEX = NLP
 
-   IF(FBRAND) THEN
+   IF(LP%EMBER) THEN
       CALL RANDOM_NUMBER(RN)
       ! inverse of modified exponential CDF for ember area
       ! note this variable is total surface area, so adjust accordingly elsewhere
@@ -1477,7 +1476,7 @@ IF (LPC%SOLID_PARTICLE) THEN
             SCALE_FACTOR = RADIUS/SF%THICKNESS
             ONE_D%X(:) = ONE_D%X(:)*SCALE_FACTOR
             ONE_D%LAYER_THICKNESS(:) = ONE_D%LAYER_THICKNESS(:)*SCALE_FACTOR
-         ELSEIF (FBRAND) THEN
+         ELSEIF (LP%EMBER) THEN
             CALL RANDOM_NUMBER(RN)
             SCALE_FACTOR = ((-LOG(1-REAL(RN,EB))/1.92E7_EB)**0.4_EB)/SF%THICKNESS/2._EB
             ONE_D%X(:) = ONE_D%X(:)*SCALE_FACTOR
@@ -1755,15 +1754,6 @@ PARTICLE_LOOP: DO IP=1,NLP
 
       CALL GET_IJK(LP%BOUNDARY_COORD%X,LP%BOUNDARY_COORD%Y,LP%BOUNDARY_COORD%Z,NM,XI,YJ,ZK, &
                    LP%BOUNDARY_COORD%IIG,LP%BOUNDARY_COORD%JJG,LP%BOUNDARY_COORD%KKG)
-
-      ! ! Remove firebrands that have landed - still needs much improvement
-      ! IF (FBRAND .AND. LP%Z<0.01_EB) THEN
-      !    !IF (LP%U==0._EB .AND. LP%V==0._EB .AND. LP%W==0._EB) THEN
-      !       !HIT_SOLID=.TRUE.
-      !       LP%ONE_D%BURNAWAY = .TRUE.
-      !       CYCLE PARTICLE_LOOP
-      !    !ENDIF
-      ! ENDIF
 
       ! If the particle is not near a boundary cell, cycle.
 
@@ -2421,7 +2411,7 @@ IF (LPC%DRAG_LAW/=SCREEN_DRAG .AND. LPC%DRAG_LAW/=POROUS_DRAG) THEN
       SELECT CASE(SF%GEOMETRY)
          CASE(SURF_CARTESIAN)           
             A_DRAG = 2._EB*SF%LENGTH*SF%WIDTH*LPC%SHAPE_FACTOR
-            IF (FBRAND) THEN
+            IF (LP%EMBER) THEN
                A_DRAG = LP%ONE_D%AREA/2._EB
             ENDIF
          CASE(SURF_CYLINDRICAL)
@@ -2691,9 +2681,10 @@ IF ( ONE_D%U_NORMAL>SURFACE(SURF_INDEX)%PARTICLE_EXTRACTION_VELOCITY .OR. &
 ENDIF
 
 ! Write final location if particle is a firebrand
-IF (FBRAND) THEN
-   WRITE(LU_FBRAND(NM),'(6(F10.2,A),2(F10.3,A),E10.3)') T,',',(T-LP%T_INSERT),',',LP%BOUNDARY_COORD%X,',',LP%BOUNDARY_COORD%Y,',',LP%BOUNDARY_COORD%Z,',',LP%ZI,',', &
-      2.E6*SUM(LP%ONE_D%LAYER_THICKNESS),',',1.E6*LP%MASS,',',LP%ONE_D%AREA/2._EB
+IF (LP%EMBER .AND. REMOVE_FIREBRANDS) THEN
+   WRITE(LU_FBRAND(NM),'(6(F10.2,A),2(F10.3,A),E10.3)') T,',',(T-LP%T_INSERT),',',LP%BOUNDARY_COORD%X, &
+      ',',LP%BOUNDARY_COORD%Y,',',LP%BOUNDARY_COORD%Z,',',LP%ZI,',',2.E6*SUM(LP%ONE_D%LAYER_THICKNESS), &
+      ',',1.E6*LP%MASS,',',LP%ONE_D%AREA/2._EB
    LP%BOUNDARY_COORD%X=-1.E6_EB
    EXTRACT = .TRUE.
 ENDIF
