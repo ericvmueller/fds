@@ -116,14 +116,14 @@ END SUBROUTINE GENERATE_PARTICLE_DISTRIBUTIONS
 
 !> \brief Insert Lagrangian particles into the domain every time step
 
-SUBROUTINE INSERT_ALL_PARTICLES(T,DT,NM)
+SUBROUTINE INSERT_ALL_PARTICLES(T,NM)
 
 USE MATH_FUNCTIONS, ONLY: EVALUATE_RAMP,RANDOM_CHOICE
 USE GEOMETRY_FUNCTIONS, ONLY: RANDOM_RECTANGLE,RANDOM_CONE,RANDOM_RING,CONE_MESH_INTERSECTION_VOLUME,UNIFORM_RING
 USE TRAN, ONLY: GET_IJK
 USE DEVICE_VARIABLES
 USE CONTROL_VARIABLES
-REAL(EB), INTENT(IN) :: T,DT
+REAL(EB), INTENT(IN) :: T
 INTEGER, INTENT(IN) :: NM
 REAL     :: RN,RN2,RN3
 REAL(EB) :: PHI_RN,FLOW_RATE,THETA_RN,SPHI,CPHI,MASS_SUM,D_PRES_FACTOR, &
@@ -175,7 +175,6 @@ OVERALL_INSERT_LOOP: DO
       SF => SURFACE(N)
       ILPC =  SF%PART_INDEX
       IF (ILPC < 1 .AND. SF%N_LPC == 0) CYCLE
-      IF (SF%FIREBRAND_GENERATION_RATE > 0._EB) CYCLE
       IF (T >= SF%PARTICLE_INSERT_CLOCK(NM)) SF%PARTICLE_INSERT_CLOCK(NM) = SF%PARTICLE_INSERT_CLOCK(NM) + SF%DT_INSERT
       IF (T >= SF%PARTICLE_INSERT_CLOCK(NM)) INSERT_ANOTHER_BATCH = .TRUE.
    ENDDO
@@ -515,13 +514,12 @@ SUBROUTINE PARTICLE_FACE_INSERT(WALL_INDEX,CFACE_INDEX)
 
 USE COMPLEX_GEOMETRY, ONLY : RANDOM_CFACE_XYZ
 USE PHYSICAL_FUNCTIONS, ONLY: GET_PARTICLE_ENTHALPY
-USE MATH_FUNCTIONS, ONLY : AFILL2
+!USE MATH_FUNCTIONS, ONLY : AFILL2
 
 INTEGER, INTENT(IN), OPTIONAL :: WALL_INDEX,CFACE_INDEX
-INTEGER :: I,N_LPC, ITER,IIX,JJY,KKZ
+INTEGER :: I,N_LPC, ITER
 REAL(EB):: CFA_X, CFA_Y, CFA_Z, RN, VEL_PART, &
-           C_S, H_1, H_2, TMP_PART, TMP_GUESS, &
-           X_WGT, Y_WGT, Z_WGT
+           C_S, H_1, H_2, TMP_PART, TMP_GUESS
 LOGICAL :: RETURN_FLAG
 
 TYPE(CFACE_TYPE), POINTER :: CFA=>NULL()
@@ -563,15 +561,9 @@ ILPC_IF: IF (ILPC > 0) THEN
    IF (T < ONE_D%T_IGN)                                   RETURN
    IF (T < SF%PARTICLE_INSERT_CLOCK(NM))                  RETURN
    IF (SF%PARTICLE_SURFACE_DENSITY>0._EB .AND. T>T_BEGIN) RETURN
-   IF (SF%FIREBRAND_GENERATION_RATE>0._EB) THEN
-   ! specify generation only for regions of burning
-      IF (.NOT. ONE_D%M_DOT_G_PP_ADJUST(REACTION(1)%FUEL_SMIX_INDEX)>0._EB) RETURN 
-
-      SF%NPPC=FLOOR(SF%FIREBRAND_GENERATION_RATE*DX(II)*DY(JJ)*DT)
-      CALL RANDOM_NUMBER(RN)
-      IF (RN<(SF%FIREBRAND_GENERATION_RATE*DX(II)*DY(JJ)*DT-SF%NPPC)) THEN
-         SF%NPPC=SF%NPPC+1    
-      ENDIF
+   IF (ANY(SF%EMBER_GENERATION_HEIGHT>=0._EB)) THEN
+      ! specify generation only for regions of burning
+      IF (.NOT. ONE_D%M_DOT_G_PP_ADJUST(REACTION(1)%FUEL_SMIX_INDEX)>0._EB) RETURN
    ENDIF
 
    LPC => LAGRANGIAN_PARTICLE_CLASS(ILPC)
@@ -614,6 +606,10 @@ ILPC_IF: IF (ILPC > 0) THEN
          LP=>MESHES(NM)%LAGRANGIAN_PARTICLE(NLP)
          LAGRANGIAN_PARTICLE => MESHES(NM)%LAGRANGIAN_PARTICLE
 
+         ! Ember flag to be used for outputs
+
+         IF (ANY(SF%EMBER_GENERATION_HEIGHT>=0._EB)) LP%EMBER=.TRUE.
+
          ! Assign particle position on the cell face
 
          CALL RANDOM_NUMBER(RN)
@@ -633,13 +629,12 @@ ILPC_IF: IF (ILPC > 0) THEN
                   LP%BOUNDARY_COORD%Z = Z(KK-1) + DZ(KK)*REAL(RN2,EB)
                CASE(3)
                   IF (IOR== 3) THEN 
-                     IF (SF%FIREBRAND_GENERATION_RATE>0._EB) THEN
+                     LP%BOUNDARY_COORD%Z = Z(KK)   + VENT_OFFSET*DZ(KK+1)
+                     IF (ANY(SF%EMBER_GENERATION_HEIGHT>=0._EB)) THEN
                         CALL RANDOM_NUMBER(RN3)
-                        LP%BOUNDARY_COORD%Z = 0.001_EB+SF%FIREBRAND_GENERATION_HEIGHT*REAL(RN3,EB)
+                        LP%BOUNDARY_COORD%Z = Z(KK) + SF%EMBER_GENERATION_HEIGHT(1) + &
+                           (SF%EMBER_GENERATION_HEIGHT(2)-SF%EMBER_GENERATION_HEIGHT(1))*REAL(RN3,EB)
                         LP%ZI = LP%BOUNDARY_COORD%Z
-                        LP%EMBER=.TRUE.
-                     ELSE
-                        LP%BOUNDARY_COORD%Z = Z(KK)   + VENT_OFFSET*DZ(KK+1)
                      ENDIF
                   ENDIF
                   IF (IOR==-3) LP%BOUNDARY_COORD%Z = Z(KK-1) - VENT_OFFSET*DZ(KK-1)
@@ -674,21 +669,21 @@ ILPC_IF: IF (ILPC > 0) THEN
                      LP%U = SF%VEL_T(1)
                      LP%V = SF%VEL_T(2)
                      LP%W = -VEL_PART
-                     IF (SF%FIREBRAND_GENERATION_RATE>0._EB) THEN
-                        CALL GET_IJK(LP%BOUNDARY_COORD%X,LP%BOUNDARY_COORD%Y,LP%BOUNDARY_COORD%Z,NM,XI,YJ,ZK,IIG,JJG,KKG)
-                        IIX  = FLOOR(XI+.5_EB)
-                        JJY  = FLOOR(YJ+.5_EB)
-                        KKZ  = FLOOR(ZK+.5_EB)
-                        X_WGT = XI+.5_EB-IIX
-                        Y_WGT = YJ+.5_EB-JJY
-                        Z_WGT = 1._EB                  
-                        LP%U = AFILL2(U,IIG-1,JJY,KKZ,(LP%BOUNDARY_COORD%X-X(IIG-1))*RDX(IIG),Y_WGT,Z_WGT)
-                        LP%V = AFILL2(V,IIX,JJG-1,KKZ,X_WGT,(LP%BOUNDARY_COORD%Y-Y(JJG-1))*RDY(JJG),Z_WGT)
-                        LP%W = AFILL2(W,IIX,JJY,KKG-1,X_WGT,Y_WGT,(LP%BOUNDARY_COORD%Z-Z(KKG-1))*RDZ(KKG))
-                        ! Random noise to prevent infinite drag (RE=0)
-                        CALL RANDOM_NUMBER(RN)
-                        LP%W = LP%W*(1+(0.1_EB*REAL(RN,EB)-0.05_EB))
-                     ENDIF
+                     ! IF (SF%FIREBRAND_GENERATION_RATE>0._EB) THEN
+                     !    CALL GET_IJK(LP%BOUNDARY_COORD%X,LP%BOUNDARY_COORD%Y,LP%BOUNDARY_COORD%Z,NM,XI,YJ,ZK,IIG,JJG,KKG)
+                     !    IIX  = FLOOR(XI+.5_EB)
+                     !    JJY  = FLOOR(YJ+.5_EB)
+                     !    KKZ  = FLOOR(ZK+.5_EB)
+                     !    X_WGT = XI+.5_EB-IIX
+                     !    Y_WGT = YJ+.5_EB-JJY
+                     !    Z_WGT = 1._EB                  
+                     !    LP%U = AFILL2(U,IIG-1,JJY,KKZ,(LP%BOUNDARY_COORD%X-X(IIG-1))*RDX(IIG),Y_WGT,Z_WGT)
+                     !    LP%V = AFILL2(V,IIX,JJG-1,KKZ,X_WGT,(LP%BOUNDARY_COORD%Y-Y(JJG-1))*RDY(JJG),Z_WGT)
+                     !    LP%W = AFILL2(W,IIX,JJY,KKG-1,X_WGT,Y_WGT,(LP%BOUNDARY_COORD%Z-Z(KKG-1))*RDZ(KKG))
+                     !    ! Random noise to prevent infinite drag (RE=0)
+                     !    CALL RANDOM_NUMBER(RN)
+                     !    LP%W = LP%W*(1+(0.1_EB*REAL(RN,EB)-0.05_EB))
+                     ! ENDIF
                   CASE(-3)
                      LP%U = SF%VEL_T(1)
                      LP%V = SF%VEL_T(2)
@@ -700,6 +695,11 @@ ILPC_IF: IF (ILPC > 0) THEN
             LP%BOUNDARY_COORD%X = CFA_X + CFA%NVEC(1)*VENT_OFFSET*DX(IIG)
             LP%BOUNDARY_COORD%Y = CFA_Y + CFA%NVEC(2)*VENT_OFFSET*DY(JJG)
             LP%BOUNDARY_COORD%Z = CFA_Z + CFA%NVEC(3)*VENT_OFFSET*DZ(KKG)
+            IF (ANY(SF%EMBER_GENERATION_HEIGHT>=0._EB)) THEN
+               CALL RANDOM_NUMBER(RN3)
+               LP%BOUNDARY_COORD%Z = CFA_Z + SF%EMBER_GENERATION_HEIGHT(1) + &
+                  (SF%EMBER_GENERATION_HEIGHT(2)-SF%EMBER_GENERATION_HEIGHT(1))*REAL(RN3,EB)
+            ENDIF
             LP%U = DOT_PRODUCT(CFA%NVEC,(/-ONE_D%U_NORMAL,SF%VEL_T(1),SF%VEL_T(2)/))
             LP%V = DOT_PRODUCT(CFA%NVEC,(/SF%VEL_T(1),-ONE_D%U_NORMAL,SF%VEL_T(2)/))
             LP%W = DOT_PRODUCT(CFA%NVEC,(/SF%VEL_T(1),SF%VEL_T(2),-ONE_D%U_NORMAL/))
@@ -708,6 +708,14 @@ ILPC_IF: IF (ILPC > 0) THEN
          LP%BOUNDARY_COORD%IIG = IIG
          LP%BOUNDARY_COORD%JJG = JJG
          LP%BOUNDARY_COORD%KKG = KKG
+
+         ! Embers may not be generated in wall-adjacent cell
+         IF (LP%EMBER) THEN
+            CALL GET_IJK(LP%BOUNDARY_COORD%X,LP%BOUNDARY_COORD%Y,LP%BOUNDARY_COORD%Z,NM,XI,YJ,ZK,IIG,JJG,KKG)
+            LP%BOUNDARY_COORD%IIG = IIG
+            LP%BOUNDARY_COORD%JJG = JJG
+            LP%BOUNDARY_COORD%KKG = KKG
+         ENDIF 
 
          ! Save the insertion time (TP) and scalar property (SP) for the particle
 
@@ -1373,12 +1381,12 @@ IF (LPC%SOLID_PARTICLE) THEN
 
    IF (LPC%SURF_INDEX==TGA_SURF_INDEX) TGA_PARTICLE_INDEX = NLP
 
-   IF(LP%EMBER) THEN
-      CALL RANDOM_NUMBER(RN)
-      ! inverse of modified exponential CDF for ember area
-      ! note this variable is total surface area, so adjust accordingly elsewhere
-      ONE_D%AREA=2._EB*(-LOG((1-REAL(RN,EB))/1.97_EB)/662._EB)**1.686_EB
-   ENDIF
+   ! IF(LP%EMBER) THEN
+   !    CALL RANDOM_NUMBER(RN)
+   !    ! inverse of modified exponential CDF for ember area
+   !    ! note this variable is total surface area, so adjust accordingly elsewhere
+   !    ONE_D%AREA=2._EB*(-LOG((1-REAL(RN,EB))/1.97_EB)/662._EB)**1.686_EB
+   ! ENDIF
 
    LP%MASS = 0._EB
 
@@ -1476,11 +1484,11 @@ IF (LPC%SOLID_PARTICLE) THEN
             SCALE_FACTOR = RADIUS/SF%THICKNESS
             ONE_D%X(:) = ONE_D%X(:)*SCALE_FACTOR
             ONE_D%LAYER_THICKNESS(:) = ONE_D%LAYER_THICKNESS(:)*SCALE_FACTOR
-         ELSEIF (LP%EMBER) THEN
-            CALL RANDOM_NUMBER(RN)
-            SCALE_FACTOR = ((-LOG(1-REAL(RN,EB))/1.92E7_EB)**0.4_EB)/SF%THICKNESS/2._EB
-            ONE_D%X(:) = ONE_D%X(:)*SCALE_FACTOR
-            ONE_D%LAYER_THICKNESS(:) = ONE_D%LAYER_THICKNESS(:)*SCALE_FACTOR
+         ! ELSEIF (LP%EMBER) THEN
+         !    CALL RANDOM_NUMBER(RN)
+         !    SCALE_FACTOR = ((-LOG(1-REAL(RN,EB))/1.92E7_EB)**0.4_EB)/SF%THICKNESS/2._EB
+         !    ONE_D%X(:) = ONE_D%X(:)*SCALE_FACTOR
+         !    ONE_D%LAYER_THICKNESS(:) = ONE_D%LAYER_THICKNESS(:)*SCALE_FACTOR
          ELSE
             SCALE_FACTOR = 1._EB
          ENDIF
@@ -1488,9 +1496,8 @@ IF (LPC%SOLID_PARTICLE) THEN
          IF (SF%THERMAL_BC_INDEX==THERMALLY_THICK) THEN
             SELECT CASE (SF%GEOMETRY)
                CASE (SURF_CARTESIAN)
-                  !LP%ONE_D%AREA = 2._EB*SF%LENGTH*SF%WIDTH
+                  LP%ONE_D%AREA = 2._EB*SF%LENGTH*SF%WIDTH
                   DO N=1,SF%N_LAYERS
-                     !LP%MASS = LP%MASS + 2._EB*SF%LENGTH*SF%WIDTH*SF%LAYER_THICKNESS(N)*SCALE_FACTOR*SF%LAYER_DENSITY(N)
                      LP%MASS = LP%MASS + ONE_D%AREA*ONE_D%LAYER_THICKNESS(N)*SF%LAYER_DENSITY(N)
                   ENDDO
                CASE (SURF_CYLINDRICAL)
@@ -1512,7 +1519,7 @@ IF (LPC%SOLID_PARTICLE) THEN
             END SELECT
          ENDIF
 
-   END SELECT 
+   END SELECT
 
 ELSEIF (LPC%LIQUID_DROPLET) THEN
 
@@ -2322,16 +2329,13 @@ DRAG_LAW_SELECT: SELECT CASE (LPC%DRAG_LAW)
    CASE DEFAULT
 
       TMP_G  = MAX(TMPMIN,TMP(IIG_OLD,JJG_OLD,KKG_OLD))
-      ZZ_GET(1:N_TRACKED_SPECIES) = ZZ(IIG_OLD,JJG_OLD,KKG_OLD,1:N_TRACKED_SPECIES)  
+      ZZ_GET(1:N_TRACKED_SPECIES) = ZZ(IIG_OLD,JJG_OLD,KKG_OLD,1:N_TRACKED_SPECIES)
       CALL GET_VISCOSITY(ZZ_GET,MU_FILM,TMP_G)
       LP%RE  = RHO_G*QREL*2._EB*R_D/MU_FILM
-      IF (SF%GEOMETRY==SURF_CARTESIAN) THEN
-         !D_HY = 4*SF%LENGTH*SF%WIDTH/(2*(SF%LENGTH+SF%WIDTH))
-         D_HY  = SQRT(LP%ONE_D%AREA/2._EB)
-         LP%RE = RHO_G*QREL*D_HY/MU_FILM
-      ENDIF
       KN = 0._EB
       IF (LP%RE<1._EB) KN = MU_FILM*SQRT(0.5_EB*PI/(PBAR(KKG_OLD,PRESSURE_ZONE(IIG_OLD,JJG_OLD,KKG_OLD))*RHO_G))/(2._EB*R_D)
+      ! Reynolds number based on hydraulic diameter for circular or square disk
+      IF (LPC%DRAG_LAW==DISK_DRAG) LP%RE = RHO_G*QREL*SQRT(LP%ONE_D%AREA/2._EB)/MU_FILM
       C_DRAG = DRAG(LP%RE,LPC%DRAG_LAW,KN)
 
       ! Primary break-up model
@@ -2409,11 +2413,10 @@ IF (LPC%DRAG_LAW/=SCREEN_DRAG .AND. LPC%DRAG_LAW/=POROUS_DRAG) THEN
       A_DRAG = PI*R_D**2
    ELSE
       SELECT CASE(SF%GEOMETRY)
-         CASE(SURF_CARTESIAN)           
+         CASE(SURF_CARTESIAN)
             A_DRAG = 2._EB*SF%LENGTH*SF%WIDTH*LPC%SHAPE_FACTOR
-            IF (LP%EMBER) THEN
-               A_DRAG = LP%ONE_D%AREA/2._EB
-            ENDIF
+            ! For disk drag, allow for different area for each particle
+            IF (LPC%DRAG_LAW==DISK_DRAG) A_DRAG = LP%ONE_D%AREA/2._EB
          CASE(SURF_CYLINDRICAL)
             A_DRAG = 2._EB*PI*R_D*SF%LENGTH*LPC%SHAPE_FACTOR
          CASE(SURF_SPHERICAL)

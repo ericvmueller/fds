@@ -127,7 +127,7 @@ INTEGER, PARAMETER :: CYLINDER_DRAG=2                  !< Flag for LPC\%DRAG_LAW
 INTEGER, PARAMETER :: USER_DRAG=3                      !< Flag for LPC\%DRAG_LAW: User-specified constant drag coefficient
 INTEGER, PARAMETER :: SCREEN_DRAG=4                    !< Flag for LPC\%DRAG_LAW: Special drag model for screens
 INTEGER, PARAMETER :: POROUS_DRAG=5                    !< Flag for LPC\%DRAG_LAW: Special drag model for porous media
-INTEGER, PARAMETER :: DISK_DRAG=6                      
+INTEGER, PARAMETER :: DISK_DRAG=6                      !< Flag for LPC\%DRAG_LAW: Disk drag for cartesian particles
 
 INTEGER, PARAMETER :: OLD=1                            !< Argument for DUCT()\%VEL()
 INTEGER, PARAMETER :: NEW=2                            !< Argument for DUCT()\%VEL()
@@ -655,6 +655,9 @@ INTEGER :: N_CSVF=0  !< Number of external velocity (.csv) files
 
 INTEGER :: N_FACE=0,N_GEOM=0
 REAL(EB):: DT_BNDC=1.E10_EB
+
+LOGICAL :: STORE_CUTCELL_DIVERGENCE = .FALSE.
+LOGICAL :: STORE_CARTESIAN_DIVERGENCE=.FALSE.
 
 LOGICAL :: CC_IBM=.FALSE.
 REAL(EB):: GEOM_DEFAULT_THICKNESS=0.1_EB ! 10 cm.
