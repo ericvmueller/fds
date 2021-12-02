@@ -118,7 +118,6 @@ INTEGER, PARAMETER :: CTRL_STOP=5                      !< Flag for STATUS_STOP
 INTEGER, PARAMETER :: TGA_ANALYSIS_STOP=6              !< Flag for STATUS_STOP
 INTEGER, PARAMETER :: LEVELSET_STOP=7                  !< Flag for STATUS_STOP
 INTEGER, PARAMETER :: REALIZABILITY_STOP=8             !< Flag for STATUS_STOP
-INTEGER, PARAMETER :: EVACUATION_STOP=9                !< Flag for STATUS_STOP
 INTEGER, PARAMETER :: VERSION_STOP=10                  !< Flag for STATUS_STOP
 INTEGER, PARAMETER :: MPI_TIMEOUT_STOP=11              !< Flag for STATUS_STOP
 
@@ -250,6 +249,7 @@ LOGICAL :: PERIODIC_DOMAIN_Y=.FALSE.                !< The domain is periodic \f
 LOGICAL :: PERIODIC_DOMAIN_Z=.FALSE.                !< The domain is periodic \f$ z \f$
 LOGICAL :: REMOVE_FIREBRANDS=.FALSE.                    !< Remove firebrands upon landing, save properties to csv
 LOGICAL :: OPEN_WIND_BOUNDARY=.FALSE.               !< There is a prevailing wind
+LOGICAL :: HRR_GAS_ONLY=.FALSE.                     !< Surface oxidation is not included in total HRR
 
 INTEGER, ALLOCATABLE, DIMENSION(:) :: CHANGE_TIME_STEP_INDEX      !< Flag to indicate if a mesh needs to change time step
 INTEGER, ALLOCATABLE, DIMENSION(:) :: SETUP_PRESSURE_ZONES_INDEX  !< Flag to indicate if a mesh needs to keep searching for ZONEs
@@ -270,19 +270,6 @@ REAL(FB) :: VERSION_NUMBER=6.0                                            !< Ver
 CHARACTER(FORMULA_LENGTH) :: REVISION='unknown'                           !< Git revision hash
 CHARACTER(FORMULA_LENGTH) :: REVISION_DATE='unknown'                      !< Date of last code change
 CHARACTER(FORMULA_LENGTH) :: COMPILE_DATE='unknown'                       !< Date of last code compilation
-
-! Global EVACuation parameters
-
-LOGICAL, ALLOCATABLE, DIMENSION(:) :: EVACUATION_ONLY, EVACUATION_SKIP
-REAL(EB) :: EVAC_DT_FLOWFIELD,EVAC_DT_STEADY_STATE,T_EVAC,T_EVAC_SAVE
-INTEGER :: EVAC_PRESSURE_ITERATIONS,EVAC_TIME_ITERATIONS,EVAC_N_QUANTITIES,I_EVAC
-INTEGER :: EVAC_AVATAR_NCOLOR
-LOGICAL :: EVACUATION_MC_MODE=.FALSE.,EVACUATION_DRILL=.FALSE.,DO_EVACUATION=.FALSE.,EVACUATION_WRITE_FED=.FALSE.
-LOGICAL :: EVACUATION_INITIALIZATION=.FALSE.
-CHARACTER(LABEL_LENGTH), ALLOCATABLE, DIMENSION(:) :: EVAC_CLASS_NAME, EVAC_CLASS_PROP
-INTEGER, ALLOCATABLE, DIMENSION(:) :: EVAC_QUANTITIES_INDEX
-INTEGER, ALLOCATABLE, DIMENSION(:,:) :: EVAC_CLASS_RGB,EVAC_AVATAR_RGB
-REAL(EB), ALLOCATABLE, DIMENSION(:) :: EVACUATION_Z_OFFSET
 
 ! Miscellaneous real constants
 
@@ -359,7 +346,6 @@ REAL(EB), PARAMETER :: BTILDE_ROUGH=8.5_EB                  !< Fully rough B(s+)
 
 INTEGER :: MY_RANK=0                                           !< The MPI process index, starting at 0
 INTEGER :: N_MPI_PROCESSES=1                                !< Number of MPI processes
-INTEGER :: EVAC_PROCESS=-1
 INTEGER :: LOWER_MESH_INDEX=1000000000                      !< Lower bound of meshes controlled by the current MPI process
 INTEGER :: UPPER_MESH_INDEX=-1000000000                     !< Upper bound of meshes controlled by the current MPI process
 LOGICAL :: PROFILING=.FALSE.
@@ -496,7 +482,14 @@ INTEGER, ALLOCATABLE, DIMENSION(:,:) :: PRESSURE_ERROR_MAX_LOC   !< Indices of m
 INTEGER :: PRESSURE_ITERATIONS=0                                 !< Counter for pressure iterations
 INTEGER :: MAX_PRESSURE_ITERATIONS=10                            !< Max pressure iterations per pressure solve
 INTEGER :: TOTAL_PRESSURE_ITERATIONS=0                           !< Counter for total pressure iterations
-CHARACTER(LABEL_LENGTH):: PRES_METHOD = 'FFT'                    !< Pressure solver method
+CHARACTER(LABEL_LENGTH) :: PRES_METHOD='FFT'                     !< Pressure solver method
+INTEGER, PARAMETER :: FFT_FLAG=0                                 !< Integer pressure solver parameter FFT
+INTEGER, PARAMETER :: GLMAT_FLAG=1                               !< Integer pressure solver parameter GLMAT
+INTEGER, PARAMETER :: UGLMAT_FLAG=2                              !< Integer pressure solver parameter UGLMAT
+INTEGER, PARAMETER :: ULMAT_FLAG=3                               !< Integer pressure solver parameter ULMAT
+INTEGER, PARAMETER :: SCARC_FLAG=4                               !< Integer pressure solver parameter SCARC
+INTEGER, PARAMETER :: USCARC_FLAG=5                              !< Integer pressure solver parameter USCARC
+INTEGER :: PRES_FLAG = FFT_FLAG                                  !< Pressure solver
 LOGICAL :: TUNNEL_PRECONDITIONER=.FALSE.                         !< Use special pressure preconditioner for tunnels
 INTEGER :: TUNNEL_NXP                                            !< Number of x points in the entire tunnel
 REAL(EB), ALLOCATABLE, DIMENSION(:) :: TP_AA                     !< Upper off-diagonal of tri-diagonal matrix for tunnel pressure
@@ -518,7 +511,7 @@ INTEGER :: ICYC,ICYC_RESTART=0,NFRAMES,PERIODIC_TEST=0,SIM_MODE=3,TURB_MODEL=0,F
 
 REAL(EB), ALLOCATABLE, DIMENSION(:) :: PART_CLOCK,SLCF_CLOCK,SL3D_CLOCK,SMOKE3D_CLOCK,&
                                        PL3D_CLOCK,BNDF_CLOCK,ISOF_CLOCK,PROF_CLOCK,RADF_CLOCK
-REAL(EB) :: MASS_CLOCK,DEVC_CLOCK,HRR_CLOCK,EVAC_CLOCK=1.E6_EB,CTRL_CLOCK,FLUSH_CLOCK,CPU_CLOCK,RESTART_CLOCK,&
+REAL(EB) :: MASS_CLOCK,DEVC_CLOCK,HRR_CLOCK,CTRL_CLOCK,FLUSH_CLOCK,CPU_CLOCK,RESTART_CLOCK,&
             BNDC_CLOCK,GEOC_CLOCK,GEOM_CLOCK,UVW_CLOCK,TURB_INIT_CLOCK=-1.E10_EB,&
             UVW_CLOCK_CBC(1:4)=(/0._EB,0.28_EB,0.67_EB,1.E10_EB/)
 REAL(EB) :: UVW_TIMER(10),MMS_TIMER=1.E10_EB,SLCF_TIMER(10),BNDF_TIMER(10),SL3D_TIMER(10)
@@ -539,7 +532,7 @@ REAL(EB) :: ALIGNMENT_TOLERANCE=0.001_EB      !< Maximum ratio of sizes of abutt
 INTEGER                              :: LU_ERR=ERROR_UNIT,LU_END=2,LU_GIT=3,LU_SMV=4,LU_INPUT=5,LU_OUTPUT=6,LU_STOP=7,LU_CPU=8,&
                                         LU_CATF=9
 INTEGER                              :: LU_MASS,LU_HRR,LU_STEPS,LU_NOTREADY,LU_VELOCITY_ERROR,LU_CFL,LU_LINE=-1,LU_CUTCELL
-INTEGER                              :: LU_EVACCSV,LU_EVACEFF,LU_EVACFED,LU_EVACXYZ,LU_EVACOUT,LU_HISTOGRAM,LU_EVAC_CB
+INTEGER                              :: LU_HISTOGRAM
 INTEGER                              :: LU_BNDC=-1,LU_GEOC=-1,LU_TGA,LU_INFO
 INTEGER, ALLOCATABLE, DIMENSION(:)   :: LU_PART,LU_PROF,LU_XYZ,LU_TERRAIN,LU_PL3D,LU_DEVC,LU_STATE,LU_CTRL,LU_CORE,LU_RESTART
 INTEGER, ALLOCATABLE, DIMENSION(:)   :: LU_VEG_OUT,LU_GEOM,LU_CFACE_GEOM,LU_FBRAND
@@ -551,8 +544,7 @@ INTEGER                              :: DEVC_COLUMN_LIMIT=254,CTRL_COLUMN_LIMIT=
 CHARACTER(250)                             :: FN_INPUT='null'
 CHARACTER(80)                              :: FN_STOP='null',FN_CPU,FN_CFL,FN_OUTPUT='null'
 CHARACTER(80)                              :: FN_MASS,FN_HRR,FN_STEPS,FN_SMV,FN_END,FN_ERR,FN_NOTREADY,FN_VELOCITY_ERROR,FN_GIT
-CHARACTER(80)                              :: FN_EVACCSV,FN_EVACEFF,FN_EVACFED,FN_EVACOUT,FN_LINE,FN_HISTOGRAM,FN_CUTCELL,FN_TGA
-CHARACTER(80)                              :: FN_EVACXYZ
+CHARACTER(80)                              :: FN_LINE,FN_HISTOGRAM,FN_CUTCELL,FN_TGA
 CHARACTER(80), ALLOCATABLE, DIMENSION(:)   :: FN_PART,FN_PROF,FN_XYZ,FN_TERRAIN,FN_PL3D,FN_DEVC,FN_STATE,FN_CTRL,FN_CORE,FN_RESTART
 CHARACTER(80), ALLOCATABLE, DIMENSION(:)   :: FN_VEG_OUT,FN_GEOM,FN_CFACE_GEOM,FN_FBRAND
 CHARACTER(80), ALLOCATABLE, DIMENSION(:,:) :: FN_SLCF,FN_SLCF_GEOM,FN_BNDF,FN_BNDF_GEOM,FN_BNDG, &
@@ -565,7 +557,7 @@ LOGICAL :: OUT_FILE_OPENED=.FALSE.
 
 CHARACTER(LABEL_LENGTH) :: MATL_NAME(1:1000)
 INTEGER :: N_SURF,N_SURF_RESERVED,N_MATL,MIRROR_SURF_INDEX,OPEN_SURF_INDEX,INTERPOLATED_SURF_INDEX,DEFAULT_SURF_INDEX=0, &
-           INERT_SURF_INDEX=0,PERIODIC_SURF_INDEX,PERIODIC_FLOW_ONLY_SURF_INDEX,HVAC_SURF_INDEX=-1,EVACUATION_SURF_INDEX=-1,&
+           INERT_SURF_INDEX=0,PERIODIC_SURF_INDEX,PERIODIC_FLOW_ONLY_SURF_INDEX,HVAC_SURF_INDEX=-1,&
            MASSLESS_TRACER_SURF_INDEX, MASSLESS_TARGET_SURF_INDEX,DROPLET_SURF_INDEX,VEGETATION_SURF_INDEX,NWP_MAX
 REAL(EB), ALLOCATABLE, DIMENSION(:) :: AAS,BBS,DDS,DDT,DX_S,RDX_S,RDXN_S,DX_WGT_S, &
                                        RHO_S,Q_S,TWO_DX_KAPPA_S,X_S_NEW,R_S,MF_FRAC,REGRID_FACTOR,R_S_NEW
@@ -598,7 +590,7 @@ LOGICAL :: POROUS_FLOOR=.TRUE.,ALLOW_UNDERSIDE_PARTICLES=.FALSE.,ALLOW_SURFACE_P
 
 ! Particles
 
-INTEGER :: MAXIMUM_PARTICLES,N_LAGRANGIAN_CLASSES,N_EVAC,N_LP_ARRAY_INDICES=0
+INTEGER :: MAXIMUM_PARTICLES,N_LAGRANGIAN_CLASSES,N_LP_ARRAY_INDICES=0
 REAL(EB) :: CNF_CUTOFF=0.005_EB
 LOGICAL :: EB_PART_FILE=.FALSE.,PL3D_PARTICLE_FLUX=.FALSE.,SLCF_PARTICLE_FLUX=.FALSE.,DEVC_PARTICLE_FLUX=.FALSE.
 LOGICAL :: OMESH_PARTICLES=.FALSE.,EXCHANGE_INSERTED_PARTICLES=.FALSE.
@@ -662,7 +654,6 @@ LOGICAL :: STORE_CARTESIAN_DIVERGENCE=.FALSE.
 LOGICAL :: CC_IBM=.FALSE.
 REAL(EB):: GEOM_DEFAULT_THICKNESS=0.1_EB ! 10 cm.
 LOGICAL :: CHECK_MASS_CONSERVE =.FALSE.
-LOGICAL :: GLMAT_SOLVER =.FALSE.
 LOGICAL :: GLMAT_VERBOSE=.FALSE.
 LOGICAL :: PRES_ON_WHOLE_DOMAIN=.TRUE.
 LOGICAL :: PRES_ON_CARTESIAN=.TRUE.
@@ -671,7 +662,7 @@ LOGICAL :: CC_ZEROIBM_VELO=.FALSE.
 LOGICAL :: CC_SLIPIBM_VELO=.FALSE.
 LOGICAL :: CC_STRESS_METHOD=.TRUE.
 LOGICAL :: CC_ONLY_IBEDGES_FLAG=.TRUE.
-LOGICAL :: CC_UNSTRUCTURED_FDIV=.FALSE.
+LOGICAL :: CC_UNSTRUCTURED_PROJECTION=.FALSE.
 
 ! Threshold factor for volume of cut-cells respect to volume of Cartesian cells:
 ! Currently used in the thermo div definition of cut-cells.
