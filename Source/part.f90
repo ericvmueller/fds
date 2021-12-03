@@ -1538,14 +1538,15 @@ IF (LPC%SOLID_PARTICLE) THEN
 
          IF (.NOT.LPC%MONODISPERSE) THEN
             CALL PARTICLE_SIZE_WEIGHT(RADIUS,LP%PWT)
-            SCALE_FACTOR = RADIUS/LP_SF%THICKNESS
-            LP_ONE_D%X(:) = LP_ONE_D%X(:)*SCALE_FACTOR
-            LP_ONE_D%LAYER_THICKNESS(:) = LP_ONE_D%LAYER_THICKNESS(:)*SCALE_FACTOR
-         ! ELSEIF (LP%EMBER) THEN
-         !    CALL RANDOM_NUMBER(RN)
-         !    SCALE_FACTOR = ((-LOG(1-REAL(RN,EB))/1.92E7_EB)**0.4_EB)/LP_SF%THICKNESS/2._EB
-         !    LP_ONE_D%X(:) = LP_ONE_D%X(:)*SCALE_FACTOR
-         !    LP_ONE_D%LAYER_THICKNESS(:) = LP_ONE_D%LAYER_THICKNESS(:)*SCALE_FACTOR
+            ! Hydraulic diameter for disk firebrands
+            IF (LP%EMBER) THEN
+               SCALE_FACTOR = 2._EB*RADIUS/LP_SF%WIDTH
+               LP%PWT = 1._EB
+            ELSE
+               SCALE_FACTOR = RADIUS/LP_SF%THICKNESS
+               LP_ONE_D%X(:) = LP_ONE_D%X(:)*SCALE_FACTOR
+               LP_ONE_D%LAYER_THICKNESS(:) = LP_ONE_D%LAYER_THICKNESS(:)*SCALE_FACTOR
+            ENDIF
          ELSE
             SCALE_FACTOR = 1._EB
          ENDIF
@@ -1553,10 +1554,17 @@ IF (LPC%SOLID_PARTICLE) THEN
          IF (LP_SF%THERMAL_BC_INDEX==THERMALLY_THICK) THEN
             SELECT CASE (LP_SF%GEOMETRY)
                CASE (SURF_CARTESIAN)
-                  LP_ONE_D%AREA = 2._EB*LP_SF%LENGTH*LP_SF%WIDTH
-                  DO N=1,LP_SF%N_LAYERS
-                     LP%MASS = LP%MASS + 2._EB*LP_SF%LENGTH*LP_SF%WIDTH*LP_SF%LAYER_THICKNESS(N)*SCALE_FACTOR*LP_SF%LAYER_DENSITY(N)
-                  ENDDO
+                  IF (LP%EMBER) THEN
+                     LP_ONE_D%AREA = 2._EB*LP_SF%LENGTH*LP_SF%WIDTH*SCALE_FACTOR**2._EB
+                     DO N=1,LP_SF%N_LAYERS
+                        LP%MASS = LP%MASS + LP_ONE_D%AREA*LP_SF%LAYER_THICKNESS(N)*LP_SF%LAYER_DENSITY(N)
+                     ENDDO
+                  ELSE
+                     LP_ONE_D%AREA = 2._EB*LP_SF%LENGTH*LP_SF%WIDTH
+                     DO N=1,LP_SF%N_LAYERS
+                        LP%MASS = LP%MASS + 2._EB*LP_SF%LENGTH*LP_SF%WIDTH*LP_SF%LAYER_THICKNESS(N)*SCALE_FACTOR*LP_SF%LAYER_DENSITY(N)
+                     ENDDO
+                  ENDIF
                CASE (SURF_CYLINDRICAL)
                   LP_ONE_D%AREA = 2._EB*PI*(LP_SF%THICKNESS+LP_SF%INNER_RADIUS)*LP_SF%LENGTH
                   X1 = (SUM(LP_SF%LAYER_THICKNESS)+LP_SF%INNER_RADIUS)*SCALE_FACTOR
