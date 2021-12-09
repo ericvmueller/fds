@@ -165,10 +165,6 @@ $QFDS -d Energy_Budget energy_budget_particles.fds
 $QFDS -d Energy_Budget energy_budget_solid.fds
 $QFDS -d Energy_Budget energy_budget_tmix.fds
 
-#$QFDS -d Evacuation evac_smv_testcase0.fds
-#$QFDS -d Evacuation evac_smv_testcase2.fds
-#$QFDS -p 3 -d Evacuation evac_smv_testcase1.fds
-
 $QFDS -d Extinction extinction_1.fds
 $QFDS -d Extinction extinction_2.fds
 
@@ -543,6 +539,7 @@ $QFDS -d Species burke_schumann.fds
 $QFDS -d Species FED_FIC.fds
 $QFDS -d Species FED_FIC_SMIX.fds
 $QFDS -d Species FED_CO_HCN.fds
+$QFDS -d Species mass_flux_comparison.fds
 $QFDS -d Species methane_flame_simple.fds
 $QFDS -d Species methane_flame_simple_2.fds
 $QFDS -d Species methane_flame_primitive.fds

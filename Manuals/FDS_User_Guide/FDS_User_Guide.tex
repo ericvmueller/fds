@@ -4139,16 +4139,13 @@ This test case also uses the atmospheric boundary layer (ABL) wall model (see Se
 \subsection{Random Mass Flux Variation}
 \label{info:MASS_FLUX_VAR}
 
-The current implementation of the Synthetic Eddy Method does not allow variation in mass flux defined on a {\ct SURF} line.  For example, {\ct HRRPUA} and {\ct MASS\_FLUX} boundary conditions are by default taken as constant for a given {\ct SURF}.  In reality, of course, this is rarely the case---generally there is some level of random variation in the mass flux on the surface.  In an attempt to accommodate this effect, we have implemented an experimental feature where the user may specify a mass flux variation as a fractional value with the parameter {\ct MASS\_FLUX\_VAR}.  For example, if you want a 10 \% variation in a heat release rate per unit area of 100 \si{kW/m^2} then use
-
+The current implementation of the Synthetic Eddy Method does not allow variation in mass flux defined on a {\ct SURF} line.  For example, the parameters {\ct HRRPUA} and {\ct MASS\_FLUX} follow a user-specified time history which does not include random fluctuations. However, you may specify a mass flux variation using the parameter {\ct MASS\_FLUX\_VAR}. For example, if you want a 10~\% variation in a heat release rate per unit area of 100 \si{kW/m^2} then use
 \begin{lstlisting}
 &SURF ID='burner', HRRPUA=100., MASS_FLUX_VAR=0.1 /
 \end{lstlisting}
-
-It may be helpful to use the boundary file output quantity {\ct MASS FLUX WALL CELL} to visualize the variation.  For example,
-
+It may be helpful to use the boundary file output quantity {\ct 'MASS FLUX'} to visualize the variation.  For example,
 \begin{lstlisting}
-&BNDF QUANTITY='MASS FLUX WALL CELL', CELL_CENTERED=T /
+&BNDF QUANTITY='MASS FLUX', CELL_CENTERED=T /
 \end{lstlisting}
 
 \section{HVAC Systems: The \texorpdfstring{{\tt HVAC}}{HVAC} Namelist Group (Table \ref{tbl:HVAC})}
@@ -7086,7 +7083,7 @@ In the example called {\ct wind\_example\_32} there are various rectangular bloc
 
 The wind {\ct SPEED} and {\ct DIRECTION} can be made a function of time and/or height using {\ct RAMP} functions. With respect to time, consider the following lines of input:
 \begin{lstlisting}
-&WIND SPEED=1., RAMP_SPEED='spd', RAMP_DIRECTION='dir' /
+&WIND SPEED=1., RAMP_SPEED_T='spd', RAMP_DIRECTION_T='dir' /
 
 &RAMP ID='dir', T=   0, F=300 /
 &RAMP ID='dir', T= 600, F=330 /
@@ -7099,15 +7096,24 @@ The wind {\ct SPEED} and {\ct DIRECTION} can be made a function of time and/or h
 .
 .
 \end{lstlisting}
-These lines direct FDS to vary the wind speed and direction according to the {\ct RAMP} functions {\ct 'spd'} and {\ct 'dir'}, respectively. The parameter {\ct T} is the time in s. For the direction ramp function, {\ct F} represents the direction angle in degrees from the north (positive $y$ direction). For the speed ramp function, {\ct F} represents a multiplier of the base {\ct SPEED}, which in this case is unity. An alternative to specifying the wind speed and direction is to specify the velocity components, ({\ct U0},{\ct V0}) separately, along with time ramps {\ct RAMP\_U0\_T} and {\ct RAMP\_V0\_T}.
+These lines direct FDS to vary the wind speed and direction over time, according to the {\ct RAMP} functions {\ct 'spd'} and {\ct 'dir'}, respectively. The parameter {\ct T} is the time in s. For the direction ramp function, {\ct F} represents the direction angle in degrees from the north (positive $y$ direction). For the speed ramp function, {\ct F} represents a multiplier of the base {\ct SPEED}, which in this case is unity.
 
-You can also vary the wind velocity components with height using the ramp functions {\ct RAMP\_U0\_Z}, {\ct RAMP\_V0\_Z}, and {\ct RAMP\_W0\_Z}.
+You can also vary the wind velocity components with height using the ramp functions {\ct RAMP\_SPEED\_Z} and {\ct RAMP\_DIRECTION\_Z}.
 \begin{lstlisting}
-&RAMP ID='z-ramp', Z=  0., F=1.0 /
-&RAMP ID='z-ramp', Z=200., F=1.5 /
-&RAMP ID='z-ramp', Z=500., F=1.8 /
+&WIND SPEED=1., RAMP_SPEED_Z='spd', RAMP_DIRECTION_Z='dir' /
+
+&RAMP ID='dir', Z=   0, F=300 /
+&RAMP ID='dir', Z= 200, F=330 /
+&RAMP ID='dir', Z= 500, F=350 /
+.
+.
+&RAMP ID='spd', Z=   0, F=1.0 /
+&RAMP ID='spd', Z= 200, F=1.5 /
+&RAMP ID='spd', Z= 500, F=1.8 /
+.
+.
 \end{lstlisting}
-The parameter {\ct Z} represents the height (m) and {\ct F} the fraction of the given velocity component value. Note that if you use Monin-Obukhov similarity parameters, you should not specify the vertical profile of the wind. It will be calculated automatically.
+The parameter {\ct Z} represents the height (m). As with the time functions above, for the direction ramp function, {\ct F} represents the direction angle in degrees from the north (positive $y$ direction). This value is added to any time-varying value set by {\ct RAMP\_DIRECTION\_T}. For the speed ramp function, {\ct F} represents a multiplier of the base {\ct SPEED}. This value is multiplied by any time-varying value set by {\ct RAMP\_SPEED\_T}. Note that if you use Monin-Obukhov similarity parameters, you should not specify the vertical profile of the wind. It will be calculated automatically. 
 
 Often for longer simulations lasting hours, you may not know exactly how the wind {\ct DIRECTION} varies, but you might have some estimate based on the {\em stability class} of the atmosphere. Using the terminology of the atmospheric dispersion community~\cite{Hanna:1982}, the perturbation to the wind {\ct DIRECTION} can be modeled as:
 \be
@@ -8745,7 +8751,7 @@ The namelist group {\ct DUMP} contains parameters (Table \ref{tbl:DUMP}) that co
 
 \section{Device Output: The \texorpdfstring{{\tt DEVC}}{DEVC} Namelist Group}
 
-Every device ({\ct DEVC}) contains a {\ct QUANTITY} that it monitors. Usually this {\ct QUANTITY} is written out to a comma-delimited spreadsheet file with the suffix {\ct \_devc.csv}. The quantities are listed in Table~\ref{tab:output}. Some quantities, such as {\ct MASS FLUX} and {\ct VOLUME FRACTION}, are marked with an asterisk in Table~\ref{tab:output} meaning that they require additional input, like a {\ct SPEC\_ID}, to be specified. Refer to Section~\ref{info:outputquantities} for more details.
+Every device ({\ct DEVC}) contains a {\ct QUANTITY} that it monitors. Usually this {\ct QUANTITY} is written out to a comma-delimited spreadsheet file with the suffix {\ct \_devc.csv}. The quantities are listed in Table~\ref{tab:output}. Some quantities, such as {\ct 'MASS FLUX'} and {\ct 'VOLUME FRACTION'}, are marked with an asterisk in Table~\ref{tab:output} meaning that they require additional input, like a {\ct SPEC\_ID}, to be specified. Refer to Section~\ref{info:outputquantities} for more details.
 
 There are two types of {\ct DEVC} output. The first is a time history of the given {\ct QUANTITY} over the course of the simulation. The second is a time-averaged profile consisting of a linear array of point devices. Each is explained below.
 
@@ -9508,12 +9514,24 @@ If you want more precise output that includes the diffusive component of the mas
 
 \subsubsection{Mass Flow at a Boundary}
 \label{info:wallflux}
+\label{mass_flux_comparison}
 
-There are two quantities that may be used for measuring mass flux on boundaries: {\ct 'MASS FLUX'} and {\ct 'MASS FLUX WALL'}.  Each takes a {\ct SPEC\_ID} if a certain species is desired; otherwise the total mass flux is given.  The difference between the two outputs is that {\ct 'MASS FLUX'} refers to the generation rate of a gas species or solid material component at a solid boundary, whether it be user-specified or the result of a pyrolysis model. {\ct 'MASS FLUX WALL'}, on the other hand, is the actual computed mass flux which might be slightly different than {\ct 'MASS FLUX'} due to small numerical error in the normal component of velocity at a solid wall. That is, {\ct 'MASS FLUX WALL'} is a direct computation of
+There are three quantities that may be used for recording the mass flux of a particular gas species at a boundary: {\ct 'MASS FLUX'}, {\ct 'MASS FLUX WALL'}, and {\ct TOTAL MASS FLUX WALL'}. Each takes a {\ct SPEC\_ID} if a particular gas species is desired; otherwise the sum of all gas species is given. The difference between the outputs is that {\ct 'MASS FLUX'} refers to the generation rate of a gas species or solid material component at a solid boundary, whether it be user-specified or the result of a pyrolysis model. {\ct 'MASS FLUX WALL'}, on the other hand, is the actual computed mass flux which might be slightly different than {\ct 'MASS FLUX'} due to small numerical error in the normal component of velocity at a solid wall. That is, {\ct 'MASS FLUX WALL'} is a direct computation of
 \be
    \dot{m}_\alpha = \rho Y_\alpha u_n - \rho D_\alpha \partial Y_\alpha / \partial n
 \ee
-where $\mathbf{n}$ is the normal direction of the surface.  The convention used here is that positive fluxes are entering the computational domain. The quantity may be applied at a solid surface, a flow vent, or an {\ct OPEN} boundary.  
+where $\mathbf{n}$ is the normal direction of the surface. The third mass flux output option is called {\ct 'TOTAL MASS FLUX WALL'}. This quantity is very similar to {\ct 'MASS FLUX WALL'} except that it combines the predicted and corrected mass flux over a single time step. It is the boundary analog of the gas phase quantities {\ct 'TOTAL MASS FLUX X/Y/Z'}. 
+
+For each form of the boundary mass flux, a positive value means that mass is entering the computational domain. These quantities may be applied at a solid surface or vent. {\ct 'MASS FLUX WALL'} and {\ct 'TOTAL MASS FLUX WALL'} can also be applied at an {\ct OPEN} boundary.  
+
+To demonstrate the difference between these various forms of mass flux output, consider Fig.~\ref{mass_flux_comparison_fig}. These plots show the spatially integrated mass flux of gas from a solid surface, where the mass flux has been ramped up linearly for 10~s, held steady for 20~s, and ramped down to zero linearly for 10~s. The {\ct 'MASS FLUX'} output merely mimics this specified curve. The {\ct 'MASS FLUX WALL'} and {\ct 'TOTAL MASS FLUX WALL'} output exhibit fluctuations caused by the fact that the mass flux is not perfectly applied at the solid surface---there are small fluctuations in the normal component of velocity caused by the inexact velocity-pressure coupling at the boundary. These flucuations are minor and average out close to the specified value, but sometimes it is useful to use the more exact output quantities for diagnostic purposes.
+
+\begin{figure}[ht]
+\includegraphics[width=3in]{SCRIPT_FIGURES/mass_flux_comparison}
+\includegraphics[width=3in]{SCRIPT_FIGURES/mass_flux_comparisonb}
+\caption[Results of the {\ct mass\_flux\_comparison} test case]{(Left) Mass flow rate of a gas from a solid boundary. (Right) Close-up view.}
+\label{mass_flux_comparison_fig}
+\end{figure}
 
 
 \subsection{Enthalpy Flow}
@@ -9534,10 +9552,14 @@ To instruct FDS to output this quantity, use the input line:
       SPATIAL_STATISTIC='AREA INTEGRAL' /
 \end{lstlisting}
 
-
 \subsubsection{Enthalpy Flow at a Boundary}
 
-See {\ct 'ADVECTIVE HEAT FLUX'} in Section~\ref{info:heat_flux}.
+{\ct 'ENTHALPY FLUX WALL'} is the equivalent of {\ct 'ENTHALPY FLUX X/Y/Z'} at a boundary. It is the rate of energy advected {\em into} the domain at a vent or open boundary: 
+\begin{equation}
+   \dot{q}_{\mathrm{w}}'' = -\rho_{\rm w} \, h_s(T_{\rm w}) \, \bu \cdot \bn - k \dod{T}{n}
+\end{equation}
+where $n$ is the coordinate direction pointing into the boundary; that is, out of the computational domain. Note that the enthalpy flux at a boundary is defined using the density, temperature, and sensible enthalpy of the gas mixture at the boundary, and is not relative to ambient conditions like its gas phase counterparts. For this reason, this quantity is often used in energy budget calculations to track the flow of enthalpy into and out of the computational domain. The quantity is positive for gas flow into the domain.
+
 
 
 \subsection{Heat Flux}
@@ -9562,9 +9584,6 @@ where $\dot{q}_{\rm inc,rad}''$ is the {\em incident} radiative heat flux, $\eps
 
 \item[\ct 'INCIDENT HEAT FLUX']
 \hspace{1in} \newline This is the term $\dq_{\rm inc,rad}''$ in Eq.~(\ref{net_flux}).
-
-\item[\ct 'ADVECTIVE HEAT FLUX']
-\hspace{1in} \newline The rate of energy advected into the domain at a vent or open boundary, $-\dot{q}_{\mathrm{w}}'' = \rho \, h_s(T) \, \bu \cdot \bn$. Note that the advective heat flux at a boundary is defined using the sensible enthalpy of the mixture whose composition is taken at the boundary and is not relative to ambient conditions. For this reason, this quantity is often used in energy budget calculations to track the flow of enthalpy into and out of the computational domain. The quantity is positive for gas flow into the domain.
 
 \item[\ct 'GAUGE HEAT FLUX']
 \hspace{1in} \newline This quantity simulates a measurement made with a water-cooled heat flux gauge:
@@ -10364,15 +10383,15 @@ Here, the {\ct ID} is just a label in the output file. When an output quantity i
 {\ct DIVERGENCE}                                & $\nabla \cdot \bu$                            & 1/s            & D,I,P,S      \\ \hline
 {\ct DROPLET VOLUME FRACTION}$^2$               & Section~\ref{info:part_output}                &                & D,P,S        \\ \hline
 {\ct ENTHALPY}                                  & Section~\ref{info:Enthalpy}                   & kJ/m$^3$       & D,I,P,S      \\ \hline
-{\ct ENTHALPY FLUX X}                           & Section~\ref{info:enthalpy_flux}              & kW/m$^2$       & D,I,P,S   \\ \hline
-{\ct ENTHALPY FLUX Y}                           & Section~\ref{info:enthalpy_flux}              & kW/m$^2$       & D,I,P,S   \\ \hline
-{\ct ENTHALPY FLUX Z}                           & Section~\ref{info:enthalpy_flux}              & kW/m$^2$       & D,I,P,S   \\ \hline
+{\ct ENTHALPY FLUX X}                           & Section~\ref{info:enthalpy_flux}              & kW/m$^2$       & D,I,P,S      \\ \hline
+{\ct ENTHALPY FLUX Y}                           & Section~\ref{info:enthalpy_flux}              & kW/m$^2$       & D,I,P,S      \\ \hline
+{\ct ENTHALPY FLUX Z}                           & Section~\ref{info:enthalpy_flux}              & kW/m$^2$       & D,I,P,S      \\ \hline
 {\ct EXTINCTION COEFFICIENT}                    & Section~\ref{info:visibility}                 & 1/m            & D,I,P,S      \\ \hline
 {\ct FED}                                       & Section~\ref{info:FED}                        &                & D            \\ \hline
 {\ct FIC}                                       & Section~\ref{info:FED}                        &                & D,S          \\ \hline
 {\ct FRICTION VELOCITY}                         & Section~\ref{info:yplus}                      & m/s            & B,D          \\ \hline
 {\ct GAUGE HEAT FLUX}                           & Section~\ref{info:heat_flux}                  & kW/m$^2$       & B,D          \\ \hline
-{\ct ADVECTIVE HEAT FLUX}                       & Section~\ref{info:heat_flux}                  & kW/m$^2$       & B,D          \\ \hline
+{\ct ENTHALPY FLUX WALL}                        & Section~\ref{info:enthalpy_flux}              & kW/m$^2$       & B,D          \\ \hline
 {\ct TOTAL HEAT FLUX}                           & Section~\ref{info:heat_flux}                  & kW/m$^2$       & B,D          \\ \hline
 {\ct HRR}                                       & $\int \dq''' \; \d V$                         & kW             & D            \\ \hline
 {\ct HRRPUA}                                    & $\dq''$                                       & kW/m$^2$       & D            \\ \hline
@@ -10386,7 +10405,6 @@ Here, the {\ct ID} is just a label in the output file. When an output quantity i
 {\ct LAYER HEIGHT}                              & Section~\ref{info:layerheight}                & m              & D            \\ \hline
 {\ct LINK TEMPERATURE}                          & Section~\ref{info:heat_detectors}             & $^\circ$C      & D            \\ \hline
 {\ct LOWER TEMPERATURE}                         & Section~\ref{info:layerheight}                & $^\circ$C      & D            \\ \hline
-{\ct ADVECTIVE MASS FLUX}                       & Section~\ref{info:mass_flow}                  & \si{kg/(m$^2$.s)} & B,D          \\ \hline
 {\ct MASS FLUX}$^{1,4}$                         & Section~\ref{info:wallflux}                   & \si{kg/(m$^2$.s)} & B,D       \\ \hline
 {\ct MASS FLUX WALL}$^1$                        & Section~\ref{info:wallflux}                   & \si{kg/(m$^2$.s)} & B,D       \\ \hline
 {\ct MASS FLUX X}$^1$                           & Section~\ref{info:mass_flow}                  & \si{kg/(m$^2$.s)} & D,I,P,S   \\ \hline
@@ -10574,6 +10592,7 @@ be found in Volume~1 of the FDS Technical Reference Guide~\cite{FDS_Math_Guide}.
 {\ct SUBSTEPS}                                  & Section~\ref{info:solid_phase_stability}          &                & B,D          \\ \hline
 {\ct SUM LUMPED MASS FRACTIONS}                 & $\sum_i Z_i$ (should be 1)                        &                & D,S          \\ \hline
 {\ct SUM PRIMITIVE MASS FRACTIONS}              & $\sum_\alpha Y_\alpha$ (should be 1)              &                & D,S          \\ \hline
+{\ct TOTAL MASS FLUX WALL}$^1$ & $\overline{\rho Y_\alpha} u_n + \rho D_\alpha \partial Y_\alpha/\partial n$, Sec.~\ref{info:wallflux} & kg/s/m$^2$ & D,S      \\ \hline
 {\ct TOTAL MASS FLUX X}$^1$ & $\overline{\rho Y_\alpha} u + \rho D_\alpha \partial Y_\alpha/\partial x$, Sec.~\ref{info:mass_flow} & kg/s/m$^2$ & D,I,P,S      \\ \hline
 {\ct TOTAL MASS FLUX Y}$^1$ & $\overline{\rho Y_\alpha} v + \rho D_\alpha \partial Y_\alpha/\partial y$, Sec.~\ref{info:mass_flow} & kg/s/m$^2$ & D,I,P,S      \\ \hline
 {\ct TOTAL MASS FLUX Z}$^1$ & $\overline{\rho Y_\alpha} w + \rho D_\alpha \partial Y_\alpha/\partial z$, Sec.~\ref{info:mass_flow} & kg/s/m$^2$ & D,I,P,S      \\ \hline
@@ -12411,12 +12430,14 @@ $\Delta t$={\ct T\_END-T\_BEGIN}
 {\ct L}                                         & Real          & Section~\ref{info:WIND}                       & m             & 0                 \\ \hline
 {\ct LAPSE\_RATE}                               & Real          & Section~\ref{info:stratification}             & $^\circ$C/m   & 0                 \\ \hline
 {\ct LATITUDE}                                  & Real          & Section~\ref{info:coriolis_force}             & degrees       &                   \\ \hline
-{\ct POTENTIAL\_TEMPERATURE\_CORRECTION}        & Logical       & Section~\ref{info:potential_temperature_correction} &         & {\ct F}     \\ \hline
-{\ct RAMP\_DIRECTION}                           & Character     & Section~\ref{info:WIND}                       &               &                   \\ \hline
+{\ct POTENTIAL\_TEMPERATURE\_CORRECTION}        & Logical       & Section~\ref{info:potential_temperature_correction} &         & {\ct F}           \\ \hline
+{\ct RAMP\_DIRECTION\_T}                        & Character     & Section~\ref{info:WIND}                       &               &                   \\ \hline
+{\ct RAMP\_DIRECTION\_Z}                        & Character     & Section~\ref{info:WIND}                       &               &                   \\ \hline
 {\ct RAMP\_FVX\_T}                              & Character     & Section~\ref{info:force_vector}               &               &                   \\ \hline
 {\ct RAMP\_FVY\_T}                              & Character     & Section~\ref{info:force_vector}               &               &                   \\ \hline
 {\ct RAMP\_FVZ\_T}                              & Character     & Section~\ref{info:force_vector}               &               &                   \\ \hline
-{\ct RAMP\_SPEED}                               & Character     & Section~\ref{info:wind_ramps}                 &               &                   \\ \hline
+{\ct RAMP\_SPEED\_T}                            & Character     & Section~\ref{info:wind_ramps}                 &               &                   \\ \hline
+{\ct RAMP\_SPEED\_Z}                            & Character     & Section~\ref{info:wind_ramps}                 &               &                   \\ \hline
 {\ct RAMP\_TMP0\_Z}                             & Character     & Section~\ref{info:stratification}             &               &                   \\ \hline
 {\ct RAMP\_U0\_T}                               & Character     & Section~\ref{info:wind_ramps}                 &               &                   \\ \hline
 {\ct RAMP\_U0\_Z}                               & Character     & Section~\ref{info:wind_ramps}                 &               &                   \\ \hline
