@@ -1437,7 +1437,6 @@ IF (LPC%SOLID_PARTICLE) THEN
             ! Hydraulic diameter for disk firebrands
             IF (LP%EMBER) THEN
                SCALE_FACTOR = 2._EB*RADIUS/LP_SF%WIDTH
-               LP%PWT = 1._EB
             ELSE
                SCALE_FACTOR = RADIUS/LP_SF%THICKNESS
                LP_ONE_D%X(:) = LP_ONE_D%X(:)*SCALE_FACTOR
@@ -2655,9 +2654,9 @@ ENDIF
 ! Write final location if particle is a firebrand
 IF (LP%EMBER .AND. REMOVE_FIREBRANDS) THEN
    LP_ONE_D => BOUNDARY_ONE_D(LP%OD_INDEX)
-   WRITE(LU_FBRAND(NM),'(6(F10.2,A),2(F10.3,A),E10.3)') T,',',(T-LP%T_INSERT),',',BC%X, &
-      ',',BC%Y,',',BC%Z,',',LP%ZI,',',2.E6*SUM(LP_ONE_D%LAYER_THICKNESS), &
-      ',',1.E6*LP%MASS,',',LP_ONE_D%AREA/2._EB
+   WRITE(LU_FBRAND(NM),'(6(F10.2,A),2(F10.3,A),E10.3,A,E10.3)') T,',',(T-LP%T_INSERT),',',BC%X, &
+      ',',BC%Y,',',BC%Z,',',LP%ZI,',',2._EB*SUM(LP_ONE_D%LAYER_THICKNESS), &
+      ',',1.E6*LP%MASS,',',LP_ONE_D%AREA/2._EB,',',LP%PWT
    BC%X=-1.E6_EB
    EXTRACT = .TRUE.
 ENDIF
