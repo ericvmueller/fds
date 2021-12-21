@@ -316,7 +316,7 @@ REAL(EB) :: FILE_TIME
 REAL(EB), INTENT(IN) :: T
 
 READ_TEXT_LINES: DO ITER=1,N_TEXT_LINES
-   READ(LU,*)
+   READ(LU,*,END=10)
 ENDDO READ_TEXT_LINES
 
 READ_LOOP: DO
@@ -1518,6 +1518,7 @@ END SUBROUTINE PACK_BOUNDARY_COORD
 !> \param RC Real counter
 !> \param LC Logical counter
 !> \param OS STORAGE_ARRAY name
+!> \param SF Pointer to SURFACE
 !> \param STORAGE_INDEX Column in the STORAGE_ARRAY to hold the data
 !> \param OD_INDEX Index of the BOUNDARY_ONE_D array
 !> \param UNPACK_IT Logical indicating whether the data is to be packed into the 1-D array or unpacked from it
@@ -1654,6 +1655,7 @@ END SUBROUTINE PACK_BOUNDARY_ONE_D
 
 !> \brief Pack or unpack BOUNDARY_PROPS components into 1-D arrays
 !> \param NM Mesh number
+!> \param IC Integer Counter
 !> \param RC Real Counter
 !> \param OS Storage array
 !> \param STORAGE_INDEX Column within storage array
@@ -2631,7 +2633,6 @@ END SUBROUTINE RANDOM_RING
 
 
 !> \brief Assign an ordered point on a horizontally-oriented ring
-!> \param NM Mesh number
 !> \param XX x-coordinate of the point (m)
 !> \param YY y-coordinate of the point (m)
 !> \param X0 x-coordinate of the center of the ring (m)
@@ -4165,7 +4166,8 @@ REAL(EB) :: Z_IN(1:N_TRACKED_SPECIES),DTMP
 REAL(EB), INTENT(OUT) :: H_OUT
 
 IF (TMPG>=REAL(I_MAX_TEMP,EB)) THEN
-   H_OUT = DOT_PRODUCT(CPBAR_Z(I_MAX_TEMP,1:N_TRACKED_SPECIES),Z_IN)*TMPG
+   H_OUT = DOT_PRODUCT(CPBAR_Z(I_MAX_TEMP,1:N_TRACKED_SPECIES),Z_IN)*REAL(I_MAX_TEMP,EB) + &
+           DOT_PRODUCT(CP_Z(I_MAX_TEMP,1:N_TRACKED_SPECIES),Z_IN)*(TMPG-REAL(I_MAX_TEMP,EB))
 ELSE
    ITMP = INT(TMPG)
    DTMP = TMPG-REAL(ITMP)

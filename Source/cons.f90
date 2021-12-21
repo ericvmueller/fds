@@ -32,6 +32,7 @@ INTEGER, PARAMETER :: DYNSMAG=2                  !< Flag for TURB_MODEL: Dynamic
 INTEGER, PARAMETER :: DEARDORFF=3                !< Flag for TURB_MODEL: Deardorff turbulence model
 INTEGER, PARAMETER :: VREMAN=4                   !< Flag for TURB_MODEL: Vreman turbulence model
 INTEGER, PARAMETER :: WALE=5                     !< Flag for TURB_MODEL: Wall-Adapting Local Eddy viscosity turbulence model
+INTEGER, PARAMETER :: CONSTANT_EDDY_VISCOSITY=6  !< Flag for NEAR_WALL_TURB_MODEL: specified near wall eddy viscosity
 
 INTEGER, PARAMETER :: MEAN_LES_FILTER_WIDTH=1    !< Flag for LES_FILTER_WIDTH_TYPE: geometric mean filter width
 INTEGER, PARAMETER :: MAX_LES_FILTER_WIDTH=2     !< Flag for LES_FILTER_WIDTH_TYPE: take max of DX,DY,DZ
@@ -169,6 +170,7 @@ REAL(EB) :: FUEL_N_TO_HCN_FRACTION=0.2_EB   !< Fraction of nitrogen atoms in the
 
 LOGICAL :: RADIATION=.TRUE.                 !< Perform radiation transport
 LOGICAL :: EXCHANGE_RADIATION=.FALSE.       !< Do an MPI radiation exchange at this time step
+LOGICAL :: EXCHANGE_OBST_MASS=.FALSE.       !< Exchange mass loss information for obstructions bordering interpolated meshes
 LOGICAL :: CYLINDRICAL=.FALSE.              !< Cylindrical domain option
 LOGICAL :: NOISE=.TRUE.                     !< Initialize velocity field with a small amount of divergence-free motion
 LOGICAL :: PREDICTOR                        !< The first half of the second-order accurate time-step
@@ -250,6 +252,7 @@ LOGICAL :: PERIODIC_DOMAIN_Z=.FALSE.                !< The domain is periodic \f
 LOGICAL :: REMOVE_FIREBRANDS=.FALSE.                    !< Remove firebrands upon landing, save properties to csv
 LOGICAL :: OPEN_WIND_BOUNDARY=.FALSE.               !< There is a prevailing wind
 LOGICAL :: HRR_GAS_ONLY=.FALSE.                     !< Surface oxidation is not included in total HRR
+LOGICAL :: WRITE_DEVC_CTRL=.FALSE.                  !< Flag for writing DEVC and CTRL logfile
 
 INTEGER, ALLOCATABLE, DIMENSION(:) :: CHANGE_TIME_STEP_INDEX      !< Flag to indicate if a mesh needs to change time step
 INTEGER, ALLOCATABLE, DIMENSION(:) :: SETUP_PRESSURE_ZONES_INDEX  !< Flag to indicate if a mesh needs to keep searching for ZONEs
@@ -508,7 +511,7 @@ INTEGER, ALLOCATABLE, DIMENSION(:) :: I_OFFSET                   !< Spatial inde
 ! Miscellaneous integer constants
 
 INTEGER :: ICYC,ICYC_RESTART=0,NFRAMES,PERIODIC_TEST=0,SIM_MODE=3,TURB_MODEL=0,FISHPAK_BC(3)=-1,&
-           STOP_AT_ITER=0,HT3D_TEST=0,WALL_INCREMENT=2,WALL_INCREMENT_HT3D=1,NEAR_WALL_TURB_MODEL=1,&
+           STOP_AT_ITER=0,HT3D_TEST=0,WALL_INCREMENT=2,WALL_INCREMENT_HT3D=1,&
            CLIP_DT_RESTRICTIONS_MAX=5,BNDF_TIME_INTEGRALS=0
 
 ! Clocks for output file dumps
@@ -537,7 +540,7 @@ INTEGER                              :: LU_ERR=ERROR_UNIT,LU_END=2,LU_GIT=3,LU_S
                                         LU_CATF=9
 INTEGER                              :: LU_MASS,LU_HRR,LU_STEPS,LU_NOTREADY,LU_VELOCITY_ERROR,LU_CFL,LU_LINE=-1,LU_CUTCELL
 INTEGER                              :: LU_HISTOGRAM
-INTEGER                              :: LU_BNDC=-1,LU_GEOC=-1,LU_TGA,LU_INFO
+INTEGER                              :: LU_BNDC=-1,LU_GEOC=-1,LU_TGA,LU_INFO,LU_DEVC_CTRL=-1
 INTEGER, ALLOCATABLE, DIMENSION(:)   :: LU_PART,LU_PROF,LU_XYZ,LU_TERRAIN,LU_PL3D,LU_DEVC,LU_STATE,LU_CTRL,LU_CORE,LU_RESTART
 INTEGER, ALLOCATABLE, DIMENSION(:)   :: LU_VEG_OUT,LU_GEOM,LU_CFACE_GEOM,LU_FBRAND
 INTEGER                              :: LU_GEOM_TRAN
@@ -548,7 +551,7 @@ INTEGER                              :: DEVC_COLUMN_LIMIT=254,CTRL_COLUMN_LIMIT=
 CHARACTER(250)                             :: FN_INPUT='null'
 CHARACTER(80)                              :: FN_STOP='null',FN_CPU,FN_CFL,FN_OUTPUT='null'
 CHARACTER(80)                              :: FN_MASS,FN_HRR,FN_STEPS,FN_SMV,FN_END,FN_ERR,FN_NOTREADY,FN_VELOCITY_ERROR,FN_GIT
-CHARACTER(80)                              :: FN_LINE,FN_HISTOGRAM,FN_CUTCELL,FN_TGA
+CHARACTER(80)                              :: FN_LINE,FN_HISTOGRAM,FN_CUTCELL,FN_TGA,FN_DEVC_CTRL
 CHARACTER(80), ALLOCATABLE, DIMENSION(:)   :: FN_PART,FN_PROF,FN_XYZ,FN_TERRAIN,FN_PL3D,FN_DEVC,FN_STATE,FN_CTRL,FN_CORE,FN_RESTART
 CHARACTER(80), ALLOCATABLE, DIMENSION(:)   :: FN_VEG_OUT,FN_GEOM,FN_CFACE_GEOM,FN_FBRAND
 CHARACTER(80), ALLOCATABLE, DIMENSION(:,:) :: FN_SLCF,FN_SLCF_GEOM,FN_BNDF,FN_BNDF_GEOM,FN_BNDG, &

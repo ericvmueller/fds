@@ -321,7 +321,7 @@ ENDDO
 
 IF (CC_IBM) THEN
    T_USED(4) = T_USED(4) + CURRENT_TIME() - T_NOW
-   CALL CCREGION_COMPUTE_KRES(NM,UU,VV,WW)
+   CALL CCREGION_COMPUTE_KRES(APPLY_TO_ESTIMATED_VARIABLES,NM)
    T_NOW = CURRENT_TIME()
 ENDIF
 
@@ -371,8 +371,12 @@ WALL_LOOP: DO IW=1,N_EXTERNAL_WALL_CELLS+N_INTERNAL_WALL_CELLS
 
          IF (SIM_MODE/=DNS_MODE) THEN
             DELTA = LES_FILTER_WIDTH_FUNCTION(DX(IIG),DY(JJG),DZ(KKG))
-            SELECT CASE(NEAR_WALL_TURB_MODEL)
-               CASE DEFAULT ! Constant Smagorinsky with Van Driest damping
+            SELECT CASE(SF%NEAR_WALL_TURB_MODEL)
+               CASE DEFAULT
+                  NU_EDDY = 0._EB
+               CASE(CONSTANT_EDDY_VISCOSITY)
+                  NU_EDDY = SF%NEAR_WALL_EDDY_VISCOSITY
+               CASE(CONSMAG) ! Constant Smagorinsky with Van Driest damping
                   VDF = 1._EB-EXP(-BP%Y_PLUS*RAPLUS)
                   NU_EDDY = (VDF*C_SMAGORINSKY*DELTA)**2*STRAIN_RATE(IIG,JJG,KKG)
                CASE(WALE)
@@ -880,14 +884,6 @@ ENDDO
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
 
-! Restore previous substep velocities to gas cut-faces underlaying Cartesian faces.
-IF (CC_IBM) THEN
-   T_USED(4) = T_USED(4) + CURRENT_TIME() - T_NOW
-   IF(.NOT.CC_STRESS_METHOD) CALL CCIBM_INTERP_FACE_VEL(DT,NM,.FALSE.)
-   CALL CCIBM_VELOCITY_FLUX(NM,DT)
-   T_NOW=CURRENT_TIME()
-ENDIF
-
 ! Additional force terms
 
 IF (OPEN_WIND_BOUNDARY) CALL COMPUTE_WIND_COMPONENTS(T,NM)
@@ -897,6 +893,14 @@ IF (ANY(ABS(OVEC)>TWO_EPSILON_EB)) CALL CORIOLIS_FORCE             ! Coriolis fo
 IF (PATCH_VELOCITY)                CALL PATCH_VELOCITY_FLUX        ! Specified patch velocity
 IF (PERIODIC_TEST==7)              CALL MMS_VELOCITY_FLUX          ! Source term in manufactured solution
 IF (PERIODIC_TEST==21 .OR. PERIODIC_TEST==22 .OR. PERIODIC_TEST==23) CALL ROTATED_CUBE_VELOCITY_FLUX(NM,T)
+
+! Restore previous substep velocities to gas cut-faces underlaying Cartesian faces.
+IF (CC_IBM) THEN
+   T_USED(4) = T_USED(4) + CURRENT_TIME() - T_NOW
+   IF(.NOT.CC_STRESS_METHOD) CALL CCIBM_INTERP_FACE_VEL(DT,NM,.FALSE.)
+   CALL CCIBM_VELOCITY_FLUX(NM,DT)
+   T_NOW=CURRENT_TIME()
+ENDIF
 
 T_USED(4) = T_USED(4) + CURRENT_TIME() - T_NOW
 
@@ -2307,7 +2311,7 @@ EDGE_LOOP: DO IE=1,N_EDGES
                      ! SLIP_COEF = -1, no slip, VEL_GHOST=-VEL_GAS
                      ! SLIP_COEF =  1, free slip, VEL_GHOST=VEL_T
                      ! Notes: This curious definition of VEL_GHOST was chosen to improve the treatment of edge vorticity
-                     ! espeicially at corners.  The stress still comes directly from U_TAU (i.e., the WALL_MODEL).
+                     ! especially at corners.  The stress still comes directly from U_TAU (i.e., the WALL_MODEL).
                      ! DUIDXJ is used to compute the vorticity at the edge.  Without this definition, the ribbed_channel
                      ! test series does not achieve the correct MEAN or RMS profiles without very high grid resolution.
                      VEL_GHOST = VEL_T + 0.5_EB*(SLIP_COEF-1._EB)*(VEL_GAS-VEL_T)
@@ -3043,6 +3047,7 @@ END SUBROUTINE CHECK_STABILITY
 SUBROUTINE BAROCLINIC_CORRECTION(T,NM)
 
 USE MATH_FUNCTIONS, ONLY: EVALUATE_RAMP
+USE CC_SCALARS_IBM, ONLY: CCIBM_BAROCLINIC_CORRECTION
 REAL(EB), INTENT(IN) :: T
 INTEGER, INTENT(IN) :: NM
 REAL(EB), POINTER, DIMENSION(:,:,:) :: UU=>NULL(),VV=>NULL(),WW=>NULL(),RHOP=>NULL(),HP=>NULL(),RHMK=>NULL(),RRHO=>NULL()
@@ -3179,6 +3184,8 @@ DO K=0,KBAR
 ENDDO
 !$OMP END DO nowait
 !$OMP END PARALLEL
+
+IF(CC_IBM) CALL CCIBM_BAROCLINIC_CORRECTION(T,NM)
 
 T_USED(4) = T_USED(4) + CURRENT_TIME() - T_NOW
 
