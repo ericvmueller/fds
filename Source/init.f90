@@ -1162,8 +1162,8 @@ ENDDO CFACE_LOOP_0
 ! If there is complex terrain using GEOM and Above Ground Level (AGL) slices,
 ! determine K index of gas phase quantities.
 
-IF (CC_IBM) THEN
-   DO NSLICE = 1, M%N_TERRAIN_SLCF
+DO NSLICE = 1, M%N_TERRAIN_SLCF
+   IF (CC_IBM) THEN
       DO ICF=1,M%N_CUTFACE_MESH
          IF (M%CUT_FACE(ICF)%STATUS/=2 .OR. M%CUT_FACE(ICF)%NFACE<1) CYCLE
          IW  = MAXLOC(M%CUT_FACE(ICF)%AREA(1:M%CUT_FACE(ICF)%NFACE),DIM=1)
@@ -1175,8 +1175,15 @@ IF (CC_IBM) THEN
             ENDIF
          ENDIF
       ENDDO
-   ENDDO
-ENDIF
+   ELSE
+      DO IW=1,M%N_EXTERNAL_WALL_CELLS+M%N_INTERNAL_WALL_CELLS
+         WC => M%WALL(IW)
+         BC => M%BOUNDARY_COORD(WC%BC_INDEX)
+         IF (BC%IOR/=3 .OR. WC%BOUNDARY_TYPE/=SOLID_BOUNDARY) CYCLE
+         M%K_AGL_SLICE(BC%IIG,BC%JJG,NSLICE) = MIN( M%KBAR , M%K_AGL_SLICE(BC%IIG,BC%JJG,NSLICE)+BC%KKG )
+      ENDDO
+   ENDIF
+ENDDO
 
 ! Loop through all internal and external wall cells and look for thermally thick
 ! solids with EXPOSED back wall cells. If the exposed back wall cell is in
@@ -2062,7 +2069,7 @@ DEVICE_LOOP: DO N=1,N_DEVC
 
       IF (IOR/=0) CALL GET_WALL_INDEX(NM,IIG,JJG,KKG,IOR,IW)
 
-      IF (IW==0)  CALL GET_CFACE_INDEX(NM,IIG,JJG,KKG,DV%X,DV%Y,DV%Z,ICF)
+      IF (IW==0 .AND. CC_IBM)  CALL GET_CFACE_INDEX(NM,IIG,JJG,KKG,DV%X,DV%Y,DV%Z,ICF)
 
       IF (IW==0 .AND. ICF==0 .AND. DV%SPATIAL_STATISTIC=='null') THEN
          WRITE(LU_ERR,'(A,I0,A,A)') 'ERROR: Reposition DEVC No.',DV%ORDINAL,', ID = ',TRIM(DV%ID)

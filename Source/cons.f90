@@ -10,6 +10,13 @@ USE MPI_F08
 USE ISO_FORTRAN_ENV, ONLY: ERROR_UNIT
 IMPLICIT NONE (TYPE,EXTERNAL)
 
+! constants used by smokeview for drawing surfaces
+
+INTEGER, PARAMETER :: SMV_REGULAR=0              !< Parameter for smokeview drawing: surface drawn as a solid
+INTEGER, PARAMETER :: SMV_TEXTURE=1              !< Parameter for smokeview drawing: texture image drawn over the surface
+INTEGER, PARAMETER :: SMV_OUTLINE=2              !< Parameter for smokeview drawing: surface drawn as an outline
+INTEGER, PARAMETER :: SMV_HIDDEN=-2              !< Parameter for smokeview drawing: surface not drawn
+
 INTEGER, PARAMETER :: DNS_MODE=1                 !< Flag for SIM_MODE: Direct Numerical Simulation
 INTEGER, PARAMETER :: LES_MODE=2                 !< Flag for SIM_MODE: Large Eddy Simulation
 INTEGER, PARAMETER :: VLES_MODE=3                !< Flag for SIM_MODE: Very Large Eddy Simulation
@@ -713,7 +720,7 @@ INTEGER, ALLOCATABLE, DIMENSION(:,:) :: N_EDGES_DIM_CC
 
 INTEGER :: N_DUCTNODES = 0, N_DUCTS = 0, N_FANS = 0, N_FILTERS = 0, N_AIRCOILS = 0,N_NETWORKS=0, N_DUCTRUNS=0
 INTEGER , ALLOCATABLE, DIMENSION(:) :: DUCT_NE,DUCTNODE_NE,DUCT_DR,DUCTNODE_DR
-REAL(EB) :: HVAC_PRES_RELAX=0.5_EB,NODE_Z_MIN,NODE_Z_MAX
+REAL(EB) :: HVAC_PRES_RELAX=1.0_EB,NODE_Z_MIN,NODE_Z_MAX
 LOGICAL :: HVAC_SOLVE=.FALSE.,HVAC_LOCAL_PRESSURE=.TRUE.
 
 REAL(EB), POINTER, DIMENSION(:,:) :: ORIENTATION_VECTOR       !< Global array of orientation vectors

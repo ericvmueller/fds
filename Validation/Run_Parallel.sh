@@ -36,6 +36,7 @@ cd NIST_Deposition_Gauge;  ./Run_All.sh $OPTIONS; cd ..
 cd NIST_Douglas_Firs;  ./Run_All.sh $OPTIONS; cd ..
 cd NIST_E119_Compartment;  ./Run_All.sh $OPTIONS; cd ..
 cd NIST_FSE_2008;  ./Run_All.sh $OPTIONS; cd ..
+cd NIST_NRC;  ./Run_All.sh $OPTIONS; cd ..
 cd NIST_NRC_Corner_Effects;  ./Run_All.sh $OPTIONS; cd ..
 cd NIST_NRC_Parallel_Panels;  ./Run_All.sh $OPTIONS; cd ..
 cd NIST_Pool_Fires;  ./Run_All.sh $OPTIONS; cd ..
@@ -51,6 +52,7 @@ cd Sandia_Plumes;  ./Run_All.sh $OPTIONS; cd ..
 cd Shell_LNG_Fireballs;  ./Run_All.sh $OPTIONS; cd ..
 cd Sippola_Aerosol_Deposition; ./Run_All.sh $OPTIONS; cd ..
 cd Smyth_Slot_Burner;  ./Run_All.sh $OPTIONS; cd ..
+cd SP_Wood_Cribs;  ./Run_All.sh $OPTIONS; cd ..
 cd SWJTU_Tunnels;  ./Run_All.sh $OPTIONS; cd ..
 cd Turbulent_Jet;  ./Run_All.sh $OPTIONS; cd ..
 cd UL_NFPRF;  ./Run_All.sh $OPTIONS; cd ..

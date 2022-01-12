@@ -81,18 +81,31 @@ $QFDS -d Complex_Geometry shunn3_128_cc_exp_gdv.fds
 $QFDS -d Complex_Geometry shunn3_256_cc_exp_gdv.fds
 $QFDS -d Complex_Geometry shunn3_384_cc_exp_gdv.fds
 
-$QFDS -d Complex_Geometry geom_poiseuille_N10a_theta0.fds
-$QFDS -d Complex_Geometry geom_poiseuille_N20a_theta0.fds
-$QFDS -d Complex_Geometry geom_poiseuille_N40a_theta0.fds
-$QFDS -d Complex_Geometry geom_poiseuille_N80a_theta0.fds
-$QFDS -d Complex_Geometry geom_poiseuille_N10na_theta0.fds
-$QFDS -d Complex_Geometry geom_poiseuille_N20na_theta0.fds
-$QFDS -d Complex_Geometry geom_poiseuille_N40na_theta0.fds
-$QFDS -d Complex_Geometry geom_poiseuille_N80na_theta0.fds
-$QFDS -d Complex_Geometry geom_poiseuille_N10nah_theta0.fds
-$QFDS -d Complex_Geometry geom_poiseuille_N20nah_theta0.fds
-$QFDS -d Complex_Geometry geom_poiseuille_N40nah_theta0.fds
-$QFDS -d Complex_Geometry geom_poiseuille_N80nah_theta0.fds
+$QFDS -d Complex_Geometry geom_poiseuille_N10a_theta0_ibm.fds
+$QFDS -d Complex_Geometry geom_poiseuille_N20a_theta0_ibm.fds
+$QFDS -d Complex_Geometry geom_poiseuille_N40a_theta0_ibm.fds
+$QFDS -d Complex_Geometry geom_poiseuille_N80a_theta0_ibm.fds
+$QFDS -d Complex_Geometry geom_poiseuille_N10na_theta0_ibm.fds
+$QFDS -d Complex_Geometry geom_poiseuille_N20na_theta0_ibm.fds
+$QFDS -d Complex_Geometry geom_poiseuille_N40na_theta0_ibm.fds
+$QFDS -d Complex_Geometry geom_poiseuille_N80na_theta0_ibm.fds
+$QFDS -d Complex_Geometry geom_poiseuille_N10nah_theta0_ibm.fds
+$QFDS -d Complex_Geometry geom_poiseuille_N20nah_theta0_ibm.fds
+$QFDS -d Complex_Geometry geom_poiseuille_N40nah_theta0_ibm.fds
+$QFDS -d Complex_Geometry geom_poiseuille_N80nah_theta0_ibm.fds
+
+$QFDS -d Complex_Geometry geom_poiseuille_N10a_theta0_stm.fds
+$QFDS -d Complex_Geometry geom_poiseuille_N20a_theta0_stm.fds
+$QFDS -d Complex_Geometry geom_poiseuille_N40a_theta0_stm.fds
+$QFDS -d Complex_Geometry geom_poiseuille_N80a_theta0_stm.fds
+$QFDS -d Complex_Geometry geom_poiseuille_N10na_theta0_stm.fds
+$QFDS -d Complex_Geometry geom_poiseuille_N20na_theta0_stm.fds
+$QFDS -d Complex_Geometry geom_poiseuille_N40na_theta0_stm.fds
+$QFDS -d Complex_Geometry geom_poiseuille_N80na_theta0_stm.fds
+$QFDS -d Complex_Geometry geom_poiseuille_N10nah_theta0_stm.fds
+$QFDS -d Complex_Geometry geom_poiseuille_N20nah_theta0_stm.fds
+$QFDS -d Complex_Geometry geom_poiseuille_N40nah_theta0_stm.fds
+$QFDS -d Complex_Geometry geom_poiseuille_N80nah_theta0_stm.fds
 
 $QFDS -d Complex_Geometry geom_bad_inconsistent_normals.fds
 $QFDS -d Complex_Geometry geom_bad_non_manifold_edge.fds
@@ -365,26 +378,25 @@ $QFDS -p 4 -d Pressure_Solver dancing_eddies_default.fds
 $QFDS -p 4 -d Pressure_Solver dancing_eddies_scarc.fds
 $QFDS -p 4 -d Pressure_Solver dancing_eddies_scarc_tight.fds
 $QFDS -p 4 -d Pressure_Solver dancing_eddies_uscarc.fds
+$QFDS -p 4 -d Pressure_Solver dancing_eddies_uscarc_inseparable.fds
 $QFDS -p 8 -d Pressure_Solver duct_flow.fds
 $QFDS -p 8 -d Pressure_Solver duct_flow_uglmat.fds
 $QFDS -p 8 -d Pressure_Solver duct_flow_uscarc.fds
 $QFDS -p 5 -d Pressure_Solver hallways.fds
 $QFDS -p 8 -d Pressure_Solver tunnel_demo.fds
 $QFDS -p 8 -d Pressure_Solver tunnel_demo_glmat.fds
-$QFDS -d Pressure_Solver pressure_iteration2d_1mesh.fds
+$QFDS -p 8 -d Pressure_Solver tunnel_demo_scarc_inseparable.fds
 $QFDS -p 8 -d Pressure_Solver pressure_iteration2d_default.fds
-$QFDS -p 8 -d Pressure_Solver pressure_iteration2d_tight.fds
 $QFDS -p 8 -d Pressure_Solver pressure_iteration2d_scarc.fds
-$QFDS -p 8 -d Pressure_Solver pressure_iteration2d_scarc_tight.fds
 $QFDS -p 8 -d Pressure_Solver pressure_iteration2d_uscarc.fds
-$QFDS -d Pressure_Solver pressure_iteration3d_1mesh.fds
+$QFDS -p 8 -d Pressure_Solver pressure_iteration2d_uglmat.fds
 $QFDS -p 8 -d Pressure_Solver pressure_iteration3d_default.fds
-$QFDS -p 8 -d Pressure_Solver pressure_iteration3d_tight.fds
 $QFDS -p 8 -d Pressure_Solver pressure_iteration3d_scarc.fds
-$QFDS -p 8 -d Pressure_Solver pressure_iteration3d_scarc_tight.fds
 $QFDS -p 8 -d Pressure_Solver pressure_iteration3d_uscarc.fds
+$QFDS -p 8 -d Pressure_Solver pressure_iteration3d_uglmat.fds
 $QFDS -p 2 -d Pressure_Solver ulmat_2zone.fds
-
+$QFDS -p 4 -d Pressure_Solver scarc_separable_4mesh.fds
+$QFDS -p 4 -d Pressure_Solver scarc_inseparable_4mesh.fds
 
 $QFDS -d Pyrolysis cable_11_insulation_mcc.fds
 $QFDS -d Pyrolysis cable_23_insulation_mcc.fds
@@ -732,12 +744,12 @@ $QFDS -d Turbulence yplus_16.fds
 $QFDS -d Turbulence yplus_32.fds
 $QFDS -d Turbulence ribbed_channel_20.fds
 $QFDS -d Turbulence ribbed_channel_40.fds
-$QFDS -p 4 -d Turbulence ribbed_channel_80.fds
-# $QFDS -p 32 -d Turbulence ribbed_channel_160.fds # output file committed to fds/Verification/Turbulence/
+# $QFDS -p 24 -d Turbulence ribbed_channel_80.fds # output file committed to fds/Verification/Turbulence/
+# $QFDS -p 192 -d Turbulence ribbed_channel_160.fds # output file committed to fds/Verification/Turbulence/
 $QFDS -d Turbulence ribbed_channel_geom_20.fds
 $QFDS -d Turbulence ribbed_channel_geom_40.fds
-$QFDS -p 4 -d Turbulence ribbed_channel_geom_80.fds
-# $QFDS -p 32 -d Turbulence ribbed_channel_geom_160.fds # output file committed to fds/Verification/Turbulence/
+# $QFDS -p 24 -d Turbulence ribbed_channel_geom_80.fds # output file committed to fds/Verification/Turbulence/
+# $QFDS -p 192 -d Turbulence ribbed_channel_geom_160.fds # output file committed to fds/Verification/Turbulence/
 $QFDS -d Turbulence sem_flat_leddy_p2.fds
 $QFDS -d Turbulence sem_par_leddy_p2.fds
 $QFDS -d Turbulence sem_atm_leddy_p2.fds
