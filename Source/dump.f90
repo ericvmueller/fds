@@ -1370,7 +1370,8 @@ FBRAND_IF: IF (REMOVE_FIREBRANDS) THEN
       OPEN(LU_FBRAND(NM),FILE=FN_FBRAND(NM),FORM='FORMATTED',STATUS='OLD',POSITION='APPEND')
    ELSE
       OPEN(LU_FBRAND(NM),FILE=FN_FBRAND(NM),FORM='FORMATTED',STATUS='REPLACE')
-      WRITE(LU_FBRAND(NM),'(A)') "Deposition time [s], Flight time[s], x [m], y [m], z [m], z_i [m], thickness [um], mass [mg], A [m^2], PWT"
+      WRITE(LU_FBRAND(NM),'(A)') "Deposition time [s], Flight time[s], x [m], y [m], z [m], z_i [m], "// &
+         "thickness [um], mass [mg], A [m^2], PWT"
    ENDIF
 ENDIF FBRAND_IF
 

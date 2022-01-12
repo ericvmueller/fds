@@ -1452,7 +1452,8 @@ IF (LPC%SOLID_PARTICLE) THEN
                   ELSE
                      LP_ONE_D%AREA = 2._EB*LP_SF%LENGTH*LP_SF%WIDTH
                      DO N=1,LP_SF%N_LAYERS
-                        LP%MASS = LP%MASS + 2._EB*LP_SF%LENGTH*LP_SF%WIDTH*LP_SF%LAYER_THICKNESS(N)*SCALE_FACTOR*LP_SF%LAYER_DENSITY(N)
+                        LP%MASS = LP%MASS + &
+                           2._EB*LP_SF%LENGTH*LP_SF%WIDTH*LP_SF%LAYER_THICKNESS(N)*SCALE_FACTOR*LP_SF%LAYER_DENSITY(N)
                      ENDDO
                   ENDIF
                CASE (SURF_CYLINDRICAL)
