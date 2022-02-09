@@ -209,6 +209,7 @@ $QFDS -p 8 -d Fires circular_burner.fds
 
 $QFDS -d Flowfields divergence_test_1.fds
 $QFDS -d Flowfields divergence_test_2.fds
+$QFDS -p 4 -d Flowfields divergence_test_3.fds
 $QFDS -d Flowfields cyl_test_1.fds
 $QFDS -d Flowfields cyl_test_2.fds
 $QFDS -d Flowfields cyl_test_3.fds
@@ -297,6 +298,9 @@ $QFDS -d Heat_Transfer ht3d_radiation_kappa100_n40.fds
 $QFDS -d Heat_Transfer ht3d_radiation_kappa2000_n10.fds
 $QFDS -d Heat_Transfer ht3d_radiation_kappa2000_n20.fds
 $QFDS -d Heat_Transfer ht3d_radiation_kappa2000_n40.fds
+$QFDS -p 16 -d Heat_Transfer Pohlhausen_Pr_p5.fds
+$QFDS -p 16 -d Heat_Transfer Pohlhausen_Pr_1.fds
+$QFDS -p 16 -d Heat_Transfer Pohlhausen_Pr_2.fds
 
 $QFDS -d HVAC ashrae7_fixed_flow.fds
 $QFDS -d HVAC ashrae7_quadratic.fds
@@ -742,14 +746,6 @@ $QFDS -d Turbulence wale_64.fds
 $QFDS -d Turbulence yplus_8.fds
 $QFDS -d Turbulence yplus_16.fds
 $QFDS -d Turbulence yplus_32.fds
-$QFDS -d Turbulence ribbed_channel_20.fds
-$QFDS -d Turbulence ribbed_channel_40.fds
-# $QFDS -p 24 -d Turbulence ribbed_channel_80.fds # output file committed to fds/Verification/Turbulence/
-# $QFDS -p 192 -d Turbulence ribbed_channel_160.fds # output file committed to fds/Verification/Turbulence/
-$QFDS -d Turbulence ribbed_channel_geom_20.fds
-$QFDS -d Turbulence ribbed_channel_geom_40.fds
-# $QFDS -p 24 -d Turbulence ribbed_channel_geom_80.fds # output file committed to fds/Verification/Turbulence/
-# $QFDS -p 192 -d Turbulence ribbed_channel_geom_160.fds # output file committed to fds/Verification/Turbulence/
 $QFDS -d Turbulence sem_flat_leddy_p2.fds
 $QFDS -d Turbulence sem_par_leddy_p2.fds
 $QFDS -d Turbulence sem_atm_leddy_p2.fds
