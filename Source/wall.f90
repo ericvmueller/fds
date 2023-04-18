@@ -1960,12 +1960,13 @@ PYROLYSIS_PREDICTED_IF: IF (SF%PYROLYSIS_MODEL==PYROLYSIS_PREDICTED) THEN
                         RHO_DOT_TEMP(1:ONE_D%N_MATL),RHO_TEMP(1:ONE_D%N_MATL),ONE_D%X(I-1),DT_BC-T_BC_SUB,&
                         M_DOT_G_PPP_ADJUST,M_DOT_G_PPP_ACTUAL,M_DOT_S_PPP,Q_S(I),Q_DOT_G_PPP,Q_DOT_O2_PPP,&
                         Q_DOT_PART,M_DOT_PART,T_BOIL_EFF,B1%B_NUMBER,LAYER_INDEX(I),SOLID_CELL_INDEX=I,&
-                        R_DROP=R_SURF,LPU=U_SURF,LPV=V_SURF,LPW=W_SURF)
+                        R_DROP=R_SURF,LPU=U_SURF,LPV=V_SURF,LPW=W_SURF,RHO_C_S=ONE_D%RHO_C_S(I),TMP_F_OLD=B1%TMP_F_OLD)
       ELSE
          CALL PYROLYSIS(ONE_D%N_MATL,SF%MATL_INDEX,SURF_INDEX,BC%IIG,BC%JJG,BC%KKG,ONE_D%TMP(I),B1%TMP_F,BC%IOR,&
                         RHO_DOT_TEMP(1:ONE_D%N_MATL),RHO_TEMP(1:ONE_D%N_MATL),ONE_D%X(I-1),DT_BC-T_BC_SUB,&
                         M_DOT_G_PPP_ADJUST,M_DOT_G_PPP_ACTUAL,M_DOT_S_PPP,Q_S(I),Q_DOT_G_PPP,Q_DOT_O2_PPP,&
-                        Q_DOT_PART,M_DOT_PART,T_BOIL_EFF,B1%B_NUMBER,LAYER_INDEX(I),SOLID_CELL_INDEX=I)
+                        Q_DOT_PART,M_DOT_PART,T_BOIL_EFF,B1%B_NUMBER,LAYER_INDEX(I),SOLID_CELL_INDEX=I,&
+                        RHO_C_S=ONE_D%RHO_C_S(I),TMP_F_OLD=B1%TMP_F_OLD)
       ENDIF
 
       DO N=1,ONE_D%N_MATL
@@ -2654,7 +2655,7 @@ END SUBROUTINE SOLID_HEAT_TRANSFER_1D
 SUBROUTINE PYROLYSIS(N_MATS,MATL_INDEX,SURF_INDEX,IIG,JJG,KKG,TMP_S,TMP_F,IOR,RHO_DOT_OUT,RHO_S,DEPTH,DT_BC,&
                      M_DOT_G_PPP_ADJUST,M_DOT_G_PPP_ACTUAL,M_DOT_S_PPP,Q_DOT_S_PPP,Q_DOT_G_PPP,Q_DOT_O2_PPP,&
                      Q_DOT_PART,M_DOT_PART,T_BOIL_EFF,B_NUMBER,LAYER_INDEX,SOLID_CELL_INDEX,&
-                     R_DROP,LPU,LPV,LPW)
+                     R_DROP,LPU,LPV,LPW,RHO_C_S,TMP_F_OLD)
 
 USE PHYSICAL_FUNCTIONS, ONLY: GET_MASS_FRACTION,GET_VISCOSITY,GET_PARTICLE_ENTHALPY,GET_SPECIFIC_HEAT,&
                               GET_MASS_FRACTION_ALL,GET_EQUIL_DATA,GET_SENSIBLE_ENTHALPY,GET_Y_SURF,GET_FILM_PROPERTIES
@@ -2664,7 +2665,7 @@ INTEGER, INTENT(IN) :: N_MATS,SURF_INDEX,IIG,JJG,KKG,IOR,LAYER_INDEX
 INTEGER, INTENT(IN), OPTIONAL :: SOLID_CELL_INDEX
 REAL(EB), INTENT(OUT), DIMENSION(:,:) :: RHO_DOT_OUT(N_MATS)
 REAL(EB), INTENT(IN) :: TMP_S,TMP_F,DT_BC,DEPTH
-REAL(EB), INTENT(IN), OPTIONAL :: R_DROP,LPU,LPV,LPW
+REAL(EB), INTENT(IN), OPTIONAL :: R_DROP,LPU,LPV,LPW,RHO_C_S,TMP_F_OLD
 REAL(EB), DIMENSION(:) :: RHO_S(N_MATS),ZZ_GET(1:N_TRACKED_SPECIES),Y_ALL(1:N_SPECIES)
 REAL(EB), DIMENSION(:), INTENT(OUT) :: M_DOT_G_PPP_ADJUST(N_TRACKED_SPECIES),M_DOT_G_PPP_ACTUAL(N_TRACKED_SPECIES)
 REAL(EB), DIMENSION(:), INTENT(OUT) :: M_DOT_S_PPP(MAX_MATERIALS),Q_DOT_PART(MAX_LPC),M_DOT_PART(MAX_LPC)
@@ -2909,26 +2910,60 @@ MATERIAL_LOOP: DO N=1,N_MATS  ! Loop over all materials in the cell (alpha subsc
 
          CASE (PYROLYSIS_SOLID)
 
-            ! Reaction rate in 1/s (Tech Guide: r_alpha_beta)
+            ! hacky linear model
+            IF (ML%A(J)>1.E15_EB) THEN
+               !H_R = 2.26E6
+               IF (ML%ID=='MOISTURE') THEN
+                  IF (TMP_F>=373._EB) THEN
+                     H_S = (TMP_F-373._EB)*RHO_C_S
+                     H_R = ML%H_R(1,NINT(373._EB))                     
+                     REACTION_RATE = H_S/(H_R*DT_BC)  ! kg/m3/s
+                  ELSE
+                     REACTION_RATE = 0._EB
+                  ENDIF
+                  REACTION_RATE = MAX(0._EB,REACTION_RATE)
+                  
 
-            REACTION_RATE = ML%A(J)*(RHO_S(N))**ML%N_S(J)*EXP(-ML%E(J)/(R0*TMP_S))
+               ELSEIF (ML%ID=='DRY VEGETATION') THEN
+                  !H_R = 0.418E6
+                  IF (TMP_S>=500._EB) THEN
+                     H_S = (TMP_S-500._EB)*RHO_C_S
+                     H_R = ML%H_R(1,NINT(500._EB))
+                     REACTION_RATE = H_S/(H_R*DT_BC)  ! kg/m3/s
+                  ELSEIF (TMP_S>400._EB) THEN
+                     ! Estimate energy in from surface temp change
+                     H_S = (TMP_F-TMP_F_OLD)*RHO_C_S*((TMP_S-400._EB)/100._EB)
+                     H_R = ML%H_R(1,NINT(400._EB))
+                     REACTION_RATE = H_S/(H_R*DT_BC)  ! kg/m3/s
+                  ELSE
+                     REACTION_RATE = 0._EB
+                  ENDIF
+                  REACTION_RATE = MAX(0._EB,REACTION_RATE)
+               ENDIF
+            ELSE
 
-            ! power term
+               ! Reaction rate in 1/s (Tech Guide: r_alpha_beta)
 
-            IF (ABS(ML%N_T(J))>=TWO_EPSILON_EB) REACTION_RATE = REACTION_RATE * TMP_S**ML%N_T(J)
+               REACTION_RATE = ML%A(J)*(RHO_S(N))**ML%N_S(J)*EXP(-ML%E(J)/(R0*TMP_S))
 
-            ! Oxidation reaction?
+               ! power term
 
-            IF ( (ML%N_O2(J)>0._EB) .AND. (O2_INDEX > 0)) THEN
-               ! Get oxygen mass fraction
-               ZZ_GET(1:N_TRACKED_SPECIES) = MAX(0._EB,ZZ(IIG,JJG,KKG,1:N_TRACKED_SPECIES))
-               CALL GET_MASS_FRACTION(ZZ_GET,O2_INDEX,Y_O2)
-               ! Calculate oxygen volume fraction in the gas cell
-               X_O2 = SPECIES(O2_INDEX)%RCON*Y_O2/RSUM(IIG,JJG,KKG)
-               ! Calculate oxygen concentration inside the material, assuming decay function
-               X_O2 = X_O2 * EXP(-DEPTH/(TWO_EPSILON_EB+ML%GAS_DIFFUSION_DEPTH(J)))
-               REACTION_RATE = REACTION_RATE * X_O2**ML%N_O2(J)
+               IF (ABS(ML%N_T(J))>=TWO_EPSILON_EB) REACTION_RATE = REACTION_RATE * TMP_S**ML%N_T(J)
+
+               ! Oxidation reaction?
+
+               IF ( (ML%N_O2(J)>0._EB) .AND. (O2_INDEX > 0)) THEN
+                  ! Get oxygen mass fraction
+                  ZZ_GET(1:N_TRACKED_SPECIES) = MAX(0._EB,ZZ(IIG,JJG,KKG,1:N_TRACKED_SPECIES))
+                  CALL GET_MASS_FRACTION(ZZ_GET,O2_INDEX,Y_O2)
+                  ! Calculate oxygen volume fraction in the gas cell
+                  X_O2 = SPECIES(O2_INDEX)%RCON*Y_O2/RSUM(IIG,JJG,KKG)
+                  ! Calculate oxygen concentration inside the material, assuming decay function
+                  X_O2 = X_O2 * EXP(-DEPTH/(TWO_EPSILON_EB+ML%GAS_DIFFUSION_DEPTH(J)))
+                  REACTION_RATE = REACTION_RATE * X_O2**ML%N_O2(J)
+               ENDIF
             ENDIF
+
             REACTION_RATE = MIN(REACTION_RATE,ML%MAX_REACTION_RATE(J))  ! User-specified limit
             RHO_DOT = MIN(REACTION_RATE,RHO_S(N)/DT_BC)  ! Tech Guide: rho_s(0)*r_alpha,beta kg/m3/s
 
