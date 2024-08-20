@@ -226,6 +226,7 @@ LOGICAL :: VELOCITY_ERROR_FILE=.FALSE.      !< Generate a diagnostic output file
 LOGICAL :: CFL_FILE=.FALSE.                 !< Generate a diagnostic output file listing quantities related to CFL and VN
 LOGICAL :: CONSTANT_SPECIFIC_HEAT_RATIO=.FALSE. !< Assume that the ratio of specific heats is constant, \f$ \gamma=1.4 \f$
 LOGICAL :: CHECK_HT=.FALSE.                 !< Apply heat transfer stability condition
+LOGICAL :: CHECK_MT=.FALSE.                 !< Apply mass transfer stability condition
 LOGICAL :: PATCH_VELOCITY=.FALSE.           !< Assume user-defined velocity patches
 LOGICAL :: OVERWRITE=.TRUE.                 !< Overwrite old output files
 LOGICAL :: INIT_HRRPUV=.FALSE.              !< Assume an initial spatial distribution of HRR per unit volume
