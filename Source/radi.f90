@@ -3491,7 +3491,7 @@ INTEGER  :: N,NN,IIG,JJG,KKG,I,J,K,IW,ICF,II,JJ,KK,IOR,IC,IWUP,IWDOWN, &
             KSTART, KEND, KSTEP, NSTART, NEND, NSTEP, &
             I_UIID, N_UPDATES, IBND, NOM, ARRAY_INDEX,NRA, &
             IMIN, JMIN, KMIN, IMAX, JMAX, KMAX, N_SLICE, M_IJK, IJK, LL, ITER
-INTEGER  :: IADD,IFACE,INDCF
+INTEGER  :: IADD,IFACE,INDCF,N_DX
 INTEGER, ALLOCATABLE :: IJK_SLICE(:,:)
 REAL(EB) :: XID,YJD,ZKD,KAPPA_PART_SINGLE,DLF,DLA(3),TSI,TMP_EXTERIOR,TEMP_ORIENTATION(3)
 REAL(EB), ALLOCATABLE, DIMENSION(:) :: ZZ_GET
@@ -4299,29 +4299,32 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
                      IL(I,J,K) = MAX(0._EB, RAP * (AIU_SUM + VC*RSA(N)*RFPI* &
                                      ( KFST4_GAS(I,J,K) + KFST4_PART(I,J,K) + RSA_RAT*&
                                      (SCAEFF(I,J,K)+SCAEFF_G(I,J,K))*UIIOLD(I,J,K) ) ) )
-                     IF (EXTCOE(I,J,K)*VC**ONTH>0.1_EB) THEN
-                        ! maybe needs one downwind value per principle axis??
-                        ILXU  = ILDX(I-ISTEP,J,K)
-                        ILYU  = ILDY(I,J-JSTEP,K)
-                        ILZU  = ILDZ(I,J,K-KSTEP)
-                        DO ITER=1,10
-                           ! IF (I==1 .AND. J==1 .AND. K==2 .AND. ABS(DLANG(3,N))>.9) WRITE(LU_ERR,*) N,ITER,ILXU,DLANG(1:3,N)
-                           I_B = RFPI*(KFST4_GAS(I,J,K) + KFST4_PART(I,J,K))
-                           ILXU = (ILXU+I_B*DX(I)/10._EB)/(EXTCOE(I,J,K)*DX(I)/10._EB+1)
-                           ILYU = (ILYU+I_B*DY(I)/10._EB)/(EXTCOE(I,J,K)*DY(I)/10._EB+1)
-                           ILZU = (ILZU+I_B*DZ(I)/10._EB)/(EXTCOE(I,J,K)*DZ(I)/10._EB+1)
-                           IF (ITER==5) IL(I,J,K) = ILXU+ILYU+ILZU
-                        ENDDO
-                        ILDX(I,J,K) = ILXU
-                        ILDY(I,J,K) = ILYU
-                        ILDZ(I,J,K) = ILZU
-
+                     
+                     IF (KAPPA_PART(I,J,K)>0._EB .AND. 1._EB/(EXTCOE(I,J,K)*VC**ONTH)<15._EB) THEN
+                        N_DX=CEILING(15._EB-1._EB/(EXTCOE(I,J,K)*VC**ONTH))
+                        IF (MOD(N_DX,2)==0._EB) N_DX = N_DX+1 ! ensure its odd
+                        IF (N_DX>1) THEN
+                           ! maybe needs one downwind value per principle axis??
+                           ILXU  = ILDX(I-ISTEP,J,K)
+                           ILYU  = ILDY(I,J-JSTEP,K)
+                           ILZU  = ILDZ(I,J,K-KSTEP)
+                           DO ITER=1,N_DX
+                              I_B = RFPI*(KFST4_GAS(I,J,K) + KFST4_PART(I,J,K))
+                              ILXU = (ILXU+I_B*DX(I)/N_DX)/(EXTCOE(I,J,K)*DX(I)/N_DX+1)
+                              ILYU = (ILYU+I_B*DY(I)/N_DX)/(EXTCOE(I,J,K)*DY(I)/N_DX+1)
+                              ILZU = (ILZU+I_B*DZ(I)/N_DX)/(EXTCOE(I,J,K)*DZ(I)/N_DX+1)
+                              ! Store center value for main solver
+                              IF (ITER==CEILING(N_DX/2._EB)) IL(I,J,K) = ILXU+ILYU+ILZU
+                           ENDDO
+                           ILDX(I,J,K) = ILXU
+                           ILDY(I,J,K) = ILYU
+                           ILDZ(I,J,K) = ILZU
+                        ENDIF
                      ELSE
                         ILDX(I,J,K) = IL(I,J,K)*ABS(DLANG(1,N))
                         ILDY(I,J,K) = IL(I,J,K)*ABS(DLANG(2,N))
                         ILDZ(I,J,K) = IL(I,J,K)*ABS(DLANG(3,N))
                      ENDIF
-                     ! IF (I==1 .AND. J==1 .AND. K==2) WRITE(LU_ERR,*) EXTCOE(I,J,K),VC,A_SUM,RAP,KAPPA_PART(I,J,K)
 
                   ENDDO SLICE_LOOP
                   !$OMP END PARALLEL DO
