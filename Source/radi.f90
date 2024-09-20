@@ -3484,7 +3484,7 @@ USE PHYSICAL_FUNCTIONS, ONLY : GET_VOLUME_FRACTION, GET_MASS_FRACTION
 REAL(EB) :: RAP, AX, AXU, AXD, AY, AYU, AYD, AZ, AZU, AZD, VC, RU, RD, RP, AFD, &
             ILXU, ILYU, ILZU, QVAL, BBF, BBFA, NCSDROP, RSA_RAT,EFLUX,SOOT_MASS_FRACTION, &
             AIU_SUM,A_SUM,VOL,VC1,AY1,AZ1,COS_DL,AILFU, &
-            RAD_Q_SUM_PARTIAL,KFST4_SUM_PARTIAL,ALPHA_CC
+            RAD_Q_SUM_PARTIAL,KFST4_SUM_PARTIAL,ALPHA_CC,I_B,KAPPA_SUB
 
 INTEGER  :: N,NN,IIG,JJG,KKG,I,J,K,IW,ICF,II,JJ,KK,IOR,IC,IWUP,IWDOWN, &
             ISTART, IEND, ISTEP, JSTART, JEND, JSTEP, &
@@ -4108,9 +4108,9 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
                KMAX = KSTART
             ENDIF
 
-            ILDX=IL
-            ILDY=IL
-            ILDZ=IL
+            ILDX=IL*ABS(DLANG(1,N))
+            ILDY=IL*ABS(DLANG(2,N))
+            ILDZ=IL*ABS(DLANG(3,N))
             ILD=IL
 
             GEOMETRY2: IF (CYLINDRICAL) THEN  ! Sweep in axisymmetric geometry
@@ -4216,9 +4216,9 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
                      AX  = DY(J) * DZ(K) * ABS(DLX(N))
                      VC1 = DY(J) * DZ(K)
                      AZ1 = DY(J) * ABS(DLZ(N))
-                     ILXU  = ILDX(I-ISTEP,J,K)
-                     ILYU  = ILDY(I,J-JSTEP,K)
-                     ILZU  = ILDZ(I,J,K-KSTEP)
+                     ILXU  = SQRT(ILDX(I-ISTEP,J,K)**2+ILDY(I-ISTEP,J,K)**2+ILDZ(I-ISTEP,J,K)**2)
+                     ILYU  = SQRT(ILDX(I,J-JSTEP,K)**2+ILDY(I,J-JSTEP,K)**2+ILDZ(I,J-JSTEP,K)**2)
+                     ILZU  = SQRT(ILDX(I,J,K-KSTEP)**2+ILDY(I,J,K-KSTEP)**2+ILDZ(I,J,K-KSTEP)**2)
                      IC = CELL_INDEX(I,J,K)
                      IF (IC/=0) THEN
                         IF (CELL(IC)%SOLID) CYCLE SLICE_LOOP
@@ -4304,14 +4304,12 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
                         ILXU  = ILDX(I-ISTEP,J,K)
                         ILYU  = ILDY(I,J-JSTEP,K)
                         ILZU  = ILDZ(I,J,K-KSTEP)
-                        ILXU = ILXU*ABS(DLANG(1,N))
-                        ILYU = ILYU*ABS(DLANG(2,N))
-                        ILZU = ILZU*ABS(DLANG(3,N))
                         DO ITER=1,10
                            ! IF (I==1 .AND. J==1 .AND. K==2 .AND. ABS(DLANG(3,N))>.9) WRITE(LU_ERR,*) N,ITER,ILXU,DLANG(1:3,N)
-                           ILXU = ILXU/(EXTCOE(I,J,K)*DX(I)/10._EB+1)
-                           ILYU = ILYU/(EXTCOE(I,J,K)*DY(J)/10._EB+1)
-                           ILZU = ILZU/(EXTCOE(I,J,K)*DZ(K)/10._EB+1)
+                           I_B = RFPI*(KFST4_GAS(I,J,K) + KFST4_PART(I,J,K))
+                           ILXU = (ILXU+I_B*DX(I)/10._EB)/(EXTCOE(I,J,K)*DX(I)/10._EB+1)
+                           ILYU = (ILYU+I_B*DY(I)/10._EB)/(EXTCOE(I,J,K)*DY(I)/10._EB+1)
+                           ILZU = (ILZU+I_B*DZ(I)/10._EB)/(EXTCOE(I,J,K)*DZ(I)/10._EB+1)
                            IF (ITER==5) IL(I,J,K) = ILXU+ILYU+ILZU
                         ENDDO
                         ILDX(I,J,K) = ILXU
@@ -4319,9 +4317,9 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
                         ILDZ(I,J,K) = ILZU
 
                      ELSE
-                        ILDX(I,J,K) = IL(I,J,K)
-                        ILDY(I,J,K) = IL(I,J,K)
-                        ILDZ(I,J,K) = IL(I,J,K)
+                        ILDX(I,J,K) = IL(I,J,K)*ABS(DLANG(1,N))
+                        ILDY(I,J,K) = IL(I,J,K)*ABS(DLANG(2,N))
+                        ILDZ(I,J,K) = IL(I,J,K)*ABS(DLANG(3,N))
                      ENDIF
                      ! IF (I==1 .AND. J==1 .AND. K==2) WRITE(LU_ERR,*) EXTCOE(I,J,K),VC,A_SUM,RAP,KAPPA_PART(I,J,K)
 
