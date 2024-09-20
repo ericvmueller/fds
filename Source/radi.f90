@@ -3490,11 +3490,12 @@ INTEGER  :: N,NN,IIG,JJG,KKG,I,J,K,IW,ICF,II,JJ,KK,IOR,IC,IWUP,IWDOWN, &
             ISTART, IEND, ISTEP, JSTART, JEND, JSTEP, &
             KSTART, KEND, KSTEP, NSTART, NEND, NSTEP, &
             I_UIID, N_UPDATES, IBND, NOM, ARRAY_INDEX,NRA, &
-            IMIN, JMIN, KMIN, IMAX, JMAX, KMAX, N_SLICE, M_IJK, IJK, LL
+            IMIN, JMIN, KMIN, IMAX, JMAX, KMAX, N_SLICE, M_IJK, IJK, LL, ITER
 INTEGER  :: IADD,IFACE,INDCF
 INTEGER, ALLOCATABLE :: IJK_SLICE(:,:)
 REAL(EB) :: XID,YJD,ZKD,KAPPA_PART_SINGLE,DLF,DLA(3),TSI,TMP_EXTERIOR,TEMP_ORIENTATION(3)
 REAL(EB), ALLOCATABLE, DIMENSION(:) :: ZZ_GET
+REAL(EB) :: ILDX(0:IBP1,0:JBP1,0:KBP1),ILDY(0:IBP1,0:JBP1,0:KBP1),ILDZ(0:IBP1,0:JBP1,0:KBP1),ILD(0:IBP1,0:JBP1,0:KBP1)
 INTEGER :: IID,JJD,KKD,IP
 LOGICAL :: UPDATE_INTENSITY, UPDATE_QRW2
 REAL(EB), POINTER, DIMENSION(:,:,:) :: IL,UIIOLD,KAPPA_PART,KFST4_PART,EXTCOE,SCAEFF,SCAEFF_G,IL_UP
@@ -4107,6 +4108,11 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
                KMAX = KSTART
             ENDIF
 
+            ILDX=IL
+            ILDY=IL
+            ILDZ=IL
+            ILD=IL
+
             GEOMETRY2: IF (CYLINDRICAL) THEN  ! Sweep in axisymmetric geometry
                J = 1
                CKLOOP: DO K=KSTART,KEND,KSTEP
@@ -4210,9 +4216,9 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
                      AX  = DY(J) * DZ(K) * ABS(DLX(N))
                      VC1 = DY(J) * DZ(K)
                      AZ1 = DY(J) * ABS(DLZ(N))
-                     ILXU  = IL(I-ISTEP,J,K)
-                     ILYU  = IL(I,J-JSTEP,K)
-                     ILZU  = IL(I,J,K-KSTEP)
+                     ILXU  = ILDX(I-ISTEP,J,K)
+                     ILYU  = ILDY(I,J-JSTEP,K)
+                     ILZU  = ILDZ(I,J,K-KSTEP)
                      IC = CELL_INDEX(I,J,K)
                      IF (IC/=0) THEN
                         IF (CELL(IC)%SOLID) CYCLE SLICE_LOOP
@@ -4293,6 +4299,31 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
                      IL(I,J,K) = MAX(0._EB, RAP * (AIU_SUM + VC*RSA(N)*RFPI* &
                                      ( KFST4_GAS(I,J,K) + KFST4_PART(I,J,K) + RSA_RAT*&
                                      (SCAEFF(I,J,K)+SCAEFF_G(I,J,K))*UIIOLD(I,J,K) ) ) )
+                     IF (EXTCOE(I,J,K)*VC**ONTH>0.1_EB) THEN
+                        ! maybe needs one downwind value per principle axis??
+                        ILXU  = ILDX(I-ISTEP,J,K)
+                        ILYU  = ILDY(I,J-JSTEP,K)
+                        ILZU  = ILDZ(I,J,K-KSTEP)
+                        ILXU = ILXU*ABS(DLANG(1,N))
+                        ILYU = ILYU*ABS(DLANG(2,N))
+                        ILZU = ILZU*ABS(DLANG(3,N))
+                        DO ITER=1,10
+                           ! IF (I==1 .AND. J==1 .AND. K==2 .AND. ABS(DLANG(3,N))>.9) WRITE(LU_ERR,*) N,ITER,ILXU,DLANG(1:3,N)
+                           ILXU = ILXU/(EXTCOE(I,J,K)*DX(I)/10._EB+1)
+                           ILYU = ILYU/(EXTCOE(I,J,K)*DY(J)/10._EB+1)
+                           ILZU = ILZU/(EXTCOE(I,J,K)*DZ(K)/10._EB+1)
+                           IF (ITER==5) IL(I,J,K) = ILXU+ILYU+ILZU
+                        ENDDO
+                        ILDX(I,J,K) = ILXU
+                        ILDY(I,J,K) = ILYU
+                        ILDZ(I,J,K) = ILZU
+
+                     ELSE
+                        ILDX(I,J,K) = IL(I,J,K)
+                        ILDY(I,J,K) = IL(I,J,K)
+                        ILDZ(I,J,K) = IL(I,J,K)
+                     ENDIF
+                     ! IF (I==1 .AND. J==1 .AND. K==2) WRITE(LU_ERR,*) EXTCOE(I,J,K),VC,A_SUM,RAP,KAPPA_PART(I,J,K)
 
                   ENDDO SLICE_LOOP
                   !$OMP END PARALLEL DO
