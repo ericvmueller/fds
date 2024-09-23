@@ -3420,6 +3420,7 @@ IF (SOLID_PARTICLES) THEN
                ORIENTATION_VECTOR(2,IO)*DLANG(2,N) + &
                ORIENTATION_VECTOR(3,IO)*DLANG(3,N)) > ORIENTATION_VIEW_ANGLE(IO)) &
             VIEW_ANGLE_AREA(IO) = VIEW_ANGLE_AREA(IO) - COSINE_ARRAY(N)
+         
       ENDDO
       NEAREST_RADIATION_ANGLE(IO) = MINLOC(COSINE_ARRAY,DIM=1)
       VIEW_ANGLE_AREA(IO) = PI/VIEW_ANGLE_AREA(IO)
@@ -3490,10 +3491,10 @@ INTEGER  :: N,NN,IIG,JJG,KKG,I,J,K,IW,ICF,II,JJ,KK,IOR,IC,IWUP,IWDOWN, &
             ISTART, IEND, ISTEP, JSTART, JEND, JSTEP, &
             KSTART, KEND, KSTEP, NSTART, NEND, NSTEP, &
             I_UIID, N_UPDATES, IBND, NOM, ARRAY_INDEX,NRA, &
-            IMIN, JMIN, KMIN, IMAX, JMAX, KMAX, N_SLICE, M_IJK, IJK, LL, ITER
+            IMIN, JMIN, KMIN, IMAX, JMAX, KMAX, N_SLICE, M_IJK, IJK, LL, ITER, SUBAXIS
 INTEGER  :: IADD,IFACE,INDCF,N_DX
 INTEGER, ALLOCATABLE :: IJK_SLICE(:,:)
-REAL(EB) :: XID,YJD,ZKD,KAPPA_PART_SINGLE,DLF,DLA(3),TSI,TMP_EXTERIOR,TEMP_ORIENTATION(3)
+REAL(EB) :: XID,YJD,ZKD,KAPPA_PART_SINGLE,DLF,DLA(3),TSI,TMP_EXTERIOR,TEMP_ORIENTATION(3),IMEAN(1:3),ILEND(1:3),WGHTS(1:3)
 REAL(EB), ALLOCATABLE, DIMENSION(:) :: ZZ_GET
 REAL(EB) :: ILDX(0:IBP1,0:JBP1,0:KBP1),ILDY(0:IBP1,0:JBP1,0:KBP1),ILDZ(0:IBP1,0:JBP1,0:KBP1),ILD(0:IBP1,0:JBP1,0:KBP1)
 INTEGER :: IID,JJD,KKD,IP
@@ -4108,10 +4109,13 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
                KMAX = KSTART
             ENDIF
 
-            ILDX=IL*ABS(DLANG(1,N))
-            ILDY=IL*ABS(DLANG(2,N))
-            ILDZ=IL*ABS(DLANG(3,N))
-            ILD=IL
+            ! ILDX=IL*ABS(DLANG(1,N))
+            ! ILDY=IL*ABS(DLANG(2,N))
+            ! ILDZ=IL*ABS(DLANG(3,N))
+            ILDX=IL
+            ILDY=IL
+            ILDZ=IL
+            ! ILD=IL
 
             GEOMETRY2: IF (CYLINDRICAL) THEN  ! Sweep in axisymmetric geometry
                J = 1
@@ -4216,9 +4220,24 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
                      AX  = DY(J) * DZ(K) * ABS(DLX(N))
                      VC1 = DY(J) * DZ(K)
                      AZ1 = DY(J) * ABS(DLZ(N))
-                     ILXU  = SQRT(ILDX(I-ISTEP,J,K)**2+ILDY(I-ISTEP,J,K)**2+ILDZ(I-ISTEP,J,K)**2)
-                     ILYU  = SQRT(ILDX(I,J-JSTEP,K)**2+ILDY(I,J-JSTEP,K)**2+ILDZ(I,J-JSTEP,K)**2)
-                     ILZU  = SQRT(ILDX(I,J,K-KSTEP)**2+ILDY(I,J,K-KSTEP)**2+ILDZ(I,J,K-KSTEP)**2)
+                     ! ILXU  = SQRT(ILDX(I-ISTEP,J,K)**2+ILDY(I-ISTEP,J,K)**2+ILDZ(I-ISTEP,J,K)**2)
+
+                     ! ILXU  = SQRT(ILDX(I-ISTEP,J,K)**2+&
+                        ! (IL(I-ISTEP,J,K)*DLANG(2,N))**2+(IL(I-ISTEP,J,K)*DLANG(3,N))**2)
+
+                     ! ILYU  = SQRT(ILDX(I,J-JSTEP,K)**2+ILDY(I,J-JSTEP,K)**2+ILDZ(I,J-JSTEP,K)**2)
+                     ! ILYU  = SQRT((IL(I,J-JSTEP,K)*DLANG(1,N))**2+&
+                        ! ILDY(I,J-JSTEP,K)**2+(IL(I,J-JSTEP,K)*DLANG(3,N))**2)
+
+                     ! ILZU  = SQRT(ILDX(I,J,K-KSTEP)**2+ILDY(I,J,K-KSTEP)**2+ILDZ(I,J,K-KSTEP)**2)
+                     ! ILZU  = SQRT((IL(I,J,K-KSTEP)*DLANG(1,N))**2+&
+                        ! (IL(I,J,K-KSTEP)*DLANG(2,N))**2+ILDZ(I,J,K-KSTEP)**2)
+
+
+                     ILXU = ILDX(I-ISTEP,J,K)
+                     ILYU = ILDY(I,J-JSTEP,K)
+                     ILZU = ILDZ(I,J,K-KSTEP)
+
                      IC = CELL_INDEX(I,J,K)
                      IF (IC/=0) THEN
                         IF (CELL(IC)%SOLID) CYCLE SLICE_LOOP
@@ -4300,31 +4319,175 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
                                      ( KFST4_GAS(I,J,K) + KFST4_PART(I,J,K) + RSA_RAT*&
                                      (SCAEFF(I,J,K)+SCAEFF_G(I,J,K))*UIIOLD(I,J,K) ) ) )
                      
-                     IF (KAPPA_PART(I,J,K)>0._EB .AND. 1._EB/(EXTCOE(I,J,K)*VC**ONTH)<15._EB) THEN
+                     IF (SUBRAD_MODEL .AND. &
+                        KAPPA_PART(I,J,K)>0._EB .AND. 1._EB/(EXTCOE(I,J,K)*VC**ONTH)<15._EB) THEN
                         N_DX=CEILING(15._EB-1._EB/(EXTCOE(I,J,K)*VC**ONTH))
                         IF (MOD(N_DX,2)==0._EB) N_DX = N_DX+1 ! ensure its odd
                         IF (N_DX>1) THEN
-                           ! maybe needs one downwind value per principle axis??
-                           ILXU  = ILDX(I-ISTEP,J,K)
-                           ILYU  = ILDY(I,J-JSTEP,K)
-                           ILZU  = ILDZ(I,J,K-KSTEP)
+                           ! IF (I==21 .AND. J==30 .AND. K==4 .AND. N==67) &
+                           !    WRITE(LU_ERR,*) ILXU,ILYU,ILZU,DLANG(:,N),&
+                           !    IL(I-ISTEP,J,K),IL(I,J-JSTEP,K),IL(I,J,K-KSTEP)
+                           IF (IC/=0) THEN
+                              IF (CELL(IC)%SOLID) CYCLE SLICE_LOOP
+                              IF (CELL_ILW(IC,1)>-1.E6_EB) ILXU = CELL_ILW(IC,1)*ABS(DLANG(1,N))
+                              IF (CELL_ILW(IC,2)>-1.E6_EB) ILYU = CELL_ILW(IC,2)*ABS(DLANG(2,N))
+                              IF (CELL_ILW(IC,3)>-1.E6_EB) ILZU = CELL_ILW(IC,3)*ABS(DLANG(3,N))
+                           ENDIF
+                           IMEAN = 0._EB
+
                            DO ITER=1,N_DX
-                              I_B = RFPI*(KFST4_GAS(I,J,K) + KFST4_PART(I,J,K))
                               ILXU = (ILXU+I_B*DX(I)/N_DX)/(EXTCOE(I,J,K)*DX(I)/N_DX+1)
-                              ILYU = (ILYU+I_B*DY(I)/N_DX)/(EXTCOE(I,J,K)*DY(I)/N_DX+1)
-                              ILZU = (ILZU+I_B*DZ(I)/N_DX)/(EXTCOE(I,J,K)*DZ(I)/N_DX+1)
-                              ! Store center value for main solver
-                              IF (ITER==CEILING(N_DX/2._EB)) IL(I,J,K) = ILXU+ILYU+ILZU
+                              ILYU = (ILYU+I_B*DY(J)/N_DX)/(EXTCOE(I,J,K)*DY(J)/N_DX+1)
+                              ILZU = (ILZU+I_B*DZ(K)/N_DX)/(EXTCOE(I,J,K)*DZ(K)/N_DX+1)
+
+                              IMEAN(1) = ILXU/N_DX + IMEAN(1)
+                              IMEAN(2) = ILYU/N_DX + IMEAN(2)
+                              IMEAN(3) = ILZU/N_DX + IMEAN(3)
+
+                              IF (ITER==N_DX-1) THEN
+                                 ILEND(1) = ILXU
+                                 ILEND(2) = ILYU
+                                 ILEND(3) = ILZU
+                              ENDIF                              
+
                            ENDDO
-                           ILDX(I,J,K) = ILXU
-                           ILDY(I,J,K) = ILYU
-                           ILDZ(I,J,K) = ILZU
+
+                           A_SUM = AXD + AYD + AZD
+                           AIU_SUM = AXU*IMEAN(1) + AYU*IMEAN(2) + AZU*IMEAN(3)
+                           RAP = 1._EB/(A_SUM/N_DX**2 + EXTCOE(I,J,K)*VC/N_DX**3*RSA(N))
+                           IL(I,J,K) = MAX(0._EB, RAP * (AIU_SUM/N_DX**2 + VC/N_DX**3*RSA(N)*RFPI* &
+                                           ( KFST4_GAS(I,J,K) + KFST4_PART(I,J,K) + RSA_RAT*&
+                                           (SCAEFF(I,J,K)+SCAEFF_G(I,J,K))*UIIOLD(I,J,K) ) ) )
+                           ! DO SUBAXIS=1,3
+                           !    ILXU  = ILDX(I-ISTEP,J,K)
+                           !    ILYU  = ILDY(I,J-JSTEP,K)
+                           !    ILZU  = ILDZ(I,J,K-KSTEP)
+                           !    IF (I==20 .AND. J==20 .AND. K==4 .AND. N==101) &
+                           !          WRITE(LU_ERR,*) ILZU,N_DX
+                           !    DO ITER=1,N_DX
+                           !       ! I_B = RFPI*(KFST4_GAS(I,J,K) + KFST4_PART(I,J,K))
+                           !       ! ILXU = (ILXU+I_B*DX(I)/N_DX)/(EXTCOE(I,J,K)*DX(I)/N_DX+1)
+                           !       ! ILYU = (ILYU+I_B*DY(J)/N_DX)/(EXTCOE(I,J,K)*DY(J)/N_DX+1)
+                           !       ! ILZU = (ILZU+I_B*DZ(K)/N_DX)/(EXTCOE(I,J,K)*DZ(K)/N_DX+1)
+
+                           !       ! ILXU = (AXU*ILXU+I_B*DX(I)*RSA(N)/N_DX)/(EXTCOE(I,J,K)*DX(I)*RSA(N)/N_DX+1)
+                           !       ! ILYU = (AYU*ILYU+I_B*DY(J)*RSA(N)/N_DX)/(EXTCOE(I,J,K)*DY(J)*RSA(N)/N_DX+1)
+                           !       ! ILZU = (AZU*ILZU+I_B*DZ(K)*RSA(N)/N_DX)/(EXTCOE(I,J,K)*DZ(K)*RSA(N)/N_DX+1)
+
+                           !       IF (SUBAXIS==1) THEN
+                           !          AIU_SUM = AXU*ILXU + AYU*ILYU/N_DX + AZU*ILZU/N_DX
+                           !          A_SUM = AXD + AYD/N_DX + AZD/N_DX
+                           !          RAP = 1._EB/(A_SUM + EXTCOE(I,J,K)*VC/N_DX*RSA(N))
+                           !          ILXU = MAX(0._EB, RAP * (AIU_SUM + VC/N_DX*RSA(N)*RFPI* &
+                           !              ( KFST4_GAS(I,J,K) + KFST4_PART(I,J,K) + RSA_RAT*&
+                           !              (SCAEFF(I,J,K)+SCAEFF_G(I,J,K))*UIIOLD(I,J,K) ) ) )
+                           !          IMEAN(1) = IMEAN(1)+ILXU
+                           !          ! IF (ITER==CEILING(N_DX/4._EB)) IMEAN(1) = ILXU
+                           !       ELSEIF (SUBAXIS==2) THEN
+                           !          AIU_SUM = AXU*ILXU/N_DX + AYU*ILYU + AZU*ILZU/N_DX
+                           !          A_SUM = AXD/N_DX + AYD + AZD/N_DX
+                           !          RAP = 1._EB/(A_SUM + EXTCOE(I,J,K)*VC/N_DX*RSA(N))
+                           !          ILYU = MAX(0._EB, RAP * (AIU_SUM + VC/N_DX*RSA(N)*RFPI* &
+                           !              ( KFST4_GAS(I,J,K) + KFST4_PART(I,J,K) + RSA_RAT*&
+                           !              (SCAEFF(I,J,K)+SCAEFF_G(I,J,K))*UIIOLD(I,J,K) ) ) )
+                           !          IMEAN(2) = IMEAN(2)+ILYU
+                           !          ! IF (ITER==CEILING(N_DX/4._EB)) IMEAN(2) = ILYU
+                           !       ELSE
+                           !          AIU_SUM = AXU*ILXU/N_DX + AYU*ILYU/N_DX + AZU*ILZU
+                           !          A_SUM = AXD/N_DX + AYD/N_DX + AZD
+                           !          RAP = 1._EB/(A_SUM + EXTCOE(I,J,K)*VC/N_DX*RSA(N))
+                           !          ILZU = MAX(0._EB, RAP * (AIU_SUM + VC/N_DX*RSA(N)*RFPI* &
+                           !              ( KFST4_GAS(I,J,K) + KFST4_PART(I,J,K) + RSA_RAT*&
+                           !              (SCAEFF(I,J,K)+SCAEFF_G(I,J,K))*UIIOLD(I,J,K) ) ) )
+                           !          IF (I==20 .AND. J==20 .AND. K==4 .AND. N==101) &
+                           !          WRITE(LU_ERR,*) ILZU
+                           !          IMEAN(3) = IMEAN(3)+ILZU
+                           !          ! IF (ITER==CEILING(N_DX/4._EB)) IMEAN(3) = ILZU
+                           !       ENDIF
+
+                           !       ! ! Store center value for main solver
+                           !       ! IF (ITER==CEILING(N_DX/2._EB)) &
+                           !       ! IL(I,J,K) = SQRT(ILXU**2+ILYU**2+ILZU**2)
+                           !       ! IMEAN(1) = IMEAN(1) + ILXU
+                           !       ! IMEAN(2) = IMEAN(2) + ILYU
+                           !       ! IMEAN(3) = IMEAN(3) + ILZU
+                           !    ENDDO
+                              
+                           !    ! IL(I,J,K) = SQRT(IMEAN(1)**2+IMEAN(2)**2+IMEAN(3)**2)
+                           !    IF (SUBAXIS==1) ILEND(SUBAXIS) = ILXU
+                           !    IF (SUBAXIS==2) ILEND(SUBAXIS) = ILYU
+                           !    IF (SUBAXIS==3) ILEND(SUBAXIS) = ILZU
+                           !    ! IF (I==20 .AND. J==20 .AND. K==4) WRITE(LU_ERR,*) N,ILXU,ILYU,ILZU,IL(I,J,K)
+                           ! ENDDO
+                           ! IMEAN = IMEAN/N_DX
+                           ! IL(I,J,K) = SUM(IMEAN)/3
+                           ! WGHTS = ABS(DLANG(:,N))/SUM(ABS(DLANG(:,N)))
+                           ! WRITE(LU_ERR,*) N,WGHTS                           
+                           ! IL(I,J,K) = IMEAN(1)*WGHTS(1)+IMEAN(2)*WGHTS(2)+IMEAN(3)*WGHTS(3)
+                           ! ILDX(I,J,K) = ILEND(1)*WGHTS(1)+IMEAN(2)*WGHTS(2)+IMEAN(3)*WGHTS(3)
+                           ! ILDY(I,J,K) = IMEAN(1)*WGHTS(1)+ILEND(2)*WGHTS(2)+IMEAN(3)*WGHTS(3)
+                           ! ILDZ(I,J,K) = IMEAN(1)*WGHTS(1)+IMEAN(2)*WGHTS(2)+ILEND(3)*WGHTS(3)
+                           ! ILDX(I,J,K) = ILEND(1)
+                           ! ILDY(I,J,K) = ILEND(2)
+                           ! ILDZ(I,J,K) = ILEND(3)
+
+                           A_SUM = AXD + AYD + AZD
+                           AIU_SUM = AXU*ILEND(1) + AYU*IMEAN(2) + AZU*IMEAN(3)
+                           RAP = 1._EB/(A_SUM/N_DX**2 + EXTCOE(I,J,K)*VC/N_DX**3*RSA(N))
+                           ILDX(I,J,K) = MAX(0._EB, RAP * (AIU_SUM/N_DX**2 + VC/N_DX**3*RSA(N)*RFPI* &
+                                           ( KFST4_GAS(I,J,K) + KFST4_PART(I,J,K) + RSA_RAT*&
+                                           (SCAEFF(I,J,K)+SCAEFF_G(I,J,K))*UIIOLD(I,J,K) ) ) )
+                           AIU_SUM = AXU*IMEAN(1) + AYU*ILEND(2) + AZU*IMEAN(3)
+                           RAP = 1._EB/(A_SUM/N_DX**2 + EXTCOE(I,J,K)*VC/N_DX**3*RSA(N))
+                           ILDY(I,J,K) = MAX(0._EB, RAP * (AIU_SUM/N_DX**2 + VC/N_DX**3*RSA(N)*RFPI* &
+                                           ( KFST4_GAS(I,J,K) + KFST4_PART(I,J,K) + RSA_RAT*&
+                                           (SCAEFF(I,J,K)+SCAEFF_G(I,J,K))*UIIOLD(I,J,K) ) ) )
+                           AIU_SUM = AXU*IMEAN(1) + AYU*IMEAN(2) + AZU*ILEND(3)
+                           RAP = 1._EB/(A_SUM/N_DX**2 + EXTCOE(I,J,K)*VC/N_DX**3*RSA(N))
+                           ILDZ(I,J,K) = MAX(0._EB, RAP * (AIU_SUM/N_DX**2 + VC/N_DX**3*RSA(N)*RFPI* &
+                                           ( KFST4_GAS(I,J,K) + KFST4_PART(I,J,K) + RSA_RAT*&
+                                           (SCAEFF(I,J,K)+SCAEFF_G(I,J,K))*UIIOLD(I,J,K) ) ) )
+
+
+                           ! IMEAN(1) = ILDX(I-ISTEP,J,K)
+                           ! IMEAN(2) = ILDY(I,J-JSTEP,K)
+                           ! IMEAN(3) = ILDZ(I,J,K-KSTEP)
+
+                           ! A_SUM = AXD + AYD/N_DX + AZD/N_DX
+                           ! AIU_SUM = AXU*ILEND(1) + AYU*IMEAN(2)/N_DX + AZU*IMEAN(3)/N_DX
+                           ! RAP = 1._EB/(A_SUM + EXTCOE(I,J,K)*VC/N_DX*RSA(N))
+                           ! ILDX(I,J,K) = MAX(0._EB, RAP * (AIU_SUM + VC/N_DX*RSA(N)*RFPI* &
+                           !                 ( KFST4_GAS(I,J,K) + KFST4_PART(I,J,K) + RSA_RAT*&
+                           !                 (SCAEFF(I,J,K)+SCAEFF_G(I,J,K))*UIIOLD(I,J,K) ) ) )
+
+                           ! A_SUM = AXD/N_DX + AYD + AZD/N_DX
+                           ! RAP = 1._EB/(A_SUM + EXTCOE(I,J,K)*VC/N_DX*RSA(N))
+                           ! AIU_SUM = AXU*IMEAN(1)/N_DX + AYU*ILEND(2) + AZU*IMEAN(3)/N_DX
+                           ! ILDY(I,J,K) = MAX(0._EB, RAP * (AIU_SUM + VC/N_DX*RSA(N)*RFPI* &
+                           !                 ( KFST4_GAS(I,J,K) + KFST4_PART(I,J,K) + RSA_RAT*&
+                           !                 (SCAEFF(I,J,K)+SCAEFF_G(I,J,K))*UIIOLD(I,J,K) ) ) )
+
+                           ! A_SUM = AXD/N_DX + AYD/N_DX + AZD
+                           ! RAP = 1._EB/(A_SUM + EXTCOE(I,J,K)*VC/N_DX*RSA(N))
+                           ! AIU_SUM = AXU*IMEAN(1)/N_DX + AYU*IMEAN(2)/N_DX + AZU*ILEND(3)
+                           ! ILDZ(I,J,K) = MAX(0._EB, RAP * (AIU_SUM + VC/N_DX*RSA(N)*RFPI* &
+                           !                 ( KFST4_GAS(I,J,K) + KFST4_PART(I,J,K) + RSA_RAT*&
+                           !                 (SCAEFF(I,J,K)+SCAEFF_G(I,J,K))*UIIOLD(I,J,K) ) ) )
+                        ELSE
+                           ILDX(I,J,K) = IL(I,J,K)
+                           ILDY(I,J,K) = IL(I,J,K)
+                           ILDZ(I,J,K) = IL(I,J,K)
                         ENDIF
                      ELSE
-                        ILDX(I,J,K) = IL(I,J,K)*ABS(DLANG(1,N))
-                        ILDY(I,J,K) = IL(I,J,K)*ABS(DLANG(2,N))
-                        ILDZ(I,J,K) = IL(I,J,K)*ABS(DLANG(3,N))
+                        ! ILDX(I,J,K) = IL(I,J,K)*ABS(DLANG(1,N))
+                        ! ILDY(I,J,K) = IL(I,J,K)*ABS(DLANG(2,N))
+                        ! ILDZ(I,J,K) = IL(I,J,K)*ABS(DLANG(3,N))
+                        ILDX(I,J,K) = IL(I,J,K)
+                        ILDY(I,J,K) = IL(I,J,K)
+                        ILDZ(I,J,K) = IL(I,J,K)
                      ENDIF
+                     ! IF (I==21 .AND. J==40 .AND. K==30) WRITE(LU_ERR,*) N,',',ILXU,',',ILYU,',',ILZU,',',&
+                     !    ILDX(I,J,K),',',ILDY(I,J,K),',',ILDZ(I,J,K),',',IL(I,J,K)
 
                   ENDDO SLICE_LOOP
                   !$OMP END PARALLEL DO
@@ -4373,7 +4536,25 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
                JJG = BC%JJG
                KKG = BC%KKG
                INRAD_W(IW) = INRAD_W(IW) + DLN(IOR,N) * BR%BAND(IBND)%ILW(N) ! update incoming rad, step 1
-               BR%BAND(IBND)%ILW(N) = IL(IIG,JJG,KKG)
+               SELECT CASE(ABS(IOR))
+                  CASE(1)
+                     ! BR%BAND(IBND)%ILW(N) = SQRT(ILDX(IIG,JJG,KKG)**2+&
+                     !    (IL(IIG,JJG,KKG)*DLANG(2,N))**2+ &
+                     !    (IL(IIG,JJG,KKG)*DLANG(3,N))**2)
+                     BR%BAND(IBND)%ILW(N) = ILDX(IIG,JJG,KKG)
+                  CASE(2)
+                     ! BR%BAND(IBND)%ILW(N) = SQRT((IL(IIG,JJG,KKG)*DLANG(1,N))**2+&
+                     !    ILDY(IIG,JJG,KKG)**2+ &
+                     !    (IL(IIG,JJG,KKG)*DLANG(3,N))**2)
+                     BR%BAND(IBND)%ILW(N) = ILDY(IIG,JJG,KKG)
+                  CASE(3)
+                     ! BR%BAND(IBND)%ILW(N) = SQRT((IL(IIG,JJG,KKG)*DLANG(1,N))**2+&
+                     !    (IL(IIG,JJG,KKG)*DLANG(2,N))**2+ &
+                     !    ILDZ(IIG,JJG,KKG)**2)
+                     BR%BAND(IBND)%ILW(N) = ILDZ(IIG,JJG,KKG)
+                  END SELECT
+               ! BR%BAND(IBND)%ILW(N) = IL(IIG,JJG,KKG)
+               ! IF (KKG==4) WRITE(LU_ERR,*) IOR,IIG,JJG,IL(IIG,JJG,KKG),ILDX(IIG,JJG,KKG),ILDY(IIG,JJG,KKG),ILDZ(IIG,JJG,KKG)
                INRAD_W(IW) = INRAD_W(IW) - DLN(IOR,N) * BR%BAND(IBND)%ILW(N) ! update incoming rad, step 2
             ENDDO WALL_LOOP2
             !$OMP END DO
@@ -4459,7 +4640,7 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
                            IF (LPC%MASSLESS_TARGET) THEN
                               BR%BAND(IBND)%ILW(N) = COS_DL * IL(BC%IIG,BC%JJG,BC%KKG) * VIEW_ANGLE_AREA(LP%ORIENTATION_INDEX)
                               IF (N==NEAREST_RADIATION_ANGLE(LP%ORIENTATION_INDEX)) &
-                                 BR%IL(IBND) = IL(BC%IIG,BC%JJG,BC%KKG)
+                                 BR%IL(IBND) = IL(BC%IIG,BC%JJG,BC%KKG)                              
                            ELSE
                               ! IL_UP does not account for the absorption of radiation within the cell occupied by the particle
                               BR%BAND(IBND)%ILW(N) = COS_DL * IL_UP(BC%IIG,BC%JJG,BC%KKG) * VIEW_ANGLE_AREA(LP%ORIENTATION_INDEX)
@@ -4482,6 +4663,8 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
                               BR%BAND(IBND)%ILW(N) = COS_DL * IL(BC%IIG,BC%JJG,BC%KKG) * VIEW_ANGLE_AREA(LP%ORIENTATION_INDEX)
                               IF (N==NEAREST_RADIATION_ANGLE(LP%ORIENTATION_INDEX)) &
                                  BR%IL(IBND) = IL(BC%IIG,BC%JJG,BC%KKG)
+                              ! IF (N==NEAREST_RADIATION_ANGLE(LP%ORIENTATION_INDEX)) &
+                              ! WRITE(LU_ERR,*) N,IL(BC%IIG,BC%JJG,BC%KKG),BC%IIG,BC%JJG,BC%KKG
                            ELSE
                               ! IL_UP does not account for the absorption of radiation within the cell occupied by the particle
                               BR%BAND(IBND)%ILW(N) = COS_DL * IL_UP(BC%IIG,BC%JJG,BC%KKG) * VIEW_ANGLE_AREA(LP%ORIENTATION_INDEX)

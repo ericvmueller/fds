@@ -851,6 +851,7 @@ INTEGER :: N_KAPPA_Y=50           !< Number of species points in absorption coef
 
 LOGICAL :: WIDE_BAND_MODEL        !< Non-gray gas, wide band model
 LOGICAL :: WSGG_MODEL             !< Weighted Sum of Gray Gas model
+LOGICAL :: SUBRAD_MODEL            !< Weighted Sum of Gray Gas model
 
 REAL(EB), ALLOCATABLE, DIMENSION(:,:) :: Z2RADCAL_SPECIES
 REAL(EB), ALLOCATABLE, DIMENSION(:,:,:,:) :: RADCAL_SPECIES2KAPPA
