@@ -4324,9 +4324,7 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
                         N_DX=CEILING(15._EB-1._EB/(EXTCOE(I,J,K)*VC**ONTH))
                         IF (MOD(N_DX,2)==0._EB) N_DX = N_DX+1 ! ensure its odd
                         IF (N_DX>1) THEN
-                           ! IF (I==21 .AND. J==30 .AND. K==4 .AND. N==67) &
-                           !    WRITE(LU_ERR,*) ILXU,ILYU,ILZU,DLANG(:,N),&
-                           !    IL(I-ISTEP,J,K),IL(I,J-JSTEP,K),IL(I,J,K-KSTEP)
+                           
                            IF (IC/=0) THEN
                               IF (CELL(IC)%SOLID) CYCLE SLICE_LOOP
                               IF (CELL_ILW(IC,1)>-1.E6_EB) ILXU = CELL_ILW(IC,1)*ABS(DLANG(1,N))
@@ -4335,7 +4333,13 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
                            ENDIF
                            IMEAN = 0._EB
 
+                           ILXU = ILXU*ABS(DLANG(1,N))
+                           ILYU = ILYU*ABS(DLANG(2,N))
+                           ILZU = ILZU*ABS(DLANG(3,N))
                            DO ITER=1,N_DX
+                              IF (I==21 .AND. J==30 .AND. K==4 .AND. N==101) &
+                                 WRITE(LU_ERR,*) ITER,ILXU,ILYU,ILZU,DLANG(:,N),&
+                                 IL(I-ISTEP,J,K),IL(I,J-JSTEP,K),IL(I,J,K-KSTEP) 
                               ILXU = (ILXU+I_B*DX(I)/N_DX)/(EXTCOE(I,J,K)*DX(I)/N_DX+1)
                               ILYU = (ILYU+I_B*DY(J)/N_DX)/(EXTCOE(I,J,K)*DY(J)/N_DX+1)
                               ILZU = (ILZU+I_B*DZ(K)/N_DX)/(EXTCOE(I,J,K)*DZ(K)/N_DX+1)
@@ -4344,7 +4348,7 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
                               IMEAN(2) = ILYU/N_DX + IMEAN(2)
                               IMEAN(3) = ILZU/N_DX + IMEAN(3)
 
-                              IF (ITER==N_DX-1) THEN
+                              IF (ITER==N_DX) THEN
                                  ILEND(1) = ILXU
                                  ILEND(2) = ILYU
                                  ILEND(3) = ILZU
@@ -4352,12 +4356,18 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
 
                            ENDDO
 
+
                            A_SUM = AXD + AYD + AZD
                            AIU_SUM = AXU*IMEAN(1) + AYU*IMEAN(2) + AZU*IMEAN(3)
                            RAP = 1._EB/(A_SUM/N_DX**2 + EXTCOE(I,J,K)*VC/N_DX**3*RSA(N))
                            IL(I,J,K) = MAX(0._EB, RAP * (AIU_SUM/N_DX**2 + VC/N_DX**3*RSA(N)*RFPI* &
                                            ( KFST4_GAS(I,J,K) + KFST4_PART(I,J,K) + RSA_RAT*&
                                            (SCAEFF(I,J,K)+SCAEFF_G(I,J,K))*UIIOLD(I,J,K) ) ) )
+                           IL(I,J,K) = SQRT(IMEAN(1)**2+IMEAN(2)**2+IMEAN(3)**2)
+                           IF (I==21 .AND. J==30 .AND. K==4 .AND. N==101) &
+                                 WRITE(LU_ERR,*) ITER,ILXU,ILYU,ILZU,DLANG(:,N),&
+                                 IL(I-ISTEP,J,K),IL(I,J-JSTEP,K),IL(I,J,K-KSTEP),&
+                                 IL(I,J,K),IMEAN,AXU,AYU,AZU
                            ! DO SUBAXIS=1,3
                            !    ILXU  = ILDX(I-ISTEP,J,K)
                            !    ILYU  = ILDY(I,J-JSTEP,K)
@@ -4431,6 +4441,12 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
                            ! ILDY(I,J,K) = ILEND(2)
                            ! ILDZ(I,J,K) = ILEND(3)
 
+                           ! ILXU  = ILDX(I-ISTEP,J,K)*ABS(DLANG(1,N))
+                           ! ILYU  = ILDY(I,J-JSTEP,K)*ABS(DLANG(2,N))
+                           ! ILZU  = ILDZ(I,J,K-KSTEP)*ABS(DLANG(3,N))
+                           ! IMEAN(1)=0.5_EB*(ILXU+ILEND(1))
+                           ! IMEAN(2)=0.5_EB*(ILYU+ILEND(2))
+                           ! IMEAN(3)=0.5_EB*(ILZU+ILEND(3))
                            A_SUM = AXD + AYD + AZD
                            AIU_SUM = AXU*ILEND(1) + AYU*IMEAN(2) + AZU*IMEAN(3)
                            RAP = 1._EB/(A_SUM/N_DX**2 + EXTCOE(I,J,K)*VC/N_DX**3*RSA(N))
@@ -4447,6 +4463,10 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
                            ILDZ(I,J,K) = MAX(0._EB, RAP * (AIU_SUM/N_DX**2 + VC/N_DX**3*RSA(N)*RFPI* &
                                            ( KFST4_GAS(I,J,K) + KFST4_PART(I,J,K) + RSA_RAT*&
                                            (SCAEFF(I,J,K)+SCAEFF_G(I,J,K))*UIIOLD(I,J,K) ) ) )
+
+                           ILDX(I,J,K)=SQRT(ILEND(1)**2+IMEAN(2)**2+IMEAN(3)**2)
+                           ILDY(I,J,K)=SQRT(IMEAN(1)**2+ILEND(2)**2+IMEAN(3)**2)
+                           ILDZ(I,J,K)=SQRT(IMEAN(1)**2+IMEAN(2)**2+ILEND(3)**2)
 
 
                            ! IMEAN(1) = ILDX(I-ISTEP,J,K)
