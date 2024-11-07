@@ -3463,7 +3463,8 @@ USE PHYSICAL_FUNCTIONS, ONLY : GET_VOLUME_FRACTION, GET_MASS_FRACTION
 REAL(EB) :: RAP, AX, AXU, AXD, AY, AYU, AYD, AZ, AZU, AZD, VC, RU, RD, RP, AFD, &
             ILXU, ILYU, ILZU, QVAL, BBF, BBFA, NCSDROP, RSA_RAT,EFLUX,SOOT_MASS_FRACTION, &
             AIU_SUM,A_SUM,VOL,VC1,AY1,AZ1,DLO,COS_DLO,AILFU, &
-            RAD_Q_SUM_PARTIAL,KFST4_SUM_PARTIAL,ALPHA_CC
+            RAD_Q_SUM_PARTIAL,KFST4_SUM_PARTIAL,ALPHA_CC, &
+            KFST4_PART_ADJ,EXTCOE_ADJ,IL_ADJ,AD_DOWN(1:IBAR,1:JBAR,1:KBAR)
 
 INTEGER  :: N,NN,IIG,JJG,KKG,I,J,K,IW,ICF,II,JJ,KK,IOR,IC,IWUP,IWDOWN, &
             ISTART, IEND, ISTEP, JSTART, JEND, JSTEP, &
@@ -3650,10 +3651,10 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
          IF (.NOT.LPC%SOLID_PARTICLE) CYCLE
          B1 => BOUNDARY_PROP1(LP%B1_INDEX)
          BC => BOUNDARY_COORD(LP%BC_INDEX)
-         CALL GET_IJK(BC%X,BC%Y,BC%Z,NM,XID,YJD,ZKD,IID,JJD,KKD)
+         ! CALL GET_IJK(BC%X,BC%Y,BC%Z,NM,XID,YJD,ZKD,IID,JJD,KKD)
          KAPPA_PART_SINGLE = 0.25_EB*LP%PWT*B1%AREA*LP%RVC*B1%EMISSIVITY
-         KAPPA_PART(IID,JJD,KKD) = KAPPA_PART(IID,JJD,KKD) + KAPPA_PART_SINGLE
-         KFST4_PART(IID,JJD,KKD) = KFST4_PART(IID,JJD,KKD) + BBF*KAPPA_PART_SINGLE*FOUR_SIGMA*B1%TMP_F**4
+         KAPPA_PART(BC%IIG,BC%JJG,BC%KKG) = KAPPA_PART(BC%IIG,BC%JJG,BC%KKG) + KAPPA_PART_SINGLE
+         KFST4_PART(BC%IIG,BC%JJG,BC%KKG) = KFST4_PART(BC%IIG,BC%JJG,BC%KKG) + BBF*KAPPA_PART_SINGLE*FOUR_SIGMA*B1%TMP_F**4
       ENDDO
    ENDIF
 
@@ -4266,7 +4267,8 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
 
                      A_SUM = AXD + AYD + AZD + AFD
                      AIU_SUM = AXU*ILXU + AYU*ILYU + AZU*ILZU + AILFU
-                     IF (SOLID_PARTICLES) IL_UP(I,J,K) = MAX(0._EB,AIU_SUM/A_SUM)
+                     IF (SOLID_PARTICLES) IL_UP(I,J,K) = AIU_SUM
+                     IF (SOLID_PARTICLES) AD_DOWN(I,J,K) = A_SUM
                      RAP = 1._EB/(A_SUM + EXTCOE(I,J,K)*VC*RSA(N))
                      IL(I,J,K) = MAX(0._EB, RAP * (AIU_SUM + VC*RSA(N)*RFPI* &
                                      ( KFST4_GAS(I,J,K) + KFST4_PART(I,J,K) + RSA_RAT*&
@@ -4382,39 +4384,54 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
 
             ! Compute projected intensity on particles with a specified ORIENTATION
 
-            IF (ORIENTED_PARTICLES) THEN
-               PARTICLE_RADIATION_LOOP: DO IP=1,NLP
-                  LP => LAGRANGIAN_PARTICLE(IP)
-                  LPC => LAGRANGIAN_PARTICLE_CLASS(LP%CLASS_INDEX)
-                  IF (LPC%N_ORIENTATION==0) CYCLE PARTICLE_RADIATION_LOOP
-                  BC => BOUNDARY_COORD(LP%BC_INDEX)
-                  TEMP_ORIENTATION(1:3) = ORIENTATION_VECTOR(1:3,LP%ORIENTATION_INDEX)
-                  IF (LP%INIT_INDEX > 0) THEN
-                     IN => INITIALIZATION(LP%INIT_INDEX)
-                     IF (ANY(IN%ORIENTATION_RAMP_INDEX > 0)) THEN
-                        TEMP_ORIENTATION(1) = EVALUATE_RAMP(T,IN%ORIENTATION_RAMP_INDEX(1))
-                        TEMP_ORIENTATION(2) = EVALUATE_RAMP(T,IN%ORIENTATION_RAMP_INDEX(2))
-                        TEMP_ORIENTATION(3) = EVALUATE_RAMP(T,IN%ORIENTATION_RAMP_INDEX(3))
-                        TEMP_ORIENTATION = TEMP_ORIENTATION / &
-                                           (SQRT(TEMP_ORIENTATION(1)**2+TEMP_ORIENTATION(2)**2+TEMP_ORIENTATION(3)**2) &
-                                           +TWO_EPSILON_EB)
-                     ENDIF
-                  ENDIF
-                  COS_DLO = -DOT_PRODUCT(TEMP_ORIENTATION(1:3),DLANG(1:3,N))
-                  IF (COS_DLO > COS_HALF_VIEW_ANGLE(LP%ORIENTATION_INDEX)) THEN
-                     DLO = -(TEMP_ORIENTATION(1)*DLX(N) + TEMP_ORIENTATION(2)*DLY(N) + TEMP_ORIENTATION(3)*DLZ(N))
-                     BR => BOUNDARY_RADIA(LP%BR_INDEX)
-                     IF (LPC%MASSLESS_TARGET) THEN
-                        BR%BAND(IBND)%ILW(N) = DLO * IL(BC%IIG,BC%JJG,BC%KKG) * VIEW_ANGLE_FACTOR(LP%ORIENTATION_INDEX)
-                        IF (N==NEAREST_RADIATION_ANGLE(LP%ORIENTATION_INDEX)) &
-                           BR%IL(IBND) = IL(BC%IIG,BC%JJG,BC%KKG)
-                     ELSE
-                        ! IL_UP does not account for the absorption of radiation within the cell occupied by the particle
-                        BR%BAND(IBND)%ILW(N) = DLO * IL_UP(BC%IIG,BC%JJG,BC%KKG) * VIEW_ANGLE_FACTOR(LP%ORIENTATION_INDEX)
-                     ENDIF
-                  ENDIF
-               ENDDO PARTICLE_RADIATION_LOOP
-            ENDIF
+            PARTICLE_RADIATION_LOOP: DO IP=1,NLP
+                LP => LAGRANGIAN_PARTICLE(IP)
+                LPC => LAGRANGIAN_PARTICLE_CLASS(LP%CLASS_INDEX)
+                BC => BOUNDARY_COORD(LP%BC_INDEX)
+                B1 => BOUNDARY_PROP1(LP%B1_INDEX)
+                IF (LPC%N_ORIENTATION==0) THEN
+                    BR => BOUNDARY_RADIA(LP%BR_INDEX)
+                    I = BC%IIG; J = BC%JJG; K = BC%KKG
+                    ! Adjust attenuation and emission to neglect contribution of the specific particle
+                    KAPPA_PART_SINGLE = 0.25_EB*B1%AREA*LP%RVC*B1%EMISSIVITY*MIN(1._EB,LP%PWT)
+                    KFST4_PART_ADJ = KFST4_PART(I,J,K) - BBF*KAPPA_PART_SINGLE*FOUR_SIGMA*B1%TMP_F**4                        
+                    EXTCOE_ADJ = EXTCOE(I,J,K) - KAPPA_PART_SINGLE
+
+                    RAP = 1._EB/(AD_DOWN(I,J,K) + EXTCOE_ADJ*RSA(N)/LP%RVC)
+                    IL_ADJ = MAX(0._EB, RAP * (IL_UP(I,J,K) + RSA(N)*RFPI/LP%RVC* &
+                        ( KFST4_GAS(I,J,K) + KFST4_PART_ADJ + RSA_RAT*&
+                        (SCAEFF(I,J,K)+SCAEFF_G(I,J,K))*UIIOLD(I,J,K) ) ) )
+                    BR%BAND(IBND)%ILW(N) = RSA(N)*IL_ADJ
+
+                ELSE
+                    TEMP_ORIENTATION(1:3) = ORIENTATION_VECTOR(1:3,LP%ORIENTATION_INDEX)
+                    IF (LP%INIT_INDEX > 0) THEN
+                        IN => INITIALIZATION(LP%INIT_INDEX)
+                        IF (ANY(IN%ORIENTATION_RAMP_INDEX > 0)) THEN
+                            TEMP_ORIENTATION(1) = EVALUATE_RAMP(T,IN%ORIENTATION_RAMP_INDEX(1))
+                            TEMP_ORIENTATION(2) = EVALUATE_RAMP(T,IN%ORIENTATION_RAMP_INDEX(2))
+                            TEMP_ORIENTATION(3) = EVALUATE_RAMP(T,IN%ORIENTATION_RAMP_INDEX(3))
+                            TEMP_ORIENTATION = TEMP_ORIENTATION / &
+                                               (SQRT(TEMP_ORIENTATION(1)**2+TEMP_ORIENTATION(2)**2+TEMP_ORIENTATION(3)**2) &
+                                               +TWO_EPSILON_EB)
+                        ENDIF
+                    ENDIF
+                    COS_DLO = -DOT_PRODUCT(TEMP_ORIENTATION(1:3),DLANG(1:3,N))
+                    IF (COS_DLO > COS_HALF_VIEW_ANGLE(LP%ORIENTATION_INDEX)) THEN
+                        DLO = -(TEMP_ORIENTATION(1)*DLX(N) + TEMP_ORIENTATION(2)*DLY(N) + TEMP_ORIENTATION(3)*DLZ(N))
+                        BR => BOUNDARY_RADIA(LP%BR_INDEX)
+                        IF (LPC%MASSLESS_TARGET) THEN
+                            BR%BAND(IBND)%ILW(N) = DLO * IL(BC%IIG,BC%JJG,BC%KKG) * VIEW_ANGLE_FACTOR(LP%ORIENTATION_INDEX)
+                            IF (N==NEAREST_RADIATION_ANGLE(LP%ORIENTATION_INDEX)) &
+                                BR%IL(IBND) = IL(BC%IIG,BC%JJG,BC%KKG)
+                        ELSE
+                            ! does not account for the absorption of radiation within the cell occupied by the particle
+                            BR%BAND(IBND)%ILW(N) = DLO * MAX(0._EB,IL_UP(BC%IIG,BC%JJG,BC%KKG)/AD_DOWN(BC%IIG,BC%JJG,BC%KKG)) &
+                                * VIEW_ANGLE_FACTOR(LP%ORIENTATION_INDEX)
+                        ENDIF
+                    ENDIF
+                ENDIF
+            ENDDO PARTICLE_RADIATION_LOOP
 
             ! Save the intensities for the radiation file (RADF)
 
@@ -4534,8 +4551,12 @@ IF (SOLID_PARTICLES .AND. UPDATE_INTENSITY) THEN
                B1%Q_RAD_IN = B1%Q_RAD_IN + B1%EMISSIVITY * (WEIGH_CYL*SUM(BR%BAND(IBND)%ILW(1:NUMBER_RADIATION_ANGLES)) + EFLUX)
             ENDDO
          ELSE
-            BC => BOUNDARY_COORD(LP%BC_INDEX)
-            B1%Q_RAD_IN = B1%EMISSIVITY*(0.25_EB*UII(BC%IIG,BC%JJG,BC%KKG) + EFLUX)
+            BR => BOUNDARY_RADIA(LP%BR_INDEX)
+            B1%Q_RAD_IN = 0._EB
+            DO IBND=1,NUMBER_SPECTRAL_BANDS
+               B1%Q_RAD_IN = B1%Q_RAD_IN + B1%EMISSIVITY * &
+                (0.25_EB*WEIGH_CYL*SUM(BR%BAND(IBND)%ILW(1:NUMBER_RADIATION_ANGLES)) + EFLUX)
+            ENDDO
          ENDIF
       ENDIF
    ENDDO PARTICLE_LOOP
