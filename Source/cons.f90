@@ -597,6 +597,7 @@ INTEGER :: LEVEL_SET_MODE=0               !< Indicator of the type of level set 
 LOGICAL :: LEVEL_SET_COUPLED_FIRE=.TRUE.  !< Indicator for fire and wind level set coupling
 LOGICAL :: LEVEL_SET_COUPLED_WIND=.TRUE.  !< Indicator for fire and wind level set coupling
 LOGICAL :: LEVEL_SET_ELLIPSE=.TRUE.       !< Indicator of Richards elliptical level set formulation
+LOGICAL :: LEVEL_SET_WIND_ALOFT=.TRUE.    !< Implicit mid-flame wind from reference wind aloft (6.1 m)
 LOGICAL :: LSET_TAN2
 
 ! Parameters for Terrain and Wind simulation needs
