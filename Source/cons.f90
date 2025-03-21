@@ -187,6 +187,7 @@ LOGICAL :: INITIALIZATION_PHASE=.TRUE.      !< The set-up phase before the time-
 LOGICAL :: APPEND=.FALSE.                   !< For a RESTARTed calculation, APPEND the exising output files
 LOGICAL :: PARTICLE_FILE=.FALSE.            !< Indicates the existence of Lagrangian particles
 LOGICAL :: PARTICLE_DRAG=.FALSE.            !< Indicates there are particles that drag the gas
+LOGICAL :: SURFACE_DRAG=.TRUE.              !< Indicates there is surface vegetation drag (boundary fuel or level set)
 LOGICAL :: RESTART=.FALSE.                  !< Indicates if a former calculation is to be RESTARTed
 LOGICAL :: SUPPRESSION=.TRUE.               !< Indicates if gas-phase combustion extinction is modeled
 LOGICAL :: ACCUMULATE_WATER=.FALSE.         !< Indicates that integrated liquid outputs are specified

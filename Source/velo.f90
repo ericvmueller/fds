@@ -847,6 +847,7 @@ IF (ANY(ABS(OVEC)>TWO_EPSILON_EB))                        CALL CORIOLIS_FORCE   
 IF (PATCH_VELOCITY)                                       CALL PATCH_VELOCITY_FLUX ! Specified patch velocity
 IF (PERIODIC_TEST==7)                                     CALL MMS_VELOCITY_FLUX   ! Source term in manufactured solution
 IF (PERIODIC_TEST==21 .OR. PERIODIC_TEST==22 .OR. PERIODIC_TEST==23) CALL ROTATED_CUBE_VELOCITY_FLUX(NM,T)
+IF (SURFACE_DRAG)                                         CALL SURFACE_VEGETATION_DRAG
 
 ! Restore previous substep velocities to gas cut-faces underlaying Cartesian faces.
 
@@ -1204,6 +1205,222 @@ DEVC_LOOP: DO N=1,N_DEVC
 ENDDO DEVC_LOOP
 
 END SUBROUTINE PATCH_VELOCITY_FLUX
+
+SUBROUTINE SURFACE_VEGETATION_DRAG
+
+REAL(EB) :: DIST,DRAG_FACTOR,DRAG_UVWMAX,P,RDT,UMAG,UODT,VODT,WODT,VEG_BETA,VEG_HT,VEG_SVR,VVEG_RVC
+REAL(EB) :: FACE_VOL_FACTOR(2,IAXIS:KAXIS),FV_D(2,IAXIS:KAXIS),IDW,&
+            UBAR(IAXIS:KAXIS),VEL_INT(IAXIS:KAXIS),XYZ_V(IAXIS:KAXIS),XYZ_INT(IAXIS:KAXIS)
+INTEGER :: I,J,K,IIF,JJF,KKF,IIG,JJG,KKG,IW,ICF
+TYPE(WALL_TYPE),    POINTER :: WC
+TYPE(CFACE_TYPE),   POINTER :: CFA
+TYPE(SURFACE_TYPE), POINTER :: SF
+TYPE(BOUNDARY_PROP1_TYPE), POINTER :: B1
+TYPE(BOUNDARY_COORD_TYPE), POINTER :: BC
+REAL(EB), POINTER, DIMENSION(:,:,:) :: VEL=>NULL()
+REAL(EB), POINTER, DIMENSION(:) :: DX1,DX2,DX3
+
+
+! Makes use of PARTICLE_CFL to mirror the drag time step constraint applied to particles
+IF (.NOT. PARTICLE_DRAG) PART_UVWMAX = 0._EB
+RDT = 1/DT   
+
+DO IW = 1,N_EXTERNAL_WALL_CELLS+N_INTERNAL_WALL_CELLS
+   WC => WALL(IW)
+   IF (WC%BOUNDARY_TYPE/=SOLID_BOUNDARY) CYCLE   
+   SF => SURFACE(WC%SURF_INDEX)
+   IF (SF%VELOCITY_BC_INDEX/=BOUNDARY_FUEL_MODEL_BC) CYCLE
+   BC => BOUNDARY_COORD(WC%BC_INDEX)
+   B1 => BOUNDARY_PROP1(WC%B1_INDEX)
+   IIG = BC%IIG; JJG = BC%JJG; KKG = BC%KKG
+
+   IF (SF%VEG_LSET_SPREAD) THEN
+      VEG_SVR = SF%VEG_LSET_SIGMA*100._EB
+      VEG_BETA = SF%VEG_LSET_BETA
+      VEG_HT = SF%VEG_LSET_HT
+      VVEG_RVC = SF%VEG_LSET_HT*B1%RDN
+   ELSE
+      VEG_SVR = SF%SURFACE_VOLUME_RATIO(1)
+      VEG_BETA = SF%PACKING_RATIO(1)
+      VEG_HT = SF%LAYER_THICKNESS(1)
+      VVEG_RVC = SF%LAYER_THICKNESS(1)*B1%RDN
+   ENDIF
+
+   DRAG_FACTOR = 0.5_EB*SF%DRAG_COEFFICIENT*SF%SHAPE_FACTOR*VEG_SVR*VEG_BETA*VVEG_RVC
+
+   ! Vegetation layer centroid
+   XYZ_V(IAXIS) = BC%X + VEG_HT*BC%NVEC(IAXIS)
+   XYZ_V(JAXIS) = BC%Y + VEG_HT*BC%NVEC(JAXIS)
+   XYZ_V(KAXIS) = BC%Z + VEG_HT*BC%NVEC(KAXIS)
+
+   FACE_VOL_FACTOR(:,IAXIS) = DX(IIG)/(DXN(IIG-1)+DXN(IIG))
+   FACE_VOL_FACTOR(:,JAXIS) = DY(JJG)/(DYN(JJG-1)+DYN(JJG))
+   FACE_VOL_FACTOR(:,KAXIS) = DZ(KKG)/(DZN(KKG-1)+DZN(KKG))
+
+   UBAR = 0._EB
+   FV_D = 0._EB
+
+   ! Force only applied to nearest off-wall cell; velocity interpolation between face-centered value and
+   ! assumed zero velocity at the bottom of the vegetation, depending on vegetation height
+
+   SELECT CASE (ABS(BC%IOR))
+
+      CASE(1)
+         P = MAX(1._EB, 2._EB*ABS(XYZ_V(IAXIS)-BC%X)*B1%RDN)
+         UBAR(JAXIS) = P*(0.5_EB*(VV(IIG,JJG-1,KKG)+VV(IIG,JJG,KKG)))
+         UBAR(KAXIS) = P*(0.5_EB*(WW(IIG,JJG,KKG-1)+WW(IIG,JJG,KKG)))
+         UMAG = NORM2(UBAR)
+         FV_D(:,JAXIS) = DRAG_FACTOR*UBAR(JAXIS)*UMAG
+         FV_D(:,KAXIS) = DRAG_FACTOR*UBAR(KAXIS)*UMAG
+
+      CASE(2)
+         P = MAX(1._EB, 2._EB*ABS(XYZ_V(JAXIS)-BC%Y)*B1%RDN)
+         UBAR(IAXIS) = P*(0.5_EB*(UU(IIG-1,JJG,KKG)+UU(IIG,JJG,KKG)))
+         UBAR(KAXIS) = P*(0.5_EB*(WW(IIG,JJG,KKG-1)+WW(IIG,JJG,KKG)))
+         UMAG = NORM2(UBAR)
+         FV_D(:,IAXIS) = DRAG_FACTOR*UBAR(IAXIS)*UMAG
+         FV_D(:,KAXIS) = DRAG_FACTOR*UBAR(KAXIS)*UMAG
+
+      CASE(3)
+         P = MAX(1._EB, 2._EB*ABS(XYZ_V(KAXIS)-BC%Z)*B1%RDN)
+         UBAR(IAXIS) = P*(0.5_EB*(UU(IIG-1,JJG,KKG)+UU(IIG,JJG,KKG)))
+         UBAR(JAXIS) = P*(0.5_EB*(VV(IIG,JJG-1,KKG)+VV(IIG,JJG,KKG)))
+         UMAG = NORM2(UBAR)
+         FV_D(:,IAXIS) = DRAG_FACTOR*UBAR(IAXIS)*UMAG
+         FV_D(:,JAXIS) = DRAG_FACTOR*UBAR(JAXIS)*UMAG
+
+   END SELECT
+
+   DRAG_UVWMAX = DRAG_FACTOR*UMAG
+   IF (DRAG_UVWMAX>PART_UVWMAX) PART_UVWMAX = MAX(PART_UVWMAX,DRAG_UVWMAX)
+
+   ! Distribute force evenly onto cell face volumes
+   FV_D = FV_D*FACE_VOL_FACTOR
+
+   ! Limit the value to plus/minus abs(u)/dt to prevent a sudden change in gas direction. 
+   DO I=IIG-1,IIG
+      UODT = ABS(UU(I,JJG,KKG)*RDT)
+      FVX(I,JJG,KKG) = FVX(I,JJG,KKG) + MIN(UODT,MAX(-UODT,FV_D(I-IIG+2,IAXIS)))
+   ENDDO
+   DO J=JJG-1,JJG
+      VODT = ABS(VV(IIG,J,KKG)*RDT)
+      FVY(IIG,J,KKG) = FVY(IIG,J,KKG) + MIN(VODT,MAX(-VODT,FV_D(J-JJG+2,JAXIS)))
+   ENDDO
+   DO K=KKG-1,KKG
+      WODT = ABS(WW(IIG,JJG,K)*RDT)
+      FVZ(IIG,JJG,K) = FVZ(IIG,JJG,K) + MIN(WODT,MAX(-WODT,FV_D(K-KKG+2,KAXIS)))
+   ENDDO   
+
+ENDDO
+
+IF (CC_IBM) THEN
+   DO ICF = INTERNAL_CFACE_CELLS_LB+1,INTERNAL_CFACE_CELLS_LB+N_INTERNAL_CFACE_CELLS
+      CFA => CFACE(ICF)
+      IF (CFA%BOUNDARY_TYPE/=SOLID_BOUNDARY) CYCLE
+      SF => SURFACE(CFA%SURF_INDEX)
+      IF (SF%VELOCITY_BC_INDEX/=BOUNDARY_FUEL_MODEL_BC) CYCLE
+      BC => BOUNDARY_COORD(CFA%BC_INDEX)
+      B1 => BOUNDARY_PROP1(CFA%B1_INDEX)
+
+      IF (SF%VEG_LSET_SPREAD) THEN
+         VEG_SVR = SF%VEG_LSET_SIGMA*100._EB
+         VEG_BETA = SF%VEG_LSET_BETA
+         VEG_HT = SF%VEG_LSET_HT
+         VVEG_RVC = SF%VEG_LSET_HT*CFA%AREA/CCVOL
+      ELSE
+         VEG_SVR = SF%SURFACE_VOLUME_RATIO(1)
+         VEG_BETA = SF%PACKING_RATIO(1)
+         VEG_HT = SF%LAYER_THICKNESS(1)
+         VVEG_RVC = SF%LAYER_THICKNESS(1)*CFA%AREA/CCVOL
+      ENDIF
+
+      DRAG_FACTOR = 0.5_EB*SF%DRAG_COEFFICIENT*SF%SHAPE_FACTOR*VEG_SVR*VEG_BETA*VVEG_RVC
+
+      ! Vegetation layer centroid
+      XYZ_V(IAXIS) = BC%X + VEG_HT*BC%NVEC(IAXIS)
+      XYZ_V(JAXIS) = BC%Y + VEG_HT*BC%NVEC(JAXIS)
+      XYZ_V(KAXIS) = BC%Z + VEG_HT*BC%NVEC(KAXIS)
+
+      ! Get interpolation weights from distance to surrounding faces
+      ! First is point is cface centroid
+      IDW = 0._EB
+      DIST = NORM2((/BC%X,BC%Y,BC%Z/)-XYZ_V)
+      IDW(1,:) = 1/DIST**4._EB
+      DO AXIS=IAXIS,KAXIS
+         VEL_INT = 0._EB
+         XYZ_INT = (/XC(IIG),YC(JJG),ZC(KKG)/)
+         IIF = IIG; JJF = JJG; KKF = KKG
+         DX1 => DX; DX2 => DY; DX3 => DZ        
+         DO I=2,3
+            SELECT CASE (AXIS)
+               CASE (IAXIS)
+                  IIF = IIG+I-3
+                  XYZ_INT(IAXIS) = X(IIF)
+                  VEL => UU
+                  DX1 => DXN                     
+               CASE (JAXIS)
+                  JJF = JJG+I-3
+                  XYZ_INT(JAXIS) = Y(JJF)
+                  VEL => VV
+                  DX2 => DYN                  
+               CASE (KAXIS)
+                  KKF = KKG+I-3
+                  XYZ_INT(KAXIS) = Z(KKF)
+                  VEL => WW
+                  DX3 => DZN
+            END SELECT
+            ICF = FCVAR(IIF,JJF,KKF,CC_IDCF,AXIS)
+            IF (ICF>0) THEN
+               DIST = NORM2(CUT_FACE(ICF)%XYZCEN(IAXIS:KAXIS,1)-XYZ_V)
+               FACE_VOL(I-1,AXIS) = (DX1(IIF)*DX2(JJF)*DX3(KKF)*CUT_FACE(ICF)%ALPHA_CF)
+            ELSE
+               DIST = NORM2(XYZ_INT-XYZ_V)
+               FACE_VOL(I-1,AXIS) = (DX1(IIF)*DX2(JJF)*DX3(KKF))
+            ENDIF
+            IDW(I,AXIS) = 1/DIST**4._EB
+            VEL_INT(I) = VEL(IIF,JJG,KKG)
+         ENDDO
+         WGT3 = IDW(:,AXIS)
+         IF (ANY(WGT>TWO_EPSILON_EB)) WGT3 = WGT3/SUM(WGT3)
+         UBAR(AXIS)=SUM(VEL_INT*WGT3)
+      ENDDO
+
+      UMAG = NORM2(UBAR)
+      DRAG_UVWMAX = DRAG_FACTOR*UMAG
+      IF (DRAG_UVWMAX>PART_UVWMAX) PART_UVWMAX = MAX(PART_UVWMAX,DRAG_UVWMAX)
+      
+      DO AXIS=IAXIS,KAXIS
+         IIF = IIG; JJF = JJG; KKF = KKG
+         FACE_VOL_FACTOR(:,AXIS) = 0._EB
+         ! Renormalization factor to face volumes
+         WGT2 = IDW(2:3,AXIS)
+         IF (ANY(WGT2>TWO_EPSILON_EB)) THEN
+            WGT2 = WGT2/SUM(WGT2)
+            FACE_VOL_FACTOR(:,AXIS) = DX(IIG)*DY(JJG)*DZ(KKG)/SUM(WGT2*FACE_VOL(:,AXIS))
+            FACE_VOL_FACTOR(:,AXIS) = WGT2*FACE_VOL_FACTOR(:,AXIS)
+         ENDIF
+         FV_D(:,AXIS) = DRAG_FACTOR*UBAR(AXIS)*UMAG*FACE_VOL_FACTOR(:,AXIS)
+      ENDDO
+
+      ! Limit the value to plus/minus abs(u)/dt to prevent a sudden change in gas direction. 
+      DO I=IIG-1,IIG
+         UODT = ABS(UU(I,JJG,KKG)*RDT)
+         FVX(I,JJG,KKG) = FVX(I,JJG,KKG) + MIN(UODT,MAX(-UODT,FV_D(I-IIG+2,IAXIS)))
+      ENDDO
+      DO J=JJG-1,JJG
+         VODT = ABS(VV(IIG,J,KKG)*RDT)
+         FVY(IIG,J,KKG) = FVY(IIG,J,KKG) + MIN(VODT,MAX(-VODT,FV_D(J-JJG+2,JAXIS)))
+      ENDDO
+      DO K=KKG-1,KKG
+         WODT = ABS(WW(IIG,JJG,K)*RDT)
+         FVZ(IIG,JJG,K) = FVZ(IIG,JJG,K) + MIN(WODT,MAX(-WODT,FV_D(K-KKG+2,KAXIS)))
+      ENDDO 
+
+   ENDDO
+ENDIF
+
+END SUBROUTINE SURFACE_VEGETATION_DRAG
+
 
 END SUBROUTINE VELOCITY_FLUX
 
@@ -2320,7 +2537,7 @@ EDGE_LOOP: DO IE=1,EDGE_COUNT(NM)
                   MU_DUIDXJ(ICD_SGN) = MUA*DUIDXJ(ICD_SGN)
                   ALTERED_GRADIENT(ICD_SGN) = .TRUE.
 
-               CASE (WALL_MODEL_BC) BOUNDARY_CONDITION
+               CASE (WALL_MODEL_BC,BOUNDARY_FUEL_MODEL_BC) BOUNDARY_CONDITION
 
                   ITMP = MIN(I_MAX_TEMP,NINT(0.5_EB*(TMP(IIGM,JJGM,KKGM)+TMP(IIGP,JJGP,KKGP))))
                   MU_WALL = MU_RSQMW_Z(ITMP,1)/RSQ_MW_Z(1)
@@ -2338,20 +2555,20 @@ EDGE_LOOP: DO IE=1,EDGE_COUNT(NM)
                   MU_DUIDXJ(ICD_SGN) = RHO_WALL*U_TAU**2 * SIGN(1._EB,DUIDXJ(ICD_SGN))
                   ALTERED_GRADIENT(ICD_SGN) = .TRUE.
 
-               CASE (BOUNDARY_FUEL_MODEL_BC) BOUNDARY_CONDITION
+               ! CASE (BOUNDARY_FUEL_MODEL_BC) BOUNDARY_CONDITION
 
-                  RHO_WALL = 0.5_EB*( RHOP(IIGM,JJGM,KKGM) + RHOP(IIGP,JJGP,KKGP) )
-                  VEL_T = SQRT(UU(IIGM,JJGM,KKGM)**2 + VV(IIGM,JJGM,KKGM)**2)
-                  VEL_GHOST = VEL_GAS
-                  DUIDXJ(ICD_SGN) = 0._EB
-                  IF (SF%VEG_LSET_SPREAD) THEN
-                     MU_DUIDXJ(ICD_SGN) = I_SGN*0.5_EB*RHO_WALL*SF%DRAG_COEFFICIENT*SF%SHAPE_FACTOR*SF%VEG_LSET_HT*&
-                                             SF%VEG_LSET_BETA*(SF%VEG_LSET_SIGMA*100._EB)*VEL_GAS*VEL_T
-                  ELSE
-                     MU_DUIDXJ(ICD_SGN) = I_SGN*0.5_EB*RHO_WALL*SF%DRAG_COEFFICIENT*SF%SHAPE_FACTOR*SF%LAYER_THICKNESS(1)*&
-                                          SF%PACKING_RATIO(1)*SF%SURFACE_VOLUME_RATIO(1)*VEL_GAS*VEL_T
-                  ENDIF
-                  ALTERED_GRADIENT(ICD_SGN) = .TRUE.
+               !    RHO_WALL = 0.5_EB*( RHOP(IIGM,JJGM,KKGM) + RHOP(IIGP,JJGP,KKGP) )
+               !    VEL_T = SQRT(UU(IIGM,JJGM,KKGM)**2 + VV(IIGM,JJGM,KKGM)**2)
+               !    VEL_GHOST = VEL_GAS
+               !    DUIDXJ(ICD_SGN) = 0._EB
+               !    IF (SF%VEG_LSET_SPREAD) THEN
+               !       MU_DUIDXJ(ICD_SGN) = I_SGN*0.5_EB*RHO_WALL*SF%DRAG_COEFFICIENT*SF%SHAPE_FACTOR*SF%VEG_LSET_HT*&
+               !                               SF%VEG_LSET_BETA*(SF%VEG_LSET_SIGMA*100._EB)*VEL_GAS*VEL_T
+               !    ELSE
+               !       MU_DUIDXJ(ICD_SGN) = I_SGN*0.5_EB*RHO_WALL*SF%DRAG_COEFFICIENT*SF%SHAPE_FACTOR*SF%LAYER_THICKNESS(1)*&
+               !                            SF%PACKING_RATIO(1)*SF%SURFACE_VOLUME_RATIO(1)*VEL_GAS*VEL_T
+               !    ENDIF
+               !    ALTERED_GRADIENT(ICD_SGN) = .TRUE.
 
             END SELECT BOUNDARY_CONDITION
 
@@ -3096,6 +3313,7 @@ ELSE RAMP_TIME_IF
 
    ! Adjust time step size if necessary
 
+   ! WRITE(LU_ERR,*) 'cfl',PART_CFL,PART_UVWMAX,DT,PARTICLE_CFL_MAX
    IF ((CFL<CFL_MAX .AND. VN<VN_MAX .AND. PART_CFL<PARTICLE_CFL_MAX) .OR. LOCK_TIME_STEP) THEN
       DT_NEW(NM) = DT
       IF (CFL<=CFL_MIN .AND. VN<VN_MIN .AND. PART_CFL<PARTICLE_CFL_MIN .AND. .NOT.LOCK_TIME_STEP) THEN
