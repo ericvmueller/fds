@@ -1313,111 +1313,111 @@ DO IW = 1,N_EXTERNAL_WALL_CELLS+N_INTERNAL_WALL_CELLS
 
 ENDDO
 
-IF (CC_IBM) THEN
-   DO ICF = INTERNAL_CFACE_CELLS_LB+1,INTERNAL_CFACE_CELLS_LB+N_INTERNAL_CFACE_CELLS
-      CFA => CFACE(ICF)
-      IF (CFA%BOUNDARY_TYPE/=SOLID_BOUNDARY) CYCLE
-      SF => SURFACE(CFA%SURF_INDEX)
-      IF (SF%VELOCITY_BC_INDEX/=BOUNDARY_FUEL_MODEL_BC) CYCLE
-      BC => BOUNDARY_COORD(CFA%BC_INDEX)
-      B1 => BOUNDARY_PROP1(CFA%B1_INDEX)
+! IF (CC_IBM) THEN
+!    DO ICF = INTERNAL_CFACE_CELLS_LB+1,INTERNAL_CFACE_CELLS_LB+N_INTERNAL_CFACE_CELLS
+!       CFA => CFACE(ICF)
+!       IF (CFA%BOUNDARY_TYPE/=SOLID_BOUNDARY) CYCLE
+!       SF => SURFACE(CFA%SURF_INDEX)
+!       IF (SF%VELOCITY_BC_INDEX/=BOUNDARY_FUEL_MODEL_BC) CYCLE
+!       BC => BOUNDARY_COORD(CFA%BC_INDEX)
+!       B1 => BOUNDARY_PROP1(CFA%B1_INDEX)
 
-      IF (SF%VEG_LSET_SPREAD) THEN
-         VEG_SVR = SF%VEG_LSET_SIGMA*100._EB
-         VEG_BETA = SF%VEG_LSET_BETA
-         VEG_HT = SF%VEG_LSET_HT
-         VVEG_RVC = SF%VEG_LSET_HT*CFA%AREA/CCVOL
-      ELSE
-         VEG_SVR = SF%SURFACE_VOLUME_RATIO(1)
-         VEG_BETA = SF%PACKING_RATIO(1)
-         VEG_HT = SF%LAYER_THICKNESS(1)
-         VVEG_RVC = SF%LAYER_THICKNESS(1)*CFA%AREA/CCVOL
-      ENDIF
+!       IF (SF%VEG_LSET_SPREAD) THEN
+!          VEG_SVR = SF%VEG_LSET_SIGMA*100._EB
+!          VEG_BETA = SF%VEG_LSET_BETA
+!          VEG_HT = SF%VEG_LSET_HT
+!          VVEG_RVC = SF%VEG_LSET_HT*CFA%AREA/CCVOL
+!       ELSE
+!          VEG_SVR = SF%SURFACE_VOLUME_RATIO(1)
+!          VEG_BETA = SF%PACKING_RATIO(1)
+!          VEG_HT = SF%LAYER_THICKNESS(1)
+!          VVEG_RVC = SF%LAYER_THICKNESS(1)*CFA%AREA/CCVOL
+!       ENDIF
 
-      DRAG_FACTOR = 0.5_EB*SF%DRAG_COEFFICIENT*SF%SHAPE_FACTOR*VEG_SVR*VEG_BETA*VVEG_RVC
+!       DRAG_FACTOR = 0.5_EB*SF%DRAG_COEFFICIENT*SF%SHAPE_FACTOR*VEG_SVR*VEG_BETA*VVEG_RVC
 
-      ! Vegetation layer centroid
-      XYZ_V(IAXIS) = BC%X + VEG_HT*BC%NVEC(IAXIS)
-      XYZ_V(JAXIS) = BC%Y + VEG_HT*BC%NVEC(JAXIS)
-      XYZ_V(KAXIS) = BC%Z + VEG_HT*BC%NVEC(KAXIS)
+!       ! Vegetation layer centroid
+!       XYZ_V(IAXIS) = BC%X + VEG_HT*BC%NVEC(IAXIS)
+!       XYZ_V(JAXIS) = BC%Y + VEG_HT*BC%NVEC(JAXIS)
+!       XYZ_V(KAXIS) = BC%Z + VEG_HT*BC%NVEC(KAXIS)
 
-      ! Get interpolation weights from distance to surrounding faces
-      ! First is point is cface centroid
-      IDW = 0._EB
-      DIST = NORM2((/BC%X,BC%Y,BC%Z/)-XYZ_V)
-      IDW(1,:) = 1/DIST**4._EB
-      DO AXIS=IAXIS,KAXIS
-         VEL_INT = 0._EB
-         XYZ_INT = (/XC(IIG),YC(JJG),ZC(KKG)/)
-         IIF = IIG; JJF = JJG; KKF = KKG
-         DX1 => DX; DX2 => DY; DX3 => DZ        
-         DO I=2,3
-            SELECT CASE (AXIS)
-               CASE (IAXIS)
-                  IIF = IIG+I-3
-                  XYZ_INT(IAXIS) = X(IIF)
-                  VEL => UU
-                  DX1 => DXN                     
-               CASE (JAXIS)
-                  JJF = JJG+I-3
-                  XYZ_INT(JAXIS) = Y(JJF)
-                  VEL => VV
-                  DX2 => DYN                  
-               CASE (KAXIS)
-                  KKF = KKG+I-3
-                  XYZ_INT(KAXIS) = Z(KKF)
-                  VEL => WW
-                  DX3 => DZN
-            END SELECT
-            ICF = FCVAR(IIF,JJF,KKF,CC_IDCF,AXIS)
-            IF (ICF>0) THEN
-               DIST = NORM2(CUT_FACE(ICF)%XYZCEN(IAXIS:KAXIS,1)-XYZ_V)
-               FACE_VOL(I-1,AXIS) = (DX1(IIF)*DX2(JJF)*DX3(KKF)*CUT_FACE(ICF)%ALPHA_CF)
-            ELSE
-               DIST = NORM2(XYZ_INT-XYZ_V)
-               FACE_VOL(I-1,AXIS) = (DX1(IIF)*DX2(JJF)*DX3(KKF))
-            ENDIF
-            IDW(I,AXIS) = 1/DIST**4._EB
-            VEL_INT(I) = VEL(IIF,JJG,KKG)
-         ENDDO
-         WGT3 = IDW(:,AXIS)
-         IF (ANY(WGT>TWO_EPSILON_EB)) WGT3 = WGT3/SUM(WGT3)
-         UBAR(AXIS)=SUM(VEL_INT*WGT3)
-      ENDDO
+!       ! Get interpolation weights from distance to surrounding faces
+!       ! First is point is cface centroid
+!       IDW = 0._EB
+!       DIST = NORM2((/BC%X,BC%Y,BC%Z/)-XYZ_V)
+!       IDW(1,:) = 1/DIST**4._EB
+!       DO AXIS=IAXIS,KAXIS
+!          VEL_INT = 0._EB
+!          XYZ_INT = (/XC(IIG),YC(JJG),ZC(KKG)/)
+!          IIF = IIG; JJF = JJG; KKF = KKG
+!          DX1 => DX; DX2 => DY; DX3 => DZ        
+!          DO I=2,3
+!             SELECT CASE (AXIS)
+!                CASE (IAXIS)
+!                   IIF = IIG+I-3
+!                   XYZ_INT(IAXIS) = X(IIF)
+!                   VEL => UU
+!                   DX1 => DXN                     
+!                CASE (JAXIS)
+!                   JJF = JJG+I-3
+!                   XYZ_INT(JAXIS) = Y(JJF)
+!                   VEL => VV
+!                   DX2 => DYN                  
+!                CASE (KAXIS)
+!                   KKF = KKG+I-3
+!                   XYZ_INT(KAXIS) = Z(KKF)
+!                   VEL => WW
+!                   DX3 => DZN
+!             END SELECT
+!             ICF = FCVAR(IIF,JJF,KKF,CC_IDCF,AXIS)
+!             IF (ICF>0) THEN
+!                DIST = NORM2(CUT_FACE(ICF)%XYZCEN(IAXIS:KAXIS,1)-XYZ_V)
+!                FACE_VOL(I-1,AXIS) = (DX1(IIF)*DX2(JJF)*DX3(KKF)*CUT_FACE(ICF)%ALPHA_CF)
+!             ELSE
+!                DIST = NORM2(XYZ_INT-XYZ_V)
+!                FACE_VOL(I-1,AXIS) = (DX1(IIF)*DX2(JJF)*DX3(KKF))
+!             ENDIF
+!             IDW(I,AXIS) = 1/DIST**4._EB
+!             VEL_INT(I) = VEL(IIF,JJG,KKG)
+!          ENDDO
+!          WGT3 = IDW(:,AXIS)
+!          IF (ANY(WGT>TWO_EPSILON_EB)) WGT3 = WGT3/SUM(WGT3)
+!          UBAR(AXIS)=SUM(VEL_INT*WGT3)
+!       ENDDO
 
-      UMAG = NORM2(UBAR)
-      DRAG_UVWMAX = DRAG_FACTOR*UMAG
-      IF (DRAG_UVWMAX>PART_UVWMAX) PART_UVWMAX = MAX(PART_UVWMAX,DRAG_UVWMAX)
+!       UMAG = NORM2(UBAR)
+!       DRAG_UVWMAX = DRAG_FACTOR*UMAG
+!       IF (DRAG_UVWMAX>PART_UVWMAX) PART_UVWMAX = MAX(PART_UVWMAX,DRAG_UVWMAX)
       
-      DO AXIS=IAXIS,KAXIS
-         IIF = IIG; JJF = JJG; KKF = KKG
-         FACE_VOL_FACTOR(:,AXIS) = 0._EB
-         ! Renormalization factor to face volumes
-         WGT2 = IDW(2:3,AXIS)
-         IF (ANY(WGT2>TWO_EPSILON_EB)) THEN
-            WGT2 = WGT2/SUM(WGT2)
-            FACE_VOL_FACTOR(:,AXIS) = DX(IIG)*DY(JJG)*DZ(KKG)/SUM(WGT2*FACE_VOL(:,AXIS))
-            FACE_VOL_FACTOR(:,AXIS) = WGT2*FACE_VOL_FACTOR(:,AXIS)
-         ENDIF
-         FV_D(:,AXIS) = DRAG_FACTOR*UBAR(AXIS)*UMAG*FACE_VOL_FACTOR(:,AXIS)
-      ENDDO
+!       DO AXIS=IAXIS,KAXIS
+!          IIF = IIG; JJF = JJG; KKF = KKG
+!          FACE_VOL_FACTOR(:,AXIS) = 0._EB
+!          ! Renormalization factor to face volumes
+!          WGT2 = IDW(2:3,AXIS)
+!          IF (ANY(WGT2>TWO_EPSILON_EB)) THEN
+!             WGT2 = WGT2/SUM(WGT2)
+!             FACE_VOL_FACTOR(:,AXIS) = DX(IIG)*DY(JJG)*DZ(KKG)/SUM(WGT2*FACE_VOL(:,AXIS))
+!             FACE_VOL_FACTOR(:,AXIS) = WGT2*FACE_VOL_FACTOR(:,AXIS)
+!          ENDIF
+!          FV_D(:,AXIS) = DRAG_FACTOR*UBAR(AXIS)*UMAG*FACE_VOL_FACTOR(:,AXIS)
+!       ENDDO
 
-      ! Limit the value to plus/minus abs(u)/dt to prevent a sudden change in gas direction. 
-      DO I=IIG-1,IIG
-         UODT = ABS(UU(I,JJG,KKG)*RDT)
-         FVX(I,JJG,KKG) = FVX(I,JJG,KKG) + MIN(UODT,MAX(-UODT,FV_D(I-IIG+2,IAXIS)))
-      ENDDO
-      DO J=JJG-1,JJG
-         VODT = ABS(VV(IIG,J,KKG)*RDT)
-         FVY(IIG,J,KKG) = FVY(IIG,J,KKG) + MIN(VODT,MAX(-VODT,FV_D(J-JJG+2,JAXIS)))
-      ENDDO
-      DO K=KKG-1,KKG
-         WODT = ABS(WW(IIG,JJG,K)*RDT)
-         FVZ(IIG,JJG,K) = FVZ(IIG,JJG,K) + MIN(WODT,MAX(-WODT,FV_D(K-KKG+2,KAXIS)))
-      ENDDO 
+!       ! Limit the value to plus/minus abs(u)/dt to prevent a sudden change in gas direction. 
+!       DO I=IIG-1,IIG
+!          UODT = ABS(UU(I,JJG,KKG)*RDT)
+!          FVX(I,JJG,KKG) = FVX(I,JJG,KKG) + MIN(UODT,MAX(-UODT,FV_D(I-IIG+2,IAXIS)))
+!       ENDDO
+!       DO J=JJG-1,JJG
+!          VODT = ABS(VV(IIG,J,KKG)*RDT)
+!          FVY(IIG,J,KKG) = FVY(IIG,J,KKG) + MIN(VODT,MAX(-VODT,FV_D(J-JJG+2,JAXIS)))
+!       ENDDO
+!       DO K=KKG-1,KKG
+!          WODT = ABS(WW(IIG,JJG,K)*RDT)
+!          FVZ(IIG,JJG,K) = FVZ(IIG,JJG,K) + MIN(WODT,MAX(-WODT,FV_D(K-KKG+2,KAXIS)))
+!       ENDDO 
 
-   ENDDO
-ENDIF
+!    ENDDO
+! ENDIF
 
 END SUBROUTINE SURFACE_VEGETATION_DRAG
 
