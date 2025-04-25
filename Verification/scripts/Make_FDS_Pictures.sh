@@ -74,7 +74,7 @@ if [ "$SMV_PATH" == "" ]; then
 fi
 export SMV=$SMV_PATH/smokeview_$PLATFORM$TEST$SIZE$DEBUG
 export RUNSMV=$SVNROOT/fds/Utilities/Scripts/runsmv.sh
-export SMVBINDIR="-bindir $SVNROOT/bot/Bundlebot/smv/for_bundle/"
+export SMVBINDIR="-bindir $SVNROOT/smv/Build/for_bundle/"
 export BASEDIR=`pwd`/..
 
 echo "erasing SCRIPT_FIGURES png files"
@@ -83,6 +83,12 @@ rm -f $SVNROOT/fds/Manuals/FDS_Technical_Reference_Guide/SCRIPT_FIGURES/*.png
 rm -f $SVNROOT/fds/Manuals/FDS_User_Guide/SCRIPT_FIGURES/*.png
 rm -f $SVNROOT/fds/Manuals/FDS_Validation_Guide/SCRIPT_FIGURES/*.png
 rm -f $SVNROOT/fds/Manuals/FDS_Verification_Guide/SCRIPT_FIGURES/*.png
+
+cd $SVNROOT/fds/Verification/Miscellaneous
+if [ -e obst_single.smv ]; then
+  cp obst_single.smv obst_multi.smo
+fi
+cd $CURDIR
 
 if [ "$START_X" == "yes" ]; then
   source $SVNROOT/fds/Utilities/Scripts/startXserver.sh 2>/dev/null

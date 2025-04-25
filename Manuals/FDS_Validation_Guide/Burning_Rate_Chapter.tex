@@ -2,7 +2,7 @@
 
 \chapter{Burning Rate and Fire Spread}
 
-This chapter contains a series of validation exercises where the aim is to {\em predict} the burning and spread rate of the fire. Most of the simulations included in the previous chapters involved a {\em specified} burning or heat release rate. Here, the objective is to apply measured thermophysical properties of the material and predict its burning rate, either with a specified heat flux or as a free burn.
+This chapter contains a series of validation exercises where the aim is to {\em predict} the burning and spread rate of the fire. Most of the simulations included in the previous chapters involved a {\em specified} burning or heat release rate. Here, the objective is to apply measured thermo-physical properties of the material and predict its burning rate, either with a specified heat flux or as a free burn.
 
 \section{FAA Polymers}\label{sec_FAA_Polymers}
 
@@ -427,14 +427,16 @@ Combustion Efficiency   &               &          1                        & As
 \section{NIST Polymers}
 \label{NIST_Polymers_Properties}
 
-Black PMMA was chosen as the first material to be studied by the MaCFP Condenced Phase Subgroup. Its properties are listed in Table~\ref{NIST_PMMA_Properties}. It is assumed that the solid decomposes in two steps~\cite{Fiola:FSJ2021}.
+Black PMMA was chosen as the first material to be studied by the MaCFP Condensed Phase Subgroup. Its solid properties are listed in Table~\ref{NIST_PMMA_Properties} and its gas phase properties are listed in Table~\ref{MMA_Gas_Properties}. 
+
+It is assumed that solid PMMA decomposes in two steps~\cite{Fiola:FSJ2021}.
 \begin{eqnarray}
    \hbox{PMMA}_{\rm melt}   &\to& 0.98 \, \hbox{PMMA}_{\rm int} + 0.02 \, \hbox{MMA}_{\rm gas}  \label{PMMA1of2} \\
    \hbox{PMMA}_{\rm int}    &\to& 0.002 \, \hbox{Char} +         0.998 \, \hbox{MMA}_{\rm gas}   \label{PMMA2of2}
 \end{eqnarray}
 
 \begin{table}[!h]
-\caption[NIST PMMA properties]{Input parameters for PMMA~\cite{Fiola:FSJ2021}.}
+\caption[Solid phase PMMA properties]{Solid phase properties of PMMA~\cite{Fiola:FSJ2021}.}
 \begin{center}
 \begin{tabular}{|l|c|c|c|}
 \hline
@@ -451,6 +453,24 @@ Heat of Reaction            & kJ/kg         & $\begin{array}{ll} 5              
 \end{center}
 \label{NIST_PMMA_Properties}
 \end{table}
+
+\begin{table}[!h]
+\caption[Gas phase MMA properties]{Gas phase properties of MMA.}
+\begin{center}
+\begin{tabular}{|l|c|l|}
+\hline
+Property                                      & Value                                                                                                & Reference                         \\ \hline \hline
+Formula                                       & C$_5$H$_8$O$_2$                                                                                      & Table A.30 in Ref.~\cite{SFPE}    \\ \hline
+Heat of Combustion (MJ/kg)                    & 25.61                                                                                                & Table A.30 in Ref.~\cite{SFPE}    \\ \hline
+Specific Heat (kJ/kg/K)                       & $\begin{array}{l} 1.48 @ 114 \; ^\circ \hbox{C} \\ 1.90 @ 300 \; ^\circ \hbox{C} \end{array}$        & \cite{chemeo}                     \\ \hline
+CO Yield                                      & 0.010                                                                                                & Table A.39 in Ref.~\cite{SFPE}    \\ \hline
+Soot Yield                                    & 0.022                                                                                                & Table A.39 in Ref.~\cite{SFPE}    \\ \hline
+Radiative Fraction                            & 0.33                                                                                                 & \cite{Quintiere:FM2016}           \\ \hline
+\end{tabular}
+\end{center}
+\label{MMA_Gas_Properties}
+\end{table}
+
 
 Figure~\ref{NIST_PMMA} displays the results of measurements performed at NIST and FDS simulations of pyrolyzing black PMMA in the TGA (10~K/min), MCC (60~K/min) and DSC (10~K/min). Figure~\ref{NIST_PMMA_Cone} displays results of the Gasification Apparatus (50~kW/m$^2$) and Cone Calorimeter (25~kW/m$^2$).
 
@@ -958,6 +978,35 @@ Figures~\ref{BST_FRS_wood_cribs_Tests_1to2} through \ref{BST_FRS_wood_cribs_Test
 
 \clearpage
 
+\subsection{Kashiwagi Gasification}
+\label{Kashiwagi_Gasification}
+
+In Fig.~\ref{fig:Kashiwagi_Gasification_mass_flux}, mass loss rates for different coflow oxygen concentrations and exposure heat fluxes are shown and compared to the FDS simulations.
+
+\begin{figure}[!h]
+\begin{tabular*}{\textwidth}{l@{\extracolsep{\fill}}r}
+\includegraphics[height=2.15in]{SCRIPT_FIGURES/Kashiwagi_Gasification/Kashiwagi_MFLUX_25_1C} &
+\includegraphics[height=2.15in]{SCRIPT_FIGURES/Kashiwagi_Gasification/Kashiwagi_MFLUX_40_1C}
+\end{tabular*}
+\caption[Kashiwagi Gasification: weight loss mass flux]{Kashiwagi gasification mass flux (left) 25 \si{kW/m^2} and (right) 40 \si{kW/m^2}.}
+\label{fig:Kashiwagi_Gasification_mass_flux}
+\end{figure}
+
+In Fig.~\ref{fig:Kashiwagi_Gasification_tmp}, we plot time histories of in-depth temperatures.
+
+\begin{figure}[!h]
+\begin{tabular*}{\textwidth}{l@{\extracolsep{\fill}}r}
+\includegraphics[width=0.49\textwidth]{SCRIPT_FIGURES/Kashiwagi_Gasification/Kashiwagi_TMP_10p5O2_25_1C} &
+\includegraphics[width=0.49\textwidth]{SCRIPT_FIGURES/Kashiwagi_Gasification/Kashiwagi_TMP_10p5O2_40_1C} \\
+\includegraphics[width=0.49\textwidth]{SCRIPT_FIGURES/Kashiwagi_Gasification/Kashiwagi_TMP_Air_40_1C} &
+\includegraphics[width=0.49\textwidth]{SCRIPT_FIGURES/Kashiwagi_Gasification/Kashiwagi_TMP_N2_40_1C}
+\end{tabular*}
+\caption[Kashiwagi Gasification: in-depth temperatures]{Kashiwagi Gasification: in-depth temperatures.}
+\label{fig:Kashiwagi_Gasification_tmp}
+\end{figure}
+
+
+\clearpage
 
 \subsection{NIST/NRC Transient Combustibles}
 
@@ -976,7 +1025,7 @@ Figure~\ref{NIST_NRC_Transient_Combustibles_cribs} compares measured and predict
 
 \FloatBarrier
 
-Figure~\ref{NIST_NRC_Transient_Combustibles_boxes} compares measured and predicted heat release rates for a single cardbard box filled with shredded craft paper and arrays of multiple boxes. The simulations are all performed using Lagrangian particles as surrogates for the small paper strips. The grid resolution in all cases is 5~cm.
+Figure~\ref{NIST_NRC_Transient_Combustibles_boxes} compares measured and predicted heat release rates for a single cardboard box filled with shredded craft paper and arrays of multiple boxes. The simulations are all performed using Lagrangian particles as surrogates for the small paper strips. The grid resolution in all cases is 5~cm.
 
 \begin{figure}[!h]
 \begin{tabular*}{\textwidth}{l@{\extracolsep{\fill}}r}
@@ -1343,11 +1392,11 @@ Figure~\ref{UMD_SBI_HRR} displays the measured and predicted HRR for upward spre
 
 \section{Scaling Pyrolysis (SPyro)}\label{sec_Scaling Pyrolysis}
 
-FDS has a scaling-based pyrolysis model (SPyro) which dynamically scales a reference heat release rate per unit area curve based on the energy absorbed on the surface. This section evaluates the performance of FDS in scaling the buring rate using this model. Each heat flux shown in the figures in this section is a validation heat transfer level (i.e., the reference heat flux is not shown). Validation statistics are calculated based on the peak HRRPUA.
+FDS has a scaling-based pyrolysis model (SPyro) which dynamically scales a reference heat release rate per unit area curve based on the energy absorbed on the surface. This section evaluates the performance of FDS in scaling the burning rate using this model. Each heat flux shown in the figures in this section is a validation heat transfer level (i.e., the reference heat flux is not shown). Validation statistics are calculated based on the peak HRRPUA.
 
 \subsection{Aalto Woods Experiments}\label{sec_Aalto_Woods_Materials}
 
-Table ~\ref{Properties_Aalto_Woods_All} lists the relevant parameters for modeling the cone calorimeter experiments for this study. Note that the published properties from the test report are simplified in this analysis. Each multi-phase properties is represented as single bulk value.In addition, the temperature-dependent thermal conductivity and specific capacity are fixed at an average value. The ignition temperatures were calculated based on times to ignition at the lower heat fluxes using the other properties. The results of the simulations are shown below.
+Table ~\ref{Properties_Aalto_Woods_All} lists the relevant parameters for modeling the cone calorimeter experiments for this study. Note that the published properties from the test report are simplified in this analysis. Each multiphase properties is represented as single bulk value.In addition, the temperature-dependent thermal conductivity and specific capacity are fixed at an average value. The ignition temperatures were calculated based on times to ignition at the lower heat fluxes using the other properties. The results of the simulations are shown below.
 
 \begin{table}[!h]
 \caption[Properties of Aalto Woods]{Properties of Aalto Woods~\cite{Rinta-Paavola:2023}.}
@@ -1381,7 +1430,7 @@ Spruce Flaming                                    & 20.0 & 408 & 0.06 & 0.91 & 0
 \subsection{FAA Polymers Experiments}\label{sec_FAA_Polymers_Materials}
 
 Table ~\ref{Properties_FAA_Polymers_All} lists the relevant parameters for modeling the cone calorimeter experiments for this study.
-Note that the published properties from the test report are simplified in this analysis. Each multi-phase properties is represented as single bulk value. In addition, the temperature-dependent thermal conductivity and specific capacity are fixed at an average value.
+Note that the published properties from the test report are simplified in this analysis. Each multiphase properties is represented as single bulk value. In addition, the temperature-dependent thermal conductivity and specific capacity are fixed at an average value.
 The ignition temperatures were calculated based on times to ignition at the lower heat fluxes using the other properties.
 The results of the simulations are shown on the following pages.
 
@@ -1502,7 +1551,7 @@ Waferboard                                        & 13.0 & 712 & 425 & 13.3 & 0.
 \subsection{FSRI/NIJ Experiments}\label{sec_FSRI_NIJ_Materials}
 
 Table ~\ref{Properties_FSRI_Materials_Others}, Table ~\ref{Properties_FSRI_Materials_Polymers}, and Table ~\ref{Properties_FSRI_Materials_Wood-Based} lists the relevant parameters for modeling the cone calorimeter experiments for this study.
-Note that the published properties from the test report are simplified in this analysis. Each multi-phase properties is represented as single bulk value.
+Note that the published properties from the test report are simplified in this analysis. Each multiphase properties is represented as single bulk value.
 In addition, the temperature-dependent thermal conductivity and specific capacity are fixed at an average value.
 The ignition temperatures were calculated based on times to ignition at the lower heat fluxes using the other properties.
 
@@ -1526,7 +1575,6 @@ Feather Pillow Feathers$^{b}$                     & 0.8  & 671  & 0.03 & 1.49 & 
 Fiberglass Reinforced Panel                       & 6.4  & 524  & 0.12 & 1.66 & 514 & 27.3 & 0.069 \\\hline
 Gypsum Wallboard                                  & 13.0 & 591  & 0.15 & 1.10 & 448 & 6.3  & 0.001 \\\hline
 Hemp Sheet                                        & 0.4  & 523  & 0.04 & 1.79 & 410 & 17.0 & 0.001 \\\hline
-House Wrap                                        & 0.1  & 714  & 0.15 & 1.57 & 484 & 1.5  & 0.052 \\\hline
 Latex Pillow Foam$^{b}$                           & 3.3  & 677  & 0.13 & 1.58 & 440 & 32.8 & 0.094 \\\hline
 Lightweight Gypsum Wallboard                      & 12.9 & 494  & 0.13 & 1.15 & 547 & 8.1  & 0.001 \\\hline
 Low Density Fiberboard                            & 12.6 & 214  & 0.06 & 1.35 & 503 & 16.6 & 0.003 \\\hline
@@ -1569,9 +1617,8 @@ Wool Rug                                          & 16.6 & 226  & 0.06 & 1.33 & 
 \includegraphics[height=2.10in]{SCRIPT_FIGURES/Scaling_Pyrolysis/FSRI_FRP_Panel_cone_6p4.pdf} \\
 \includegraphics[height=2.10in]{SCRIPT_FIGURES/Scaling_Pyrolysis/FSRI_Gypsum_Wallboard_cone_13p0.pdf} &
 \includegraphics[height=2.10in]{SCRIPT_FIGURES/Scaling_Pyrolysis/FSRI_Hemp_Sheet_cone_0p4.pdf} \\
-\includegraphics[height=2.10in]{SCRIPT_FIGURES/Scaling_Pyrolysis/FSRI_House_Wrap_cone_0p1.pdf} &
-\includegraphics[height=2.10in]{SCRIPT_FIGURES/Scaling_Pyrolysis/FSRI_Latex_Pillow_Foam_cone_3p3.pdf} \\
-\includegraphics[height=2.10in]{SCRIPT_FIGURES/Scaling_Pyrolysis/FSRI_Lightweight_Gypsum_Wallboard_cone_12p9.pdf} &
+\includegraphics[height=2.10in]{SCRIPT_FIGURES/Scaling_Pyrolysis/FSRI_Latex_Pillow_Foam_cone_3p3.pdf} &
+\includegraphics[height=2.10in]{SCRIPT_FIGURES/Scaling_Pyrolysis/FSRI_Lightweight_Gypsum_Wallboard_cone_12p9.pdf}\\
 \includegraphics[height=2.10in]{SCRIPT_FIGURES/Scaling_Pyrolysis/FSRI_FDNY_LDF_cone_12p6.pdf} \\
 \end{tabular*}
 \caption[HRRPUA of FSRI Materials using scaling model, others materials]
@@ -1793,7 +1840,7 @@ Wood Stud                                         & 46.2 & 379  & 0.10 & 1.47 & 
 \subsection{JH Experiments}\label{sec_JH_Materials}
 
 Table ~\ref{Properties_JH_Materials_All} lists the relevant parameters for modeling the cone calorimeter experiments for this study.
-Note that the published properties from the test report are simplified in this analysis. Each multi-phase properties is represented as single bulk value.
+Note that the published properties from the test report are simplified in this analysis. Each multiphase properties is represented as single bulk value.
 In addition, the temperature-dependent thermal conductivity and specific capacity are fixed at an average value.
 The ignition temperatures were calculated based on times to ignition at the lower heat fluxes using the other properties.
 The results of the simulations are shown on the following pages.
