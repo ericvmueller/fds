@@ -3463,7 +3463,7 @@ USE PHYSICAL_FUNCTIONS, ONLY : GET_VOLUME_FRACTION, GET_MASS_FRACTION
 REAL(EB) :: RAP, AX, AXU, AXD, AY, AYU, AYD, AZ, AZU, AZD, VC, RU, RD, RP, AFD, &
             ILXU, ILYU, ILZU, QVAL, BBF, BBFA, NCSDROP, RSA_RAT,EFLUX,SOOT_MASS_FRACTION, &
             AIU_SUM,A_SUM,VOL,VC1,AY1,AZ1,DLO,COS_DLO,AILFU, &
-            RAD_Q_SUM_PARTIAL,KFST4_SUM_PARTIAL,ALPHA_CC
+            RAD_Q_SUM_PARTIAL,KFST4_SUM_PARTIAL,ALPHA_CC,FWX,FWY,FWZ
 
 INTEGER  :: N,NN,IIG,JJG,KKG,I,J,K,IW,ICF,II,JJ,KK,IOR,IC,IWUP,IWDOWN, &
             ISTART, IEND, ISTEP, JSTART, JEND, JSTEP, &
@@ -3474,6 +3474,7 @@ INTEGER  :: IADD,IFACE,INDCF
 INTEGER, ALLOCATABLE :: IJK_SLICE(:,:)
 REAL(EB) :: XID,YJD,ZKD,KAPPA_PART_SINGLE,DLF,DLA(3),TSI,TMP_EXTERIOR,TEMP_ORIENTATION(3)
 REAL(EB), ALLOCATABLE, DIMENSION(:) :: ZZ_GET
+REAL(EB) :: ILDX(0:IBP1,0:JBP1,0:KBP1),ILDY(0:IBP1,0:JBP1,0:KBP1),ILDZ(0:IBP1,0:JBP1,0:KBP1)
 INTEGER :: IID,JJD,KKD,IP
 LOGICAL :: UPDATE_INTENSITY
 REAL(EB), POINTER, DIMENSION(:,:,:) :: IL,UIIOLD,KAPPA_PART,KFST4_PART,EXTCOE,SCAEFF,SCAEFF_G,IL_UP
@@ -4089,6 +4090,10 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
                KMAX = KSTART
             ENDIF
 
+            ILDX=IL
+            ILDY=IL
+            ILDZ=IL
+
             GEOMETRY2: IF (CYLINDRICAL) THEN  ! Sweep in axisymmetric geometry
                J = 1
                CKLOOP: DO K=KSTART,KEND,KSTEP
@@ -4192,9 +4197,12 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
                      AX  = DY(J) * DZ(K) * ABS(DLX(N))
                      VC1 = DY(J) * DZ(K)
                      AZ1 = DY(J) * ABS(DLZ(N))
-                     ILXU  = IL(I-ISTEP,J,K)
-                     ILYU  = IL(I,J-JSTEP,K)
-                     ILZU  = IL(I,J,K-KSTEP)
+                     ! ILXU  = IL(I-ISTEP,J,K)
+                     ! ILYU  = IL(I,J-JSTEP,K)
+                     ! ILZU  = IL(I,J,K-KSTEP)
+                     ILXU = ILDX(I-ISTEP,J,K)                     
+                     ILYU = ILDY(I,J-JSTEP,K)
+                     ILZU = ILDZ(I,J,K-KSTEP)
                      IC = CELL_INDEX(I,J,K)
                      IF (IC/=0) THEN
                         IF (CELL(IC)%SOLID) CYCLE SLICE_LOOP
@@ -4268,18 +4276,31 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
                         ENDIF
                      ENDIF
 
-                     A_SUM = AXD + AYD + AZD + AFD
-                     AIU_SUM = AXU*ILXU + AYU*ILYU + AZU*ILZU + AILFU
-                     IF (SOLID_PARTICLES) IL_UP(I,J,K) = MAX(0._EB,AIU_SUM/A_SUM)
-                     RAP = 1._EB/(A_SUM + EXTCOE(I,J,K)*VC*RSA(N))
-                     IL(I,J,K) = MAX(0._EB, RAP * (AIU_SUM + VC*RSA(N)*RFPI* &
-                                     ( KFST4_GAS(I,J,K) + KFST4_PART(I,J,K) + RSA_RAT*&
-                                     (SCAEFF(I,J,K)+SCAEFF_G(I,J,K))*UIIOLD(I,J,K) ) ) )
+                    
+                    SELECT CASE(RADIATION_SCHEME)
+                        CASE DEFAULT ! Upwind (step)
+                            FWX = 1._EB; FWY = 1._EB; FWZ = 1._EB
+                        CASE(2) ! Diamond
+                            FWX = 0.5_EB; FWY = 0.5_EB; FWZ = 0.5_EB
+                    END SELECT
+
+                    A_SUM = AXD/FWX + AYD/FWY + AZD/FWZ + AFD
+                    AIU_SUM = AXU*ILXU/FWX + AYU*ILYU/FWY + AZU*ILZU/FWZ + AILFU
+                    IF (SOLID_PARTICLES) IL_UP(I,J,K) = MAX(0._EB,AIU_SUM/A_SUM)
+                    RAP = 1._EB/(A_SUM + EXTCOE(I,J,K)*VC*RSA(N))
+                    IL(I,J,K) = MAX(0._EB, RAP * (AIU_SUM + VC*RSA(N)*RFPI* &
+                                ( KFST4_GAS(I,J,K) + KFST4_PART(I,J,K) + RSA_RAT*&
+                                (SCAEFF(I,J,K)+SCAEFF_G(I,J,K))*UIIOLD(I,J,K) ) ) )
+
+                    ! Set downwind intensities
+                    ILDX(I,J,K) = MAX(0._EB,IL(I,J,K) + (FWX-1._EB)*ILXU)
+                    ILDY(I,J,K) = MAX(0._EB,IL(I,J,K) + (FWY-1._EB)*ILYU)
+                    ILDZ(I,J,K) = MAX(0._EB,IL(I,J,K) + (FWZ-1._EB)*ILZU)
 
                   ENDDO SLICE_LOOP
                   !$OMP END PARALLEL DO
 
-               ENDDO IPROP_LOOP
+                ENDDO IPROP_LOOP
 
             ENDIF GEOMETRY2
 
