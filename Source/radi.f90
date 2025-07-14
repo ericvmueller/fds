@@ -3463,7 +3463,8 @@ USE PHYSICAL_FUNCTIONS, ONLY : GET_VOLUME_FRACTION, GET_MASS_FRACTION
 REAL(EB) :: RAP, AX, AXU, AXD, AY, AYU, AYD, AZ, AZU, AZD, VC, RU, RD, RP, AFD, &
             ILXU, ILYU, ILZU, QVAL, BBF, BBFA, NCSDROP, RSA_RAT,EFLUX,SOOT_MASS_FRACTION, &
             AIU_SUM,A_SUM,VOL,VC1,AY1,AZ1,DLO,COS_DLO,AILFU, &
-            RAD_Q_SUM_PARTIAL,KFST4_SUM_PARTIAL,ALPHA_CC,FWX,FWY,FWZ
+            RAD_Q_SUM_PARTIAL,KFST4_SUM_PARTIAL,ALPHA_CC,FWX,FWY,FWZ,PLX,PLY,PLZ,PLS,&
+            GAMMA_X,GAMMA_Y,GAMMA_Z
 
 INTEGER  :: N,NN,IIG,JJG,KKG,I,J,K,IW,ICF,II,JJ,KK,IOR,IC,IWUP,IWDOWN, &
             ISTART, IEND, ISTEP, JSTART, JEND, JSTEP, &
@@ -4276,13 +4277,37 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
                         ENDIF
                      ENDIF
 
-                    
-                    SELECT CASE(RADIATION_SCHEME)
-                        CASE DEFAULT ! Upwind (step)
-                            FWX = 1._EB; FWY = 1._EB; FWZ = 1._EB
-                        CASE(2) ! Diamond
-                            FWX = 0.5_EB; FWY = 0.5_EB; FWZ = 0.5_EB
-                    END SELECT
+                    FWX = 1._EB; FWY = 1._EB; FWZ = 1._EB
+                    IF (KAPPA_PART(I,J,K)>0._EB) THEN
+                        SELECT CASE(RADIATION_SCHEME)
+                            CASE DEFAULT ! Upwind (step)
+                                FWX = 1._EB; FWY = 1._EB; FWZ = 1._EB
+                            CASE(2) ! Diamond
+                                FWX = 0.5_EB; FWY = 0.5_EB; FWZ = 0.5_EB
+                            CASE(3) ! modified exponential
+                                PLX = HUGE_EB; PLY = HUGE_EB; PLZ = HUGE_EB
+                                IF(ABS(DLANG(1,N))>0._EB) PLX = DX(I)/ABS(DLANG(1,N))
+                                IF(ABS(DLANG(2,N))>0._EB) PLY = DY(J)/ABS(DLANG(2,N))
+                                IF(ABS(DLANG(3,N))>0._EB) PLZ = DZ(K)/ABS(DLANG(3,N))
+                                PLS = MIN(PLX,PLY,PLZ)
+                                ! FWX = MIN(1._EB, 1._EB/(2._EB-EXP(-KAPPA_PART(I,J,K)*PLS)))
+                                FWX = MIN(1._EB, 1._EB/(1._EB-EXP(-KAPPA_PART(I,J,K)*PLS))-1._EB/(KAPPA_PART(I,J,K)*PLS))
+                                FWY=FWX; FWZ=FWX
+                            CASE(4) ! Hybrid
+                                PLX = HUGE_EB; PLY = HUGE_EB; PLZ = HUGE_EB
+                                IF(ABS(DLANG(1,N))>0._EB) PLX = DX(I)/ABS(DLANG(1,N))
+                                IF(ABS(DLANG(2,N))>0._EB) PLY = DY(J)/ABS(DLANG(2,N))
+                                IF(ABS(DLANG(3,N))>0._EB) PLZ = DZ(K)/ABS(DLANG(3,N))
+                                PLS = MIN(PLX,PLY,PLZ)
+                                GAMMA_X = 0.5_EB+0.5_EB*ABS(DLANG(1,N))
+                                GAMMA_Y = 0.5_EB+0.5_EB*ABS(DLANG(2,N))
+                                GAMMA_Z = 0.5_EB+0.5_EB*ABS(DLANG(3,N))
+                                GAMMA_X = MIN(GAMMA_X,GAMMA_Y,GAMMA_Z)
+                                FWX = MIN(1._EB, 1._EB/(GAMMA_X+EXP(-KAPPA_PART(I,J,K)*PLS)))
+                                FWY = MIN(1._EB, 1._EB/(GAMMA_X+EXP(-KAPPA_PART(I,J,K)*PLS)))
+                                FWZ = MIN(1._EB, 1._EB/(GAMMA_X+EXP(-KAPPA_PART(I,J,K)*PLS)))
+                        END SELECT
+                    ENDIF
 
                     A_SUM = AXD/FWX + AYD/FWY + AZD/FWZ + AFD
                     AIU_SUM = AXU*ILXU/FWX + AYU*ILYU/FWY + AZU*ILZU/FWZ + AILFU
@@ -4293,9 +4318,9 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
                                 (SCAEFF(I,J,K)+SCAEFF_G(I,J,K))*UIIOLD(I,J,K) ) ) )
 
                     ! Set downwind intensities
-                    ILDX(I,J,K) = MAX(0._EB,IL(I,J,K) + (FWX-1._EB)*ILXU)
-                    ILDY(I,J,K) = MAX(0._EB,IL(I,J,K) + (FWY-1._EB)*ILYU)
-                    ILDZ(I,J,K) = MAX(0._EB,IL(I,J,K) + (FWZ-1._EB)*ILZU)
+                    ILDX(I,J,K) = MAX(0._EB,(IL(I,J,K) - (1._EB-FWX)*ILXU)/FWX)
+                    ILDY(I,J,K) = MAX(0._EB,(IL(I,J,K) - (1._EB-FWY)*ILYU)/FWY)
+                    ILDZ(I,J,K) = MAX(0._EB,(IL(I,J,K) - (1._EB-FWZ)*ILZU)/FWZ)
 
                   ENDDO SLICE_LOOP
                   !$OMP END PARALLEL DO
