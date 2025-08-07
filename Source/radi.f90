@@ -4321,13 +4321,13 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
                     ILDX(I,J,K) = MAX(0._EB,(IL(I,J,K) - (1._EB-FWX)*ILXU)/FWX)
                     ILDY(I,J,K) = MAX(0._EB,(IL(I,J,K) - (1._EB-FWY)*ILYU)/FWY)
                     ILDZ(I,J,K) = MAX(0._EB,(IL(I,J,K) - (1._EB-FWZ)*ILZU)/FWZ)
-                    IF (((IL(I,J,K) - (1._EB-FWX)*ILXU)/FWX)<-TWO_EPSILON_EB) &
-                        WRITE(LU_ERR,*) 'IL_X CLIP: ',NM,I,J,K,N,DLANG(3,N),IL(I,J,K),(IL(I,J,K) - (1._EB-FWX)*ILXU)/FWX
-                    IF (((IL(I,J,K) - (1._EB-FWY)*ILYU)/FWY)<-TWO_EPSILON_EB) &
-                        WRITE(LU_ERR,*) 'IL_Y CLIP: ',NM,I,J,K,N,DLANG(3,N),IL(I,J,K),(IL(I,J,K) - (1._EB-FWY)*ILYU)/FWY
-                    IF (((IL(I,J,K) - (1._EB-FWZ)*ILZU)/FWZ)<-TWO_EPSILON_EB) &
-                        WRITE(LU_ERR,*) 'IL_Z CLIP: ',NM,I,J,K,N,DLANG(3,N),IL(I,J,K),(IL(I,J,K) - (1._EB-FWZ)*ILZU)/FWZ
-                    IF (IL(I,J,K)<TWO_EPSILON_EB) WRITE(LU_ERR,*) 'ZERO IL: ',N,DLANG(3,N),IL(I,J,K)
+                    ! IF (((IL(I,J,K) - (1._EB-FWX)*ILXU)/FWX)<-TWO_EPSILON_EB) &
+                    !     WRITE(LU_ERR,*) 'IL_X CLIP: ',NM,I,J,K,N,DLANG(3,N),IL(I,J,K),(IL(I,J,K) - (1._EB-FWX)*ILXU)/FWX
+                    ! IF (((IL(I,J,K) - (1._EB-FWY)*ILYU)/FWY)<-TWO_EPSILON_EB) &
+                    !     WRITE(LU_ERR,*) 'IL_Y CLIP: ',NM,I,J,K,N,DLANG(3,N),IL(I,J,K),(IL(I,J,K) - (1._EB-FWY)*ILYU)/FWY
+                    ! IF (((IL(I,J,K) - (1._EB-FWZ)*ILZU)/FWZ)<-TWO_EPSILON_EB) &
+                    !     WRITE(LU_ERR,*) 'IL_Z CLIP: ',NM,I,J,K,N,DLANG(3,N),IL(I,J,K),(IL(I,J,K) - (1._EB-FWZ)*ILZU)/FWZ
+                    ! IF (IL(I,J,K)<TWO_EPSILON_EB) WRITE(LU_ERR,*) 'ZERO IL: ',N,DLANG(3,N),IL(I,J,K)
 
                   ENDDO SLICE_LOOP
                   !$OMP END PARALLEL DO
@@ -4364,20 +4364,31 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
             !$OMP PARALLEL PRIVATE(IOR, IIG, JJG, KKG, WC, BC, BR)
             !$OMP DO SCHEDULE(GUIDED)
             WALL_LOOP2: DO IW=1,N_EXTERNAL_WALL_CELLS+N_INTERNAL_WALL_CELLS
-               WC => WALL(IW)
-               IF (WC%BOUNDARY_TYPE==NULL_BOUNDARY) CYCLE WALL_LOOP2
-               IF (WC%BOUNDARY_TYPE==OPEN_BOUNDARY) CYCLE WALL_LOOP2
-               BC => BOUNDARY_COORD(WC%BC_INDEX)
-               BR => BOUNDARY_RADIA(WC%BR_INDEX)
-               IOR = BC%IOR
-               IF (TWO_D .AND. .NOT.CYLINDRICAL  .AND. ABS(IOR)==2) CYCLE WALL_LOOP2  ! 2-D non cylindrical
-               IF (DLN(IOR,N)>=0._EB) CYCLE WALL_LOOP2     ! outgoing
-               IIG = BC%IIG
-               JJG = BC%JJG
-               KKG = BC%KKG
-               INRAD_W(IW) = INRAD_W(IW) + DLN(IOR,N) * BR%BAND(IBND)%ILW(N) ! update incoming rad, step 1
-               BR%BAND(IBND)%ILW(N) = IL(IIG,JJG,KKG)
-               INRAD_W(IW) = INRAD_W(IW) - DLN(IOR,N) * BR%BAND(IBND)%ILW(N) ! update incoming rad, step 2
+                WC => WALL(IW)
+                   IF (WC%BOUNDARY_TYPE==NULL_BOUNDARY) CYCLE WALL_LOOP2
+                   IF (WC%BOUNDARY_TYPE==OPEN_BOUNDARY) CYCLE WALL_LOOP2
+                   BC => BOUNDARY_COORD(WC%BC_INDEX)
+                   BR => BOUNDARY_RADIA(WC%BR_INDEX)
+                   IOR = BC%IOR
+                   IF (TWO_D .AND. .NOT.CYLINDRICAL  .AND. ABS(IOR)==2) CYCLE WALL_LOOP2  ! 2-D non cylindrical
+                   IF (DLN(IOR,N)>=0._EB) CYCLE WALL_LOOP2     ! outgoing
+                   IIG = BC%IIG
+                   JJG = BC%JJG
+                   KKG = BC%KKG
+                   INRAD_W(IW) = INRAD_W(IW) + DLN(IOR,N) * BR%BAND(IBND)%ILW(N) ! update incoming rad, step 1
+                   BR%BAND(IBND)%ILW(N) = IL(IIG,JJG,KKG)
+                   ! Use downwind face value if relevant
+                   IF (RADIATION_SCHEME==3 .AND. KAPPA_PART(IIG,JJG,KKG)>0._EB) THEN
+                      SELECT CASE(ABS(IOR))
+                        CASE(1)
+                            BR%BAND(IBND)%ILW(N) = ILDX(IIG,JJG,KKG)
+                        CASE(2)
+                            BR%BAND(IBND)%ILW(N) = ILDY(IIG,JJG,KKG)
+                        CASE(3)
+                            BR%BAND(IBND)%ILW(N) = ILDZ(IIG,JJG,KKG)
+                        END SELECT
+                   ENDIF
+                INRAD_W(IW) = INRAD_W(IW) - DLN(IOR,N) * BR%BAND(IBND)%ILW(N) ! update incoming rad, step 2
             ENDDO WALL_LOOP2
             !$OMP END DO
 
