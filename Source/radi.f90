@@ -4321,6 +4321,13 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
                     ILDX(I,J,K) = MAX(0._EB,(IL(I,J,K) - (1._EB-FWX)*ILXU)/FWX)
                     ILDY(I,J,K) = MAX(0._EB,(IL(I,J,K) - (1._EB-FWY)*ILYU)/FWY)
                     ILDZ(I,J,K) = MAX(0._EB,(IL(I,J,K) - (1._EB-FWZ)*ILZU)/FWZ)
+                    IF (((IL(I,J,K) - (1._EB-FWX)*ILXU)/FWX)<-TWO_EPSILON_EB) &
+                        WRITE(LU_ERR,*) 'IL_X CLIP: ',NM,I,J,K,N,DLANG(3,N),IL(I,J,K),(IL(I,J,K) - (1._EB-FWX)*ILXU)/FWX
+                    IF (((IL(I,J,K) - (1._EB-FWY)*ILYU)/FWY)<-TWO_EPSILON_EB) &
+                        WRITE(LU_ERR,*) 'IL_Y CLIP: ',NM,I,J,K,N,DLANG(3,N),IL(I,J,K),(IL(I,J,K) - (1._EB-FWY)*ILYU)/FWY
+                    IF (((IL(I,J,K) - (1._EB-FWZ)*ILZU)/FWZ)<-TWO_EPSILON_EB) &
+                        WRITE(LU_ERR,*) 'IL_Z CLIP: ',NM,I,J,K,N,DLANG(3,N),IL(I,J,K),(IL(I,J,K) - (1._EB-FWZ)*ILZU)/FWZ
+                    IF (IL(I,J,K)<TWO_EPSILON_EB) WRITE(LU_ERR,*) 'ZERO IL: ',N,DLANG(3,N),IL(I,J,K)
 
                   ENDDO SLICE_LOOP
                   !$OMP END PARALLEL DO
