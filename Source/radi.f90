@@ -4284,7 +4284,7 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
                                 FWX = 1._EB; FWY = 1._EB; FWZ = 1._EB
                             CASE(2) ! Diamond
                                 FWX = 0.5_EB; FWY = 0.5_EB; FWZ = 0.5_EB
-                            CASE(3) ! modified exponential
+                            CASE(3) ! exponential
                                 PLX = HUGE_EB; PLY = HUGE_EB; PLZ = HUGE_EB
                                 IF(ABS(DLANG(1,N))>0._EB) PLX = DX(I)/ABS(DLANG(1,N))
                                 IF(ABS(DLANG(2,N))>0._EB) PLY = DY(J)/ABS(DLANG(2,N))
@@ -4293,19 +4293,16 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
                                 ! FWX = MIN(1._EB, 1._EB/(2._EB-EXP(-KAPPA_PART(I,J,K)*PLS)))
                                 FWX = MIN(1._EB, 1._EB/(1._EB-EXP(-KAPPA_PART(I,J,K)*PLS))-1._EB/(KAPPA_PART(I,J,K)*PLS))
                                 FWY=FWX; FWZ=FWX
-                            CASE(4) ! Hybrid
+                            CASE(4) ! exponential v2
                                 PLX = HUGE_EB; PLY = HUGE_EB; PLZ = HUGE_EB
                                 IF(ABS(DLANG(1,N))>0._EB) PLX = DX(I)/ABS(DLANG(1,N))
                                 IF(ABS(DLANG(2,N))>0._EB) PLY = DY(J)/ABS(DLANG(2,N))
                                 IF(ABS(DLANG(3,N))>0._EB) PLZ = DZ(K)/ABS(DLANG(3,N))
                                 PLS = MIN(PLX,PLY,PLZ)
-                                GAMMA_X = 0.5_EB+0.5_EB*ABS(DLANG(1,N))
-                                GAMMA_Y = 0.5_EB+0.5_EB*ABS(DLANG(2,N))
-                                GAMMA_Z = 0.5_EB+0.5_EB*ABS(DLANG(3,N))
-                                GAMMA_X = MIN(GAMMA_X,GAMMA_Y,GAMMA_Z)
-                                FWX = MIN(1._EB, 1._EB/(GAMMA_X+EXP(-KAPPA_PART(I,J,K)*PLS)))
-                                FWY = MIN(1._EB, 1._EB/(GAMMA_X+EXP(-KAPPA_PART(I,J,K)*PLS)))
-                                FWZ = MIN(1._EB, 1._EB/(GAMMA_X+EXP(-KAPPA_PART(I,J,K)*PLS)))
+                                ! FWX = MIN(1._EB, 1._EB/(2._EB-EXP(-KAPPA_PART(I,J,K)*PLS)))
+                                FWX = MIN(1._EB, 1._EB/(1._EB-EXP(-KAPPA_PART(I,J,K)*PLX))-1._EB/(KAPPA_PART(I,J,K)*PLX))
+                                FWY = MIN(1._EB, 1._EB/(1._EB-EXP(-KAPPA_PART(I,J,K)*PLY))-1._EB/(KAPPA_PART(I,J,K)*PLY))
+                                FWZ = MIN(1._EB, 1._EB/(1._EB-EXP(-KAPPA_PART(I,J,K)*PLZ))-1._EB/(KAPPA_PART(I,J,K)*PLZ))
                         END SELECT
                     ENDIF
 
