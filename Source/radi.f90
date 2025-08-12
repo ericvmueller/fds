@@ -4303,7 +4303,28 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
                                 FWX = MIN(1._EB, 1._EB/(1._EB-EXP(-KAPPA_PART(I,J,K)*PLX))-1._EB/(KAPPA_PART(I,J,K)*PLX))
                                 FWY = MIN(1._EB, 1._EB/(1._EB-EXP(-KAPPA_PART(I,J,K)*PLY))-1._EB/(KAPPA_PART(I,J,K)*PLY))
                                 FWZ = MIN(1._EB, 1._EB/(1._EB-EXP(-KAPPA_PART(I,J,K)*PLZ))-1._EB/(KAPPA_PART(I,J,K)*PLZ))
+                            CASE(5) ! hybrid
+                                PLX = HUGE_EB; PLY = HUGE_EB; PLZ = HUGE_EB
+                                GAMMA_X = 1.-(MAXVAL(ABS(DLANG(:,N)))-1/SR3)/(1-1/SR3)
+                                IF(ABS(DLANG(1,N))>0._EB) PLX = DX(I)/ABS(DLANG(1,N))
+                                IF(ABS(DLANG(2,N))>0._EB) PLY = DY(J)/ABS(DLANG(2,N))
+                                IF(ABS(DLANG(3,N))>0._EB) PLZ = DZ(K)/ABS(DLANG(3,N))
+                                PLS = MIN(PLX,PLY,PLZ)/2._EB
+                                ! FWX = MIN(1._EB, 1._EB/(2._EB-EXP(-KAPPA_PART(I,J,K)*PLS)))
+                                FWX = MIN(1._EB, 1._EB/(GAMMA_X+EXP(-KAPPA_PART(I,J,K)*PLS)))
+                                FWY=FWX; FWZ=FWX
+                                WRITE(LU_ERR,*) FWX
+                            CASE(6) ! hybrid v2
+                                PLX = HUGE_EB; PLY = HUGE_EB; PLZ = HUGE_EB
+                                IF(ABS(DLANG(1,N))>0._EB) PLX = DX(I)/ABS(DLANG(1,N))
+                                IF(ABS(DLANG(2,N))>0._EB) PLY = DY(J)/ABS(DLANG(2,N))
+                                IF(ABS(DLANG(3,N))>0._EB) PLZ = DZ(K)/ABS(DLANG(3,N))
+                                PLS = MIN(PLX,PLY,PLZ)/2._EB
+                                ! FWX = MIN(1._EB, 1._EB/(2._EB-EXP(-KAPPA_PART(I,J,K)*PLS)))
+                                FWX = MIN(1._EB, 1._EB/(1._EB+EXP(-KAPPA_PART(I,J,K)*PLS)))
+                                FWY=FWX; FWZ=FWX
                         END SELECT
+                        WRITE(LU_ERR,*) FWX,FWY,FWZ
                     ENDIF
 
                     A_SUM = AXD/FWX + AYD/FWY + AZD/FWZ + AFD
@@ -4318,12 +4339,13 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
                     ILDX(I,J,K) = MAX(0._EB,(IL(I,J,K) - (1._EB-FWX)*ILXU)/FWX)
                     ILDY(I,J,K) = MAX(0._EB,(IL(I,J,K) - (1._EB-FWY)*ILYU)/FWY)
                     ILDZ(I,J,K) = MAX(0._EB,(IL(I,J,K) - (1._EB-FWZ)*ILZU)/FWZ)
-                    ! IF (((IL(I,J,K) - (1._EB-FWX)*ILXU)/FWX)<-TWO_EPSILON_EB) &
-                    !     WRITE(LU_ERR,*) 'IL_X CLIP: ',NM,I,J,K,N,DLANG(3,N),IL(I,J,K),(IL(I,J,K) - (1._EB-FWX)*ILXU)/FWX
-                    ! IF (((IL(I,J,K) - (1._EB-FWY)*ILYU)/FWY)<-TWO_EPSILON_EB) &
-                    !     WRITE(LU_ERR,*) 'IL_Y CLIP: ',NM,I,J,K,N,DLANG(3,N),IL(I,J,K),(IL(I,J,K) - (1._EB-FWY)*ILYU)/FWY
-                    ! IF (((IL(I,J,K) - (1._EB-FWZ)*ILZU)/FWZ)<-TWO_EPSILON_EB) &
-                    !     WRITE(LU_ERR,*) 'IL_Z CLIP: ',NM,I,J,K,N,DLANG(3,N),IL(I,J,K),(IL(I,J,K) - (1._EB-FWZ)*ILZU)/FWZ
+                    IF (((IL(I,J,K) - (1._EB-FWX)*ILXU)/FWX)<-TWO_EPSILON_EB) &
+                        WRITE(LU_ERR,*) 'IL_X CLIP: ',NM,I,J,K,N,DLANG(3,N),IL(I,J,K),(IL(I,J,K) - (1._EB-FWX)*ILXU)/FWX,FWX,PLX
+                    IF (((IL(I,J,K) - (1._EB-FWY)*ILYU)/FWY)<-TWO_EPSILON_EB) &
+                        WRITE(LU_ERR,*) 'IL_Y CLIP: ',NM,I,J,K,N,DLANG(3,N),IL(I,J,K),(IL(I,J,K) - (1._EB-FWY)*ILYU)/FWY,FWY,PLY
+                    IF (((IL(I,J,K) - (1._EB-FWZ)*ILZU)/FWZ)<-TWO_EPSILON_EB) &
+                        WRITE(LU_ERR,*) 'IL_Z CLIP: ',NM,I,J,K,N,DLANG(3,N),IL(I,J,K),(IL(I,J,K) - (1._EB-FWZ)*ILZU)/FWZ,FWZ,PLZ,&
+                        DZ(K),DZ(K)/ABS(DLANG(3,N))
                     ! IF (IL(I,J,K)<TWO_EPSILON_EB) WRITE(LU_ERR,*) 'ZERO IL: ',N,DLANG(3,N),IL(I,J,K)
 
                   ENDDO SLICE_LOOP
