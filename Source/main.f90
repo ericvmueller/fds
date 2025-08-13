@@ -430,6 +430,7 @@ IF (.NOT.RESTART) THEN
       OPEN(UNIT=12556, file='r_clip.csv', status='replace', action='write')
       WRITE(12556, '(A)') 'T,NM,N_ITER,N_RAD_CLIP'
       DO NM=LOWER_MESH_INDEX,UPPER_MESH_INDEX
+         IF (MESHES(NM)%N_RAD_CLIP>0) &
          WRITE(12556, '(F10.6, 3(A,I0))') T, ',', NM, ',', INITIAL_RADIATION_ITERATIONS, ',', MESHES(NM)%N_RAD_CLIP
       ENDDO
       CLOSE(12556)
@@ -904,11 +905,14 @@ MAIN_LOOP: DO
    ENDDO
    
    IF (MY_RANK == 0) THEN
-      OPEN(UNIT=12556, FILE='r_clip.csv', STATUS='OLD', ACTION='WRITE', POSITION='APPEND')
-      DO NM=LOWER_MESH_INDEX,UPPER_MESH_INDEX
-         WRITE(12556, '(F10.6, 3(A,I0))') T,',', NM, ',', RADIATION_ITERATIONS, ',', MESHES(NM)%N_RAD_CLIP
-      ENDDO
-      CLOSE(12556)
+      IF (ANY(MESHES(:)%N_RAD_CLIP>0)) THEN
+         OPEN(UNIT=12556, FILE='r_clip.csv', STATUS='OLD', ACTION='WRITE', POSITION='APPEND')
+         DO NM=LOWER_MESH_INDEX,UPPER_MESH_INDEX
+            IF (MESHES(NM)%N_RAD_CLIP>0) &
+            WRITE(12556, '(F10.6, 3(A,I0))') T,',', NM, ',', RADIATION_ITERATIONS, ',', MESHES(NM)%N_RAD_CLIP
+         ENDDO
+         CLOSE(12556)
+      ENDIF
    ENDIF
 
    ! Start the computation of the divergence term.
