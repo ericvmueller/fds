@@ -4397,7 +4397,7 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
                    INRAD_W(IW) = INRAD_W(IW) + DLN(IOR,N) * BR%BAND(IBND)%ILW(N) ! update incoming rad, step 1
                    BR%BAND(IBND)%ILW(N) = IL(IIG,JJG,KKG)
                    ! Use downwind face value if relevant
-                   IF (RADIATION_SCHEME==3 .AND. KAPPA_PART(IIG,JJG,KKG)>0._EB) THEN
+                   IF (RADIATION_SCHEME>1 .AND. KAPPA_PART(IIG,JJG,KKG)>0._EB) THEN
                       SELECT CASE(ABS(IOR))
                         CASE(1)
                             BR%BAND(IBND)%ILW(N) = ILDX(IIG,JJG,KKG)
