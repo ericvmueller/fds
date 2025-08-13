@@ -3469,7 +3469,7 @@ REAL(EB) :: RAP, AX, AXU, AXD, AY, AYU, AYD, AZ, AZU, AZD, VC, RU, RD, RP, AFD, 
 INTEGER  :: N,NN,IIG,JJG,KKG,I,J,K,IW,ICF,II,JJ,KK,IOR,IC,IWUP,IWDOWN, &
             ISTART, IEND, ISTEP, JSTART, JEND, JSTEP, &
             KSTART, KEND, KSTEP, NSTART, NEND, NSTEP, &
-            I_UIID, N_UPDATES, IBND, NOM, ARRAY_INDEX,NRA, &
+            I_UIID, N_UPDATES, IBND, NOM, ARRAY_INDEX, NRA, &
             IMIN, JMIN, KMIN, IMAX, JMAX, KMAX, N_SLICE, M_IJK, IJK, LL
 INTEGER  :: IADD,IFACE,INDCF
 INTEGER, ALLOCATABLE :: IJK_SLICE(:,:)
@@ -4313,7 +4313,6 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
                                 ! FWX = MIN(1._EB, 1._EB/(2._EB-EXP(-KAPPA_PART(I,J,K)*PLS)))
                                 FWX = MIN(1._EB, 1._EB/(GAMMA_X+EXP(-KAPPA_PART(I,J,K)*PLS)))
                                 FWY=FWX; FWZ=FWX
-                                WRITE(LU_ERR,*) FWX
                             CASE(6) ! hybrid v2
                                 PLX = HUGE_EB; PLY = HUGE_EB; PLZ = HUGE_EB
                                 IF(ABS(DLANG(1,N))>0._EB) PLX = DX(I)/ABS(DLANG(1,N))
@@ -4324,7 +4323,6 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
                                 FWX = MIN(1._EB, 1._EB/(1._EB+EXP(-KAPPA_PART(I,J,K)*PLS)))
                                 FWY=FWX; FWZ=FWX
                         END SELECT
-                        WRITE(LU_ERR,*) FWX,FWY,FWZ
                     ENDIF
 
                     A_SUM = AXD/FWX + AYD/FWY + AZD/FWZ + AFD
@@ -4340,13 +4338,11 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
                     ILDY(I,J,K) = MAX(0._EB,(IL(I,J,K) - (1._EB-FWY)*ILYU)/FWY)
                     ILDZ(I,J,K) = MAX(0._EB,(IL(I,J,K) - (1._EB-FWZ)*ILZU)/FWZ)
                     IF (((IL(I,J,K) - (1._EB-FWX)*ILXU)/FWX)<-TWO_EPSILON_EB) &
-                        WRITE(LU_ERR,*) 'IL_X CLIP: ',NM,I,J,K,N,DLANG(3,N),IL(I,J,K),(IL(I,J,K) - (1._EB-FWX)*ILXU)/FWX,FWX,PLX
+                        MESHES(NM)%N_RAD_CLIP = MESHES(NM)%N_RAD_CLIP+1
                     IF (((IL(I,J,K) - (1._EB-FWY)*ILYU)/FWY)<-TWO_EPSILON_EB) &
-                        WRITE(LU_ERR,*) 'IL_Y CLIP: ',NM,I,J,K,N,DLANG(3,N),IL(I,J,K),(IL(I,J,K) - (1._EB-FWY)*ILYU)/FWY,FWY,PLY
+                        MESHES(NM)%N_RAD_CLIP = MESHES(NM)%N_RAD_CLIP+1
                     IF (((IL(I,J,K) - (1._EB-FWZ)*ILZU)/FWZ)<-TWO_EPSILON_EB) &
-                        WRITE(LU_ERR,*) 'IL_Z CLIP: ',NM,I,J,K,N,DLANG(3,N),IL(I,J,K),(IL(I,J,K) - (1._EB-FWZ)*ILZU)/FWZ,FWZ,PLZ,&
-                        DZ(K),DZ(K)/ABS(DLANG(3,N))
-                    ! IF (IL(I,J,K)<TWO_EPSILON_EB) WRITE(LU_ERR,*) 'ZERO IL: ',N,DLANG(3,N),IL(I,J,K)
+                        MESHES(NM)%N_RAD_CLIP = MESHES(NM)%N_RAD_CLIP+1
 
                   ENDDO SLICE_LOOP
                   !$OMP END PARALLEL DO
@@ -4666,6 +4662,7 @@ ENDIF
 ! UPDATE_ALL_ANGLES is a one-time only logical. If needed again, it will be reset again.
 
 UPDATE_ALL_ANGLES = .FALSE.
+
 
 END SUBROUTINE RADIATION_FVM
 
