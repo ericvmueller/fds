@@ -73,6 +73,7 @@ CHARACTER(MPI_MAX_PROCESSOR_NAME) :: PNAME
 LOGICAL, ALLOCATABLE, DIMENSION(:)        :: LOGICAL_BUFFER_EXTERNAL
 REAL(EB), ALLOCATABLE, DIMENSION(:)       :: REAL_BUFFER_DUCT,REAL_BUFFER_EXTERNAL
 REAL(EB), ALLOCATABLE, DIMENSION(:,:)     :: REAL_BUFFER_10,REAL_BUFFER_20
+CHARACTER(FN_LENGTH) :: RF_NAME
 
 ! Initialize OpenMP
 
@@ -426,15 +427,15 @@ IF (.NOT.RESTART) THEN
    ENDDO
 
    ! Create file
-   IF (MY_RANK == 0) THEN
-      OPEN(UNIT=12556, file='r_clip.csv', status='replace', action='write')
-      WRITE(12556, '(A)') 'T,NM,N_ITER,N_RAD_CLIP'
-      DO NM=LOWER_MESH_INDEX,UPPER_MESH_INDEX
-         IF (MESHES(NM)%N_RAD_CLIP>0) &
-         WRITE(12556, '(F10.6, 3(A,I0))') T, ',', NM, ',', INITIAL_RADIATION_ITERATIONS, ',', MESHES(NM)%N_RAD_CLIP
-      ENDDO
-      CLOSE(12556)
-   ENDIF
+   DO NM=LOWER_MESH_INDEX,UPPER_MESH_INDEX
+      WRITE(RF_NAME, '(A,I0.3,A)') 'r_clip_mesh_', NM, '.csv'
+      LU_RADCLIP = 1234 + NM   ! Assign a unique unit number for each file
+      OPEN(UNIT=LU_RADCLIP, FILE=RF_NAME, STATUS='REPLACE', ACTION='WRITE')
+      IF (MESHES(NM)%N_RAD_CLIP>0) &
+         WRITE(LU_RADCLIP, '(F10.6, 3(A,I0))') T,',', NM, ',', RADIATION_ITERATIONS,&
+          ',', MESHES(NM)%N_RAD_CLIP
+      CLOSE(LU_RADCLIP)
+   ENDDO
 
    IF (MY_RANK==0 .AND. VERBOSE) CALL VERBOSE_PRINTOUT('Completed radiation initialization')
    IF (CC_IBM) CALL CC_RHO0W_INTERP
@@ -904,16 +905,15 @@ MAIN_LOOP: DO
       ENDIF
    ENDDO
    
-   IF (MY_RANK == 0) THEN
-      IF (ANY(MESHES(:)%N_RAD_CLIP>0)) THEN
-         OPEN(UNIT=12556, FILE='r_clip.csv', STATUS='OLD', ACTION='WRITE', POSITION='APPEND')
-         DO NM=LOWER_MESH_INDEX,UPPER_MESH_INDEX
-            IF (MESHES(NM)%N_RAD_CLIP>0) &
-            WRITE(12556, '(F10.6, 3(A,I0))') T,',', NM, ',', RADIATION_ITERATIONS, ',', MESHES(NM)%N_RAD_CLIP
-         ENDDO
-         CLOSE(12556)
+   DO NM=LOWER_MESH_INDEX,UPPER_MESH_INDEX
+      IF (MESHES(NM)%N_RAD_CLIP>0) THEN
+         WRITE(RF_NAME, '(A,I0.3,A)') 'r_clip_mesh_', NM, '.csv'
+         LU_RADCLIP = 1234 + NM   ! Assign a unique unit number for each file
+         OPEN(UNIT=LU_RADCLIP, FILE=RF_NAME, STATUS='OLD', ACTION='WRITE', POSITION='APPEND')
+         WRITE(LU_RADCLIP, '(F10.6, 3(A,I0))') T,',', NM, ',', RADIATION_ITERATIONS, ',', MESHES(NM)%N_RAD_CLIP
+         CLOSE(LU_RADCLIP)
       ENDIF
-   ENDIF
+   ENDDO      
 
    ! Start the computation of the divergence term.
 
