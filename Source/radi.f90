@@ -3463,13 +3463,13 @@ USE PHYSICAL_FUNCTIONS, ONLY : GET_VOLUME_FRACTION, GET_MASS_FRACTION
 REAL(EB) :: RAP, AX, AXU, AXD, AY, AYU, AYD, AZ, AZU, AZD, VC, RU, RD, RP, AFD, &
             ILXU, ILYU, ILZU, QVAL, BBF, BBFA, NCSDROP, RSA_RAT,EFLUX,SOOT_MASS_FRACTION, &
             AIU_SUM,A_SUM,VOL,VC1,AY1,AZ1,DLO,COS_DLO,AILFU, &
-            RAD_Q_SUM_PARTIAL,KFST4_SUM_PARTIAL,ALPHA_CC,FWX,FWY,FWZ,PLX,PLY,PLZ,PLS,&
-            GAMMA_X,GAMMA_Y,GAMMA_Z
+            RAD_Q_SUM_PARTIAL,KFST4_SUM_PARTIAL,ALPHA_CC,FWX,FWY,FWZ,PLX(3),PLS,&
+            GAMMA
 
 INTEGER  :: N,NN,IIG,JJG,KKG,I,J,K,IW,ICF,II,JJ,KK,IOR,IC,IWUP,IWDOWN, &
             ISTART, IEND, ISTEP, JSTART, JEND, JSTEP, &
             KSTART, KEND, KSTEP, NSTART, NEND, NSTEP, &
-            I_UIID, N_UPDATES, IBND, NOM, ARRAY_INDEX, NRA, &
+            I_UIID, N_UPDATES, IBND, NOM, ARRAY_INDEX, NRA, PLX_MI, &
             IMIN, JMIN, KMIN, IMAX, JMAX, KMAX, N_SLICE, M_IJK, IJK, LL
 INTEGER  :: IADD,IFACE,INDCF
 INTEGER, ALLOCATABLE :: IJK_SLICE(:,:)
@@ -4285,43 +4285,48 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
                             CASE(2) ! Diamond
                                 FWX = 0.5_EB; FWY = 0.5_EB; FWZ = 0.5_EB
                             CASE(3) ! exponential
-                                PLX = HUGE_EB; PLY = HUGE_EB; PLZ = HUGE_EB
-                                IF(ABS(DLANG(1,N))>0._EB) PLX = DX(I)/ABS(DLANG(1,N))
-                                IF(ABS(DLANG(2,N))>0._EB) PLY = DY(J)/ABS(DLANG(2,N))
-                                IF(ABS(DLANG(3,N))>0._EB) PLZ = DZ(K)/ABS(DLANG(3,N))
-                                PLS = MIN(PLX,PLY,PLZ)
+                                PLX(:) = HUGE_EB
+                                IF(ABS(DLANG(1,N))>0._EB) PLX(1) = DX(I)/ABS(DLANG(1,N))
+                                IF(ABS(DLANG(2,N))>0._EB) PLX(2) = DY(J)/ABS(DLANG(2,N))
+                                IF(ABS(DLANG(3,N))>0._EB) PLX(3) = DZ(K)/ABS(DLANG(3,N))
+                                PLS = MINVAL(PLX)
                                 ! FWX = MIN(1._EB, 1._EB/(2._EB-EXP(-KAPPA_PART(I,J,K)*PLS)))
-                                FWX = MIN(1._EB, 1._EB/(1._EB-EXP(-KAPPA_PART(I,J,K)*PLS))-1._EB/(KAPPA_PART(I,J,K)*PLS))
+                                FWX = MIN(1._EB, 1._EB/(1._EB-EXP(-EXTCOE(I,J,K)*PLS))-1._EB/(EXTCOE(I,J,K)*PLS))
                                 FWY=FWX; FWZ=FWX
                             CASE(4) ! exponential v2
-                                PLX = HUGE_EB; PLY = HUGE_EB; PLZ = HUGE_EB
-                                IF(ABS(DLANG(1,N))>0._EB) PLX = DX(I)/ABS(DLANG(1,N))
-                                IF(ABS(DLANG(2,N))>0._EB) PLY = DY(J)/ABS(DLANG(2,N))
-                                IF(ABS(DLANG(3,N))>0._EB) PLZ = DZ(K)/ABS(DLANG(3,N))
-                                PLS = MIN(PLX,PLY,PLZ)
+                                PLX(:) = HUGE_EB
+                                IF(ABS(DLANG(1,N))>0._EB) PLX(1) = DX(I)/ABS(DLANG(1,N))
+                                IF(ABS(DLANG(2,N))>0._EB) PLX(2) = DY(J)/ABS(DLANG(2,N))
+                                IF(ABS(DLANG(3,N))>0._EB) PLX(3) = DZ(K)/ABS(DLANG(3,N))
+                                PLS = MINVAL(PLX)
                                 ! FWX = MIN(1._EB, 1._EB/(2._EB-EXP(-KAPPA_PART(I,J,K)*PLS)))
-                                FWX = MIN(1._EB, 1._EB/(1._EB-EXP(-KAPPA_PART(I,J,K)*PLX))-1._EB/(KAPPA_PART(I,J,K)*PLX))
-                                FWY = MIN(1._EB, 1._EB/(1._EB-EXP(-KAPPA_PART(I,J,K)*PLY))-1._EB/(KAPPA_PART(I,J,K)*PLY))
-                                FWZ = MIN(1._EB, 1._EB/(1._EB-EXP(-KAPPA_PART(I,J,K)*PLZ))-1._EB/(KAPPA_PART(I,J,K)*PLZ))
-                            CASE(5) ! hybrid
-                                PLX = HUGE_EB; PLY = HUGE_EB; PLZ = HUGE_EB
-                                GAMMA_X = 1.-(MAXVAL(ABS(DLANG(:,N)))-1/SR3)/(1-1/SR3)
-                                IF(ABS(DLANG(1,N))>0._EB) PLX = DX(I)/ABS(DLANG(1,N))
-                                IF(ABS(DLANG(2,N))>0._EB) PLY = DY(J)/ABS(DLANG(2,N))
-                                IF(ABS(DLANG(3,N))>0._EB) PLZ = DZ(K)/ABS(DLANG(3,N))
-                                PLS = MIN(PLX,PLY,PLZ)/2._EB
-                                ! FWX = MIN(1._EB, 1._EB/(2._EB-EXP(-KAPPA_PART(I,J,K)*PLS)))
-                                FWX = MIN(1._EB, 1._EB/(GAMMA_X+EXP(-KAPPA_PART(I,J,K)*PLS)))
-                                FWY=FWX; FWZ=FWX
-                            CASE(6) ! hybrid v2
-                                PLX = HUGE_EB; PLY = HUGE_EB; PLZ = HUGE_EB
-                                IF(ABS(DLANG(1,N))>0._EB) PLX = DX(I)/ABS(DLANG(1,N))
-                                IF(ABS(DLANG(2,N))>0._EB) PLY = DY(J)/ABS(DLANG(2,N))
-                                IF(ABS(DLANG(3,N))>0._EB) PLZ = DZ(K)/ABS(DLANG(3,N))
-                                PLS = MIN(PLX,PLY,PLZ)/2._EB
-                                ! FWX = MIN(1._EB, 1._EB/(2._EB-EXP(-KAPPA_PART(I,J,K)*PLS)))
-                                FWX = MIN(1._EB, 1._EB/(1._EB+EXP(-KAPPA_PART(I,J,K)*PLS)))
-                                FWY=FWX; FWZ=FWX
+                                FWX = MIN(1._EB, 1._EB/(1._EB-EXP(-EXTCOE(I,J,K)*PLX(1)))-1._EB/(EXTCOE(I,J,K)*PLX(1)))
+                                FWY = MIN(1._EB, 1._EB/(1._EB-EXP(-EXTCOE(I,J,K)*PLX(2)))-1._EB/(EXTCOE(I,J,K)*PLX(2)))
+                                FWZ = MIN(1._EB, 1._EB/(1._EB-EXP(-EXTCOE(I,J,K)*PLX(3)))-1._EB/(EXTCOE(I,J,K)*PLX(3)))
+                            CASE(5,6) ! hybrid and hybrid v2
+                                PLX(:) = HUGE_EB                                
+                                IF(ABS(DLANG(1,N))>0._EB) PLX(1) = DX(I)/ABS(DLANG(1,N))
+                                IF(ABS(DLANG(2,N))>0._EB) PLX(2) = DY(J)/ABS(DLANG(2,N))
+                                IF(ABS(DLANG(3,N))>0._EB) PLX(3) = DZ(K)/ABS(DLANG(3,N))
+                                PLX_MI = MINLOC(PLX, DIM=1)
+                                SELECT CASE (PLX_MI)
+                                    CASE(1)
+                                        GAMMA = PLX(1)*(1._EB/PLX(2)+1._EB/PLX(3)-1.5_EB*PLX(1)/(PLX(2)*PLX(3)))
+                                    CASE(2)
+                                        GAMMA = PLX(2)*(1._EB/PLX(1)+1._EB/PLX(3)-1.5_EB*PLX(2)/(PLX(1)*PLX(3)))
+                                    CASE(3)
+                                        GAMMA = PLX(3)*(1._EB/PLX(1)+1._EB/PLX(2)-1.5_EB*PLX(3)/(PLX(1)*PLX(2)))
+                                END SELECT
+                                PLX = PLX/2._EB
+                                IF (RADIATION_SCHEME == 5) THEN
+                                    PLS = MINVAL(PLX)
+                                    FWX = MIN(1._EB, 1._EB/(GAMMA+EXP(-EXTCOE(I,J,K)*PLS)))
+                                    FWY=FWX; FWZ=FWX
+                                ELSE ! case 6
+                                    FWX = MIN(1._EB, 1._EB/(GAMMA+EXP(-EXTCOE(I,J,K)*PLX(1))))
+                                    FWY = MIN(1._EB, 1._EB/(GAMMA+EXP(-EXTCOE(I,J,K)*PLX(2))))
+                                    FWZ = MIN(1._EB, 1._EB/(GAMMA+EXP(-EXTCOE(I,J,K)*PLX(3))))
+                                END IF
                         END SELECT
                     ENDIF
 
