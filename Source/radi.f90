@@ -4465,6 +4465,16 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
                IF (M2%NIC_S==0) CYCLE INTERPOLATION_LOOP
                OTHER_WALL_LOOP: DO LL=1,M2%NIC_S
                   M2%IL_S(LL,N,IBND) = IL(M2%IIO_S(LL),M2%JJO_S(LL),M2%KKO_S(LL))
+                  IF (RADIATION_SCHEME>1 .AND. KAPPA_PART(M2%IIO_S(LL),M2%JJO_S(LL),M2%KKO_S(LL))>0._EB) THEN
+                     SELECT CASE(ABS(M2%IOR_S(LL)))
+                        CASE(1)
+                           M2%IL_S(LL,N,IBND) = ILDX(M2%IIO_S(LL),M2%JJO_S(LL),M2%KKO_S(LL))
+                        CASE(2)
+                           M2%IL_S(LL,N,IBND) = ILDY(M2%IIO_S(LL),M2%JJO_S(LL),M2%KKO_S(LL))
+                        CASE(3)
+                           M2%IL_S(LL,N,IBND) = ILDZ(M2%IIO_S(LL),M2%JJO_S(LL),M2%KKO_S(LL))
+                     END SELECT
+                  ENDIF
                ENDDO OTHER_WALL_LOOP
             ENDDO INTERPOLATION_LOOP
 
