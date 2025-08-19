@@ -4303,7 +4303,7 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
                                 FWX = MIN(1._EB, 1._EB/(1._EB-EXP(-EXTCOE(I,J,K)*PLX(1)))-1._EB/(EXTCOE(I,J,K)*PLX(1)))
                                 FWY = MIN(1._EB, 1._EB/(1._EB-EXP(-EXTCOE(I,J,K)*PLX(2)))-1._EB/(EXTCOE(I,J,K)*PLX(2)))
                                 FWZ = MIN(1._EB, 1._EB/(1._EB-EXP(-EXTCOE(I,J,K)*PLX(3)))-1._EB/(EXTCOE(I,J,K)*PLX(3)))
-                            CASE(5,6) ! hybrid and hybrid v2
+                            CASE(5,6,7) ! hybrid and hybrid v2
                                 PLX(:) = HUGE_EB                                
                                 IF(ABS(DLANG(1,N))>0._EB) PLX(1) = DX(I)/ABS(DLANG(1,N))
                                 IF(ABS(DLANG(2,N))>0._EB) PLX(2) = DY(J)/ABS(DLANG(2,N))
@@ -4318,14 +4318,18 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
                                         GAMMA = PLX(3)*(1._EB/PLX(1)+1._EB/PLX(2)-1.5_EB*PLX(3)/(PLX(1)*PLX(2)))
                                 END SELECT
                                 PLX = PLX/2._EB
-                                IF (RADIATION_SCHEME == 5) THEN
-                                    PLS = MINVAL(PLX)
+                                PLS = MINVAL(PLX)
+                                IF (RADIATION_SCHEME == 5) THEN                                
                                     FWX = MIN(1._EB, 1._EB/(GAMMA+EXP(-EXTCOE(I,J,K)*PLS)))
                                     FWY=FWX; FWZ=FWX
-                                ELSE ! case 6
+                                ELSEIF (RADIATION_SCHEME == 6) THEN ! case 6
                                     FWX = MIN(1._EB, 1._EB/(GAMMA+EXP(-EXTCOE(I,J,K)*PLX(1))))
                                     FWY = MIN(1._EB, 1._EB/(GAMMA+EXP(-EXTCOE(I,J,K)*PLX(2))))
                                     FWZ = MIN(1._EB, 1._EB/(GAMMA+EXP(-EXTCOE(I,J,K)*PLX(3))))
+                                ELSE                                    
+                                    FWY = EXP(-EXTCOE(I,J,K)*PLS)
+                                    FWX = MIN(1._EB,FWY/(1._EB+GAMMA)+(1._EB-FWY)/(1._EB+FWY))
+                                    FWY=FWX; FWZ=FWX
                                 END IF
                         END SELECT
                     ENDIF
