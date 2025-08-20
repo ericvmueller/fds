@@ -4343,15 +4343,33 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
                                 (SCAEFF(I,J,K)+SCAEFF_G(I,J,K))*UIIOLD(I,J,K) ) ) )
 
                     ! Set downwind intensities
-                    ILDX(I,J,K) = MAX(0._EB,(IL(I,J,K) - (1._EB-FWX)*ILXU)/FWX)
-                    ILDY(I,J,K) = MAX(0._EB,(IL(I,J,K) - (1._EB-FWY)*ILYU)/FWY)
-                    ILDZ(I,J,K) = MAX(0._EB,(IL(I,J,K) - (1._EB-FWZ)*ILZU)/FWZ)
-                    IF (((IL(I,J,K) - (1._EB-FWX)*ILXU)/FWX)<-TWO_EPSILON_EB) &
+                    ILDX(I,J,K) = (IL(I,J,K) - (1._EB-FWX)*ILXU)/FWX
+                    ILDY(I,J,K) = (IL(I,J,K) - (1._EB-FWY)*ILYU)/FWY
+                    ILDZ(I,J,K) = (IL(I,J,K) - (1._EB-FWZ)*ILZU)/FWZ
+                    IF (ILDX(I,J,K)<0._EB) THEN                        
+                        MESHES(NM)%REL_CLIP = MESHES(NM)%REL_CLIP*MESHES(NM)%N_RAD_CLIP+ILDX(I,J,K)/IL(I,J,K)
+                        MESHES(NM)%DLN_CLIP = MESHES(NM)%DLN_CLIP*MESHES(NM)%N_RAD_CLIP+ABS(DLX(N))
                         MESHES(NM)%N_RAD_CLIP = MESHES(NM)%N_RAD_CLIP+1
-                    IF (((IL(I,J,K) - (1._EB-FWY)*ILYU)/FWY)<-TWO_EPSILON_EB) &
+                        MESHES(NM)%REL_CLIP = MESHES(NM)%REL_CLIP/MESHES(NM)%N_RAD_CLIP
+                        MESHES(NM)%DLN_CLIP = MESHES(NM)%DLN_CLIP/MESHES(NM)%N_RAD_CLIP
+                        ILDX(I,J,K) = 0._EB
+                    ENDIF
+                    IF (ILDY(I,J,K)<0._EB) THEN
+                        MESHES(NM)%REL_CLIP = MESHES(NM)%REL_CLIP*MESHES(NM)%N_RAD_CLIP+ILDY(I,J,K)/IL(I,J,K)
+                        MESHES(NM)%DLN_CLIP = MESHES(NM)%DLN_CLIP*MESHES(NM)%N_RAD_CLIP+ABS(DLY(N))
                         MESHES(NM)%N_RAD_CLIP = MESHES(NM)%N_RAD_CLIP+1
-                    IF (((IL(I,J,K) - (1._EB-FWZ)*ILZU)/FWZ)<-TWO_EPSILON_EB) &
+                        MESHES(NM)%REL_CLIP = MESHES(NM)%REL_CLIP/MESHES(NM)%N_RAD_CLIP
+                        MESHES(NM)%DLN_CLIP = MESHES(NM)%DLN_CLIP/MESHES(NM)%N_RAD_CLIP
+                        ILDY(I,J,K) = 0._EB
+                    ENDIF
+                    IF (ILDZ(I,J,K)<0._EB) THEN
+                        MESHES(NM)%REL_CLIP = MESHES(NM)%REL_CLIP*MESHES(NM)%N_RAD_CLIP+ILDZ(I,J,K)/IL(I,J,K)
+                        MESHES(NM)%DLN_CLIP = MESHES(NM)%DLN_CLIP*MESHES(NM)%N_RAD_CLIP+ABS(DLZ(N))
                         MESHES(NM)%N_RAD_CLIP = MESHES(NM)%N_RAD_CLIP+1
+                        MESHES(NM)%REL_CLIP = MESHES(NM)%REL_CLIP/MESHES(NM)%N_RAD_CLIP
+                        MESHES(NM)%DLN_CLIP = MESHES(NM)%DLN_CLIP/MESHES(NM)%N_RAD_CLIP
+                        ILDZ(I,J,K) = 0._EB
+                    ENDIF
 
                   ENDDO SLICE_LOOP
                   !$OMP END PARALLEL DO
