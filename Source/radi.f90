@@ -3464,7 +3464,7 @@ REAL(EB) :: RAP, AX, AXU, AXD, AY, AYU, AYD, AZ, AZU, AZD, VC, RU, RD, RP, AFD, 
             ILXU, ILYU, ILZU, QVAL, BBF, BBFA, NCSDROP, RSA_RAT,EFLUX,SOOT_MASS_FRACTION, &
             AIU_SUM,A_SUM,VOL,VC1,AY1,AZ1,DLO,COS_DLO,AILFU, &
             RAD_Q_SUM_PARTIAL,KFST4_SUM_PARTIAL,ALPHA_CC,FWX,FWY,FWZ,PLX(3),PLS,&
-            GAMMA
+            GAMMA,FWXD,FWYD,FWZD
 
 INTEGER  :: N,NN,IIG,JJG,KKG,I,J,K,IW,ICF,II,JJ,KK,IOR,IC,IWUP,IWDOWN, &
             ISTART, IEND, ISTEP, JSTART, JEND, JSTEP, &
@@ -3477,7 +3477,7 @@ REAL(EB) :: XID,YJD,ZKD,KAPPA_PART_SINGLE,DLF,DLA(3),TSI,TMP_EXTERIOR,TEMP_ORIEN
 REAL(EB), ALLOCATABLE, DIMENSION(:) :: ZZ_GET
 REAL(EB) :: ILDX(0:IBP1,0:JBP1,0:KBP1),ILDY(0:IBP1,0:JBP1,0:KBP1),ILDZ(0:IBP1,0:JBP1,0:KBP1)
 INTEGER :: IID,JJD,KKD,IP
-LOGICAL :: UPDATE_INTENSITY
+LOGICAL :: UPDATE_INTENSITY,CLIP
 REAL(EB), POINTER, DIMENSION(:,:,:) :: IL,UIIOLD,KAPPA_PART,KFST4_PART,EXTCOE,SCAEFF,SCAEFF_G,IL_UP
 REAL(EB), POINTER, DIMENSION(:)     :: OUTRAD_W,INRAD_W,OUTRAD_F,INRAD_F,IL_F
 TYPE (OMESH_TYPE), POINTER :: M2
@@ -4332,10 +4332,11 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
                                     FWY=FWX; FWZ=FWX
                                 END IF
                         END SELECT
+                        FWX = 1._EB/FWX; FWY = 1._EB/FWY; FWZ = 1._EB/FWZ
                     ENDIF
 
-                    A_SUM = AXD/FWX + AYD/FWY + AZD/FWZ + AFD
-                    AIU_SUM = AXU*ILXU/FWX + AYU*ILYU/FWY + AZU*ILZU/FWZ + AILFU
+                    A_SUM = AXD*FWX + AYD*FWY + AZD*FWZ + AFD
+                    AIU_SUM = AXU*FWX*ILXU + AYU*FWY*ILYU + AZU*FWZ*ILZU + AILFU
                     IF (SOLID_PARTICLES) IL_UP(I,J,K) = MAX(0._EB,AIU_SUM/A_SUM)
                     RAP = 1._EB/(A_SUM + EXTCOE(I,J,K)*VC*RSA(N))
                     IL(I,J,K) = MAX(0._EB, RAP * (AIU_SUM + VC*RSA(N)*RFPI* &
@@ -4343,9 +4344,11 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
                                 (SCAEFF(I,J,K)+SCAEFF_G(I,J,K))*UIIOLD(I,J,K) ) ) )
 
                     ! Set downwind intensities
-                    ILDX(I,J,K) = (IL(I,J,K) - (1._EB-FWX)*ILXU)/FWX
-                    ILDY(I,J,K) = (IL(I,J,K) - (1._EB-FWY)*ILYU)/FWY
-                    ILDZ(I,J,K) = (IL(I,J,K) - (1._EB-FWZ)*ILZU)/FWZ
+                    ILDX(I,J,K) = FWX*IL(I,J,K) - (FWX - 1._EB)*ILXU
+                    ILDY(I,J,K) = FWY*IL(I,J,K) - (FWY - 1._EB)*ILYU
+                    ILDZ(I,J,K) = FWZ*IL(I,J,K) - (FWZ - 1._EB)*ILZU
+                    CLIP = .FALSE.
+                    FWXD = FWX; FWYD = FWY; FWZD = FWZ
                     IF (ILDX(I,J,K)<0._EB) THEN                        
                         MESHES(NM)%REL_CLIP = MESHES(NM)%REL_CLIP*MESHES(NM)%N_RAD_CLIP+ILDX(I,J,K)/IL(I,J,K)
                         MESHES(NM)%DLN_CLIP = MESHES(NM)%DLN_CLIP*MESHES(NM)%N_RAD_CLIP+ABS(DLX(N))
@@ -4353,6 +4356,8 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
                         MESHES(NM)%REL_CLIP = MESHES(NM)%REL_CLIP/MESHES(NM)%N_RAD_CLIP
                         MESHES(NM)%DLN_CLIP = MESHES(NM)%DLN_CLIP/MESHES(NM)%N_RAD_CLIP
                         ILDX(I,J,K) = 0._EB
+                        FWX = 1._EB; FWXD = 0._EB
+                        CLIP = .TRUE.
                     ENDIF
                     IF (ILDY(I,J,K)<0._EB) THEN
                         MESHES(NM)%REL_CLIP = MESHES(NM)%REL_CLIP*MESHES(NM)%N_RAD_CLIP+ILDY(I,J,K)/IL(I,J,K)
@@ -4361,6 +4366,8 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
                         MESHES(NM)%REL_CLIP = MESHES(NM)%REL_CLIP/MESHES(NM)%N_RAD_CLIP
                         MESHES(NM)%DLN_CLIP = MESHES(NM)%DLN_CLIP/MESHES(NM)%N_RAD_CLIP
                         ILDY(I,J,K) = 0._EB
+                        FWY = 1._EB; FWYD = 0._EB
+                        CLIP = .TRUE.
                     ENDIF
                     IF (ILDZ(I,J,K)<0._EB) THEN
                         MESHES(NM)%REL_CLIP = MESHES(NM)%REL_CLIP*MESHES(NM)%N_RAD_CLIP+ILDZ(I,J,K)/IL(I,J,K)
@@ -4369,7 +4376,22 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
                         MESHES(NM)%REL_CLIP = MESHES(NM)%REL_CLIP/MESHES(NM)%N_RAD_CLIP
                         MESHES(NM)%DLN_CLIP = MESHES(NM)%DLN_CLIP/MESHES(NM)%N_RAD_CLIP
                         ILDZ(I,J,K) = 0._EB
+                        FWZ = 1._EB; FWZD = 0._EB
+                        CLIP = .TRUE.
                     ENDIF
+                    IF (CLIP) THEN
+                     A_SUM = AXD*FWXD + AYD*FWYD + AZD*FWZD + AFD
+                     AIU_SUM = AXU*FWX*ILXU + AYU*FWY*ILYU + AZU*FWZ*ILZU + AILFU
+                     IF (SOLID_PARTICLES) IL_UP(I,J,K) = MAX(0._EB,AIU_SUM/A_SUM)
+                     RAP = 1._EB/(A_SUM + EXTCOE(I,J,K)*VC*RSA(N))
+                     IL(I,J,K) = MAX(0._EB, RAP * (AIU_SUM + VC*RSA(N)*RFPI* &
+                                 ( KFST4_GAS(I,J,K) + KFST4_PART(I,J,K) + RSA_RAT*&
+                                 (SCAEFF(I,J,K)+SCAEFF_G(I,J,K))*UIIOLD(I,J,K) ) ) )
+                     IF (FWXD>0._EB) ILDX(I,J,K) = FWX*IL(I,J,K) - (FWX - 1._EB)*ILXU
+                     IF (FWYD>0._EB) ILDY(I,J,K) = FWY*IL(I,J,K) - (FWY - 1._EB)*ILYU
+                     IF (FWZD>0._EB) ILDZ(I,J,K) = FWZ*IL(I,J,K) - (FWZ - 1._EB)*ILZU
+                    ENDIF
+                     
 
                   ENDDO SLICE_LOOP
                   !$OMP END PARALLEL DO
