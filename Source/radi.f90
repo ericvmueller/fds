@@ -4323,9 +4323,12 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
                                     FWX = MIN(1._EB, 1._EB/(GAMMA+EXP(-EXTCOE(I,J,K)*PLS)))
                                     FWY=FWX; FWZ=FWX
                                 ELSEIF (RADIATION_SCHEME == 6) THEN ! case 6
-                                    FWX = MIN(1._EB, 1._EB/(GAMMA+EXP(-EXTCOE(I,J,K)*PLX(1))))
-                                    FWY = MIN(1._EB, 1._EB/(GAMMA+EXP(-EXTCOE(I,J,K)*PLX(2))))
-                                    FWZ = MIN(1._EB, 1._EB/(GAMMA+EXP(-EXTCOE(I,J,K)*PLX(3))))
+                                    ! FWX = MIN(1._EB, 1._EB/(GAMMA+EXP(-EXTCOE(I,J,K)*PLX(1))))
+                                    FWX = MIN(1._EB, 1._EB/(1.+EXP(-EXTCOE(I,J,K)*PLX(1))))
+                                    !FWY = MIN(1._EB, 1._EB/(GAMMA+EXP(-EXTCOE(I,J,K)*PLX(2))))
+                                    FWY = MIN(1._EB, 1._EB/(1._EB+EXP(-EXTCOE(I,J,K)*PLX(2))))
+                                    !FWZ = MIN(1._EB, 1._EB/(GAMMA+EXP(-EXTCOE(I,J,K)*PLX(3))))
+                                    FWZ = MIN(1._EB, 1._EB/(1._EB+EXP(-EXTCOE(I,J,K)*PLX(3))))
                                 ELSE                                    
                                     FWY = EXP(-EXTCOE(I,J,K)*PLS)
                                     FWX = MIN(1._EB,FWY/(1._EB+GAMMA)+(1._EB-FWY)/(1._EB+FWY))
