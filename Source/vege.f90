@@ -372,13 +372,8 @@ DO JJG=1,JBAR
       ! If not set, use Behave/Andrews approach
       IF (SF%VEG_LSET_WIND_HEIGHT<0._EB) REF_WIND_HEIGHT = 6.1_EB
 
-      IF_CFD_COUPLED: IF (LEVEL_SET_COUPLED_WIND .AND. .NOT. LEVEL_SET_MODE==5) THEN  ! The wind speed is derived from the CFD
-
-         U_LS(IIG,JJG) = 0.5_EB*(U(IIG-1,JJG,K_LS(IIG,JJG))+U(IIG,JJG,K_LS(IIG,JJG)))
-         V_LS(IIG,JJG) = 0.5_EB*(V(IIG,JJG-1,K_LS(IIG,JJG))+V(IIG,JJG,K_LS(IIG,JJG)))
-
-      ELSE IF_CFD_COUPLED  ! The wind velocity is specified by the user
-
+      ! Evaluate ramps for fixed background wind or LEVEL_SET_MODE 5
+      IF (.NOT. LEVEL_SET_COUPLED_WIND .OR. LEVEL_SET_MODE==5) THEN
          ! Evaluate time and height varying profiles, using 6.1 m reference height
          IF (I_RAMP_DIRECTION_T/=0 .OR. I_RAMP_DIRECTION_Z/=0) THEN
             IF (I_RAMP_DIRECTION_T==0) THEN
@@ -399,45 +394,49 @@ DO JJG=1,JBAR
             EVALUATE_RAMP(T,I_RAMP_SPEED_T)*SIN_THETA
          V_LS(IIG,JJG) = V0*EVALUATE_RAMP(REF_WIND_HEIGHT,I_RAMP_SPEED_Z)*&
             EVALUATE_RAMP(T,I_RAMP_SPEED_T)*COS_THETA
+      ENDIF
 
-      ENDIF IF_CFD_COUPLED
+      IF (LEVEL_SET_COUPLED_WIND) THEN  ! The wind speed is derived from the CFD
+
+         ! Get re-scaling value for fixed head fire spread rate in LS 5
+         IF (LEVEL_SET_MODE==5) UMF_TMP = SQRT(U_LS(IIG,JJG)**2._EB+V_LS(IIG,JJG)**2._EB)
+
+         ! Check if sample height is in the mesh
+         IF (ZC(KBAR)<REF_WIND_HEIGHT) THEN
+            U_LS(IIG,JJG) = 0.5_EB*(U(IIG-1,JJG,KBAR)+U(IIG,JJG,KBAR))
+            V_LS(IIG,JJG) = 0.5_EB*(V(IIG,JJG-1,KBAR)+V(IIG,JJG,KBAR))
+         ELSE
+            KWIND = 0
+            DO KDUM = K_LS(IIG,JJG),KBAR
+               IF ((ZC(KDUM)-Z_LS(IIG,JJG))>=REF_WIND_HEIGHT) THEN
+                  KWIND = KDUM
+                  ZWIND(1) = ZC(KWIND-1)-Z_LS(IIG,JJG)
+                  ZWIND(2) = ZC(KWIND)-Z_LS(IIG,JJG)
+                  EXIT
+               ENDIF
+            ENDDO
+
+            U_Z(1) = 0.5_EB*(U(IIG-1,JJG,KWIND-1)+U(IIG,JJG,KWIND-1))
+            U_Z(2) = 0.5_EB*(U(IIG-1,JJG,KWIND)+U(IIG,JJG,KWIND))
+            V_Z(1) = 0.5_EB*(V(IIG,JJG-1,KWIND-1)+V(IIG,JJG,KWIND-1))
+            V_Z(2) = 0.5_EB*(V(IIG,JJG-1,KWIND)+V(IIG,JJG,KWIND))
+            ! If wind comes from first grid cell assume zero wind at ground level
+            IF (KWIND==1) THEN
+               U_Z(1) = 0._EB; V_Z(1) = 0._EB; ZWIND(1) = 0._EB
+            ENDIF
+            U_LS(IIG,JJG) = U_Z(1) + (REF_WIND_HEIGHT-ZWIND(1))/(ZWIND(2)-ZWIND(1))*(U_Z(2)-U_Z(1))
+            V_LS(IIG,JJG) = V_Z(1) + (REF_WIND_HEIGHT-ZWIND(1))/(ZWIND(2)-ZWIND(1))*(V_Z(2)-V_Z(1))
+         ENDIF
+
+         ! Re-scale so head fire spread rate is fixed in LS5
+         IF (LEVEL_SET_MODE==5) THEN
+            U_LS(IIG,JJG) = UMF_TMP*U_LS(IIG,JJG)/SQRT(U_LS(IIG,JJG)**2._EB+V_LS(IIG,JJG)**2._EB)
+            V_LS(IIG,JJG) = UMF_TMP*V_LS(IIG,JJG)/SQRT(U_LS(IIG,JJG)**2._EB+V_LS(IIG,JJG)**2._EB)
+         ENDIF
+
+      ENDIF
 
       IF_ELLIPSE: IF (LEVEL_SET_ELLIPSE) THEN  ! Use assumed elliptical shape of fireline as in Farsite
-
-         ! Find wind at ~6.1 m height for Farsite
-
-         IF (LEVEL_SET_COUPLED_WIND) THEN
-
-            ! Check if sample height is in the mesh
-            IF (ZC(KBAR)<REF_WIND_HEIGHT) THEN
-               U_LS(IIG,JJG) = 0.5_EB*(U(IIG-1,JJG,KBAR)+U(IIG,JJG,KBAR))
-               V_LS(IIG,JJG) = 0.5_EB*(V(IIG,JJG-1,KBAR)+V(IIG,JJG,KBAR))
-            ELSE
-
-               KWIND = 0
-               DO KDUM = K_LS(IIG,JJG),KBAR
-                  IF ((ZC(KDUM)-Z_LS(IIG,JJG))>=REF_WIND_HEIGHT) THEN
-                     KWIND = KDUM
-                     ZWIND(1) = ZC(KWIND-1)-Z_LS(IIG,JJG)
-                     ZWIND(2) = ZC(KWIND)-Z_LS(IIG,JJG)
-                     EXIT
-                  ENDIF
-               ENDDO
-
-               U_Z(1) = 0.5_EB*(U(IIG-1,JJG,KWIND-1)+U(IIG,JJG,KWIND-1))
-               U_Z(2) = 0.5_EB*(U(IIG-1,JJG,KWIND)+U(IIG,JJG,KWIND))
-               V_Z(1) = 0.5_EB*(V(IIG,JJG-1,KWIND-1)+V(IIG,JJG,KWIND-1))
-               V_Z(2) = 0.5_EB*(V(IIG,JJG-1,KWIND)+V(IIG,JJG,KWIND))
-               ! If wind comes from first grid cell assume zero wind at ground level
-               IF (KWIND==1) THEN
-                  U_Z(1) = 0._EB; V_Z(1) = 0._EB; ZWIND(1) = 0._EB
-               ENDIF
-               U_LS(IIG,JJG) = U_Z(1) + (REF_WIND_HEIGHT-ZWIND(1))/(ZWIND(2)-ZWIND(1))*(U_Z(2)-U_Z(1))
-               V_LS(IIG,JJG) = V_Z(1) + (REF_WIND_HEIGHT-ZWIND(1))/(ZWIND(2)-ZWIND(1))*(V_Z(2)-V_Z(1))
-
-            ENDIF
-
-         ENDIF
 
          UMF_TMP = 1._EB
 
