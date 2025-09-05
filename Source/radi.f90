@@ -4353,7 +4353,7 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
                     CLIP = .FALSE.
                     FWXD = FWX; FWYD = FWY; FWZD = FWZ
                     IF (ILDX(I,J,K)<0._EB) THEN                        
-                        MESHES(NM)%REL_CLIP = MESHES(NM)%REL_CLIP*MESHES(NM)%N_RAD_CLIP+ILDX(I,J,K)/IL(I,J,K)
+                        MESHES(NM)%REL_CLIP = MESHES(NM)%REL_CLIP*MESHES(NM)%N_RAD_CLIP+ILDX(I,J,K)*RSA(N)/UIIOLD(I,J,K)
                         MESHES(NM)%DLN_CLIP = MESHES(NM)%DLN_CLIP*MESHES(NM)%N_RAD_CLIP+ABS(DLX(N))
                         MESHES(NM)%N_RAD_CLIP = MESHES(NM)%N_RAD_CLIP+1
                         MESHES(NM)%REL_CLIP = MESHES(NM)%REL_CLIP/MESHES(NM)%N_RAD_CLIP
@@ -4363,7 +4363,7 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
                         CLIP = .TRUE.
                     ENDIF
                     IF (ILDY(I,J,K)<0._EB) THEN
-                        MESHES(NM)%REL_CLIP = MESHES(NM)%REL_CLIP*MESHES(NM)%N_RAD_CLIP+ILDY(I,J,K)/IL(I,J,K)
+                        MESHES(NM)%REL_CLIP = MESHES(NM)%REL_CLIP*MESHES(NM)%N_RAD_CLIP+ILDY(I,J,K)*RSA(N)/UIIOLD(I,J,K)
                         MESHES(NM)%DLN_CLIP = MESHES(NM)%DLN_CLIP*MESHES(NM)%N_RAD_CLIP+ABS(DLY(N))
                         MESHES(NM)%N_RAD_CLIP = MESHES(NM)%N_RAD_CLIP+1
                         MESHES(NM)%REL_CLIP = MESHES(NM)%REL_CLIP/MESHES(NM)%N_RAD_CLIP
@@ -4373,7 +4373,7 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
                         CLIP = .TRUE.
                     ENDIF
                     IF (ILDZ(I,J,K)<0._EB) THEN
-                        MESHES(NM)%REL_CLIP = MESHES(NM)%REL_CLIP*MESHES(NM)%N_RAD_CLIP+ILDZ(I,J,K)/IL(I,J,K)
+                        MESHES(NM)%REL_CLIP = MESHES(NM)%REL_CLIP*MESHES(NM)%N_RAD_CLIP+ILDZ(I,J,K)*RSA(N)/UIIOLD(I,J,K)
                         MESHES(NM)%DLN_CLIP = MESHES(NM)%DLN_CLIP*MESHES(NM)%N_RAD_CLIP+ABS(DLZ(N))
                         MESHES(NM)%N_RAD_CLIP = MESHES(NM)%N_RAD_CLIP+1
                         MESHES(NM)%REL_CLIP = MESHES(NM)%REL_CLIP/MESHES(NM)%N_RAD_CLIP
