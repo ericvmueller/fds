@@ -4334,6 +4334,18 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
                                     FWX = MIN(1._EB,FWY/(1._EB+GAMMA)+(1._EB-FWY)/(1._EB+FWY))
                                     FWY=FWX; FWZ=FWX
                                 END IF
+                            CASE(8) !Lathrop
+                                PLX(:) = HUGE_EB
+                                IF(ABS(DLANG(1,N))>0._EB) PLX(1) = DX(I)/ABS(DLANG(1,N))
+                                IF(ABS(DLANG(2,N))>0._EB) PLX(2) = DY(J)/ABS(DLANG(2,N))
+                                IF(ABS(DLANG(3,N))>0._EB) PLX(3) = DZ(K)/ABS(DLANG(3,N))
+                                PLX = PLX*EXTCOE(I,J,K)
+                                FWX = MAX(0.5_EB,1._EB-(PLX(2)*PLX(3))/(PLX(1)*&
+                                    (2._EB*PLX(2)+2._EB*PLX(3)+PLX(2)*PLX(3))))
+                                FWY = MAX(0.5_EB,1._EB-(PLX(1)*PLX(3))/(PLX(2)*&
+                                    (2._EB*PLX(1)+2._EB*PLX(3)+PLX(1)*PLX(3))))
+                                FWZ = MAX(0.5_EB,1._EB-(PLX(1)*PLX(2))/(PLX(3)*&
+                                    (2._EB*PLX(1)+2._EB*PLX(2)+PLX(1)*PLX(2))))
                         END SELECT
                         FWX = 1._EB/FWX; FWY = 1._EB/FWY; FWZ = 1._EB/FWZ
                     ENDIF
