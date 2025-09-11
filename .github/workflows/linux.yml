@@ -34,12 +34,12 @@ jobs:
     - uses: rscohn2/setup-oneapi@v0
       with:
         components: |
-          ifx
-          impi
-          mkl
+          ifx@2025.2.0
+          impi@2021.16.0
+          mkl@2025.2.0
         prune: false       
          
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
 
     - name: build fds debug
       run: |
@@ -74,7 +74,7 @@ jobs:
           mkl@2025.1.0
         prune: false  
 
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
     - name: build fds debug
       run: |
         source /opt/intel/oneapi/setvars.sh
@@ -96,9 +96,9 @@ jobs:
     runs-on: [ubuntu-latest]
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
 
-    - uses: actions/setup-python@v5
+    - uses: actions/setup-python@v6
       with:
         python-version: '3.9'
         cache: 'pip' # caching pip dependencies
