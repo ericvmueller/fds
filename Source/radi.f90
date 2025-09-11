@@ -3463,21 +3463,22 @@ USE PHYSICAL_FUNCTIONS, ONLY : GET_VOLUME_FRACTION, GET_MASS_FRACTION
 REAL(EB) :: RAP, AX, AXU, AXD, AY, AYU, AYD, AZ, AZU, AZD, VC, RU, RD, RP, AFD, &
             ILXU, ILYU, ILZU, QVAL, BBF, BBFA, NCSDROP, RSA_RAT,EFLUX,SOOT_MASS_FRACTION, &
             AIU_SUM,A_SUM,VOL,VC1,AY1,AZ1,DLO,COS_DLO,AILFU, &
-            RAD_Q_SUM_PARTIAL,KFST4_SUM_PARTIAL,ALPHA_CC,FWX,FWY,FWZ,PLX(3),PLS,&
-            GAMMA,FWXD,FWYD,FWZD
+            RAD_Q_SUM_PARTIAL,KFST4_SUM_PARTIAL,ALPHA_CC,FWX,FWY,FWZ,PLX(3),&
+            FWXD,FWYD,FWZD
 
 INTEGER  :: N,NN,IIG,JJG,KKG,I,J,K,IW,ICF,II,JJ,KK,IOR,IC,IWUP,IWDOWN, &
             ISTART, IEND, ISTEP, JSTART, JEND, JSTEP, &
             KSTART, KEND, KSTEP, NSTART, NEND, NSTEP, &
-            I_UIID, N_UPDATES, IBND, NOM, ARRAY_INDEX, NRA, PLX_MI, &
+            I_UIID, N_UPDATES, IBND, NOM, ARRAY_INDEX, NRA, &
             IMIN, JMIN, KMIN, IMAX, JMAX, KMAX, N_SLICE, M_IJK, IJK, LL
 INTEGER  :: IADD,IFACE,INDCF
 INTEGER, ALLOCATABLE :: IJK_SLICE(:,:)
+LOGICAL :: NEGATIVE_MASK(3)
 REAL(EB) :: XID,YJD,ZKD,KAPPA_PART_SINGLE,DLF,DLA(3),TSI,TMP_EXTERIOR,TEMP_ORIENTATION(3)
 REAL(EB), ALLOCATABLE, DIMENSION(:) :: ZZ_GET
 REAL(EB) :: ILDX(0:IBP1,0:JBP1,0:KBP1),ILDY(0:IBP1,0:JBP1,0:KBP1),ILDZ(0:IBP1,0:JBP1,0:KBP1)
 INTEGER :: IID,JJD,KKD,IP
-LOGICAL :: UPDATE_INTENSITY,CLIP
+LOGICAL :: UPDATE_INTENSITY
 REAL(EB), POINTER, DIMENSION(:,:,:) :: IL,UIIOLD,KAPPA_PART,KFST4_PART,EXTCOE,SCAEFF,SCAEFF_G,IL_UP
 REAL(EB), POINTER, DIMENSION(:)     :: OUTRAD_W,INRAD_W,OUTRAD_F,INRAD_F,IL_F
 TYPE (OMESH_TYPE), POINTER :: M2
@@ -4282,72 +4283,18 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
                         SELECT CASE(RADIATION_SCHEME)
                             CASE DEFAULT ! Upwind (step)
                                 FWX = 1._EB; FWY = 1._EB; FWZ = 1._EB
-                            CASE(2) ! Diamond
-                                FWX = 0.5_EB; FWY = 0.5_EB; FWZ = 0.5_EB
-                            CASE(3) ! exponential
-                                PLX(:) = HUGE_EB
-                                IF(ABS(DLANG(1,N))>0._EB) PLX(1) = DX(I)/ABS(DLANG(1,N))
-                                IF(ABS(DLANG(2,N))>0._EB) PLX(2) = DY(J)/ABS(DLANG(2,N))
-                                IF(ABS(DLANG(3,N))>0._EB) PLX(3) = DZ(K)/ABS(DLANG(3,N))
-                                PLS = MINVAL(PLX)
-                                ! FWX = MIN(1._EB, 1._EB/(2._EB-EXP(-KAPPA_PART(I,J,K)*PLS)))
-                                FWX = MIN(1._EB, 1._EB/(1._EB-EXP(-EXTCOE(I,J,K)*PLS))-1._EB/(EXTCOE(I,J,K)*PLS))
-                                FWY=FWX; FWZ=FWX
                             CASE(4) ! exponential v2
                                 PLX(:) = HUGE_EB
                                 IF(ABS(DLANG(1,N))>0._EB) PLX(1) = DX(I)/ABS(DLANG(1,N))
                                 IF(ABS(DLANG(2,N))>0._EB) PLX(2) = DY(J)/ABS(DLANG(2,N))
                                 IF(ABS(DLANG(3,N))>0._EB) PLX(3) = DZ(K)/ABS(DLANG(3,N))
-                                PLS = MINVAL(PLX)
-                                ! FWX = MIN(1._EB, 1._EB/(2._EB-EXP(-KAPPA_PART(I,J,K)*PLS)))
-                                FWX = MIN(1._EB, 1._EB/(1._EB-EXP(-EXTCOE(I,J,K)*PLX(1)))-1._EB/(EXTCOE(I,J,K)*PLX(1)))
-                                FWY = MIN(1._EB, 1._EB/(1._EB-EXP(-EXTCOE(I,J,K)*PLX(2)))-1._EB/(EXTCOE(I,J,K)*PLX(2)))
-                                FWZ = MIN(1._EB, 1._EB/(1._EB-EXP(-EXTCOE(I,J,K)*PLX(3)))-1._EB/(EXTCOE(I,J,K)*PLX(3)))
-                            CASE(5,6,7) ! hybrid and hybrid v2
-                                PLX(:) = HUGE_EB                                
-                                IF(ABS(DLANG(1,N))>0._EB) PLX(1) = DX(I)/ABS(DLANG(1,N))
-                                IF(ABS(DLANG(2,N))>0._EB) PLX(2) = DY(J)/ABS(DLANG(2,N))
-                                IF(ABS(DLANG(3,N))>0._EB) PLX(3) = DZ(K)/ABS(DLANG(3,N))
-                                PLX_MI = MINLOC(PLX, DIM=1)
-                                SELECT CASE (PLX_MI)
-                                    CASE(1)
-                                        GAMMA = PLX(1)*(1._EB/PLX(2)+1._EB/PLX(3)-1.5_EB*PLX(1)/(PLX(2)*PLX(3)))
-                                    CASE(2)
-                                        GAMMA = PLX(2)*(1._EB/PLX(1)+1._EB/PLX(3)-1.5_EB*PLX(2)/(PLX(1)*PLX(3)))
-                                    CASE(3)
-                                        GAMMA = PLX(3)*(1._EB/PLX(1)+1._EB/PLX(2)-1.5_EB*PLX(3)/(PLX(1)*PLX(2)))
-                                END SELECT
-                                PLX = PLX/2._EB
-                                PLS = MINVAL(PLX)
-                                IF (RADIATION_SCHEME == 5) THEN                                
-                                    FWX = MIN(1._EB, 1._EB/(GAMMA+EXP(-EXTCOE(I,J,K)*PLS)))
-                                    FWY=FWX; FWZ=FWX
-                                ELSEIF (RADIATION_SCHEME == 6) THEN ! case 6
-                                    ! FWX = MIN(1._EB, 1._EB/(GAMMA+EXP(-EXTCOE(I,J,K)*PLX(1))))
-                                    FWX = MIN(1._EB, 1._EB/(1.+EXP(-EXTCOE(I,J,K)*PLX(1))))
-                                    !FWY = MIN(1._EB, 1._EB/(GAMMA+EXP(-EXTCOE(I,J,K)*PLX(2))))
-                                    FWY = MIN(1._EB, 1._EB/(1._EB+EXP(-EXTCOE(I,J,K)*PLX(2))))
-                                    !FWZ = MIN(1._EB, 1._EB/(GAMMA+EXP(-EXTCOE(I,J,K)*PLX(3))))
-                                    FWZ = MIN(1._EB, 1._EB/(1._EB+EXP(-EXTCOE(I,J,K)*PLX(3))))
-                                ELSE                                    
-                                    FWY = EXP(-EXTCOE(I,J,K)*PLS)
-                                    FWX = MIN(1._EB,FWY/(1._EB+GAMMA)+(1._EB-FWY)/(1._EB+FWY))
-                                    FWY=FWX; FWZ=FWX
-                                END IF
-                            CASE(8) !Lathrop
-                                PLX(:) = HUGE_EB
-                                IF(ABS(DLANG(1,N))>0._EB) PLX(1) = DX(I)/ABS(DLANG(1,N))
-                                IF(ABS(DLANG(2,N))>0._EB) PLX(2) = DY(J)/ABS(DLANG(2,N))
-                                IF(ABS(DLANG(3,N))>0._EB) PLX(3) = DZ(K)/ABS(DLANG(3,N))
                                 PLX = PLX*EXTCOE(I,J,K)
-                                FWX = MAX(0.5_EB,1._EB-(PLX(2)*PLX(3))/(PLX(1)*&
-                                    (2._EB*PLX(2)+2._EB*PLX(3)+PLX(2)*PLX(3))))
-                                FWY = MAX(0.5_EB,1._EB-(PLX(1)*PLX(3))/(PLX(2)*&
-                                    (2._EB*PLX(1)+2._EB*PLX(3)+PLX(1)*PLX(3))))
-                                FWZ = MAX(0.5_EB,1._EB-(PLX(1)*PLX(2))/(PLX(3)*&
-                                    (2._EB*PLX(1)+2._EB*PLX(2)+PLX(1)*PLX(2))))
-                        END SELECT
-                        FWX = 1._EB/FWX; FWY = 1._EB/FWY; FWZ = 1._EB/FWZ
+                                FWX = MIN(1._EB, 1._EB/(1._EB-EXP(-PLX(1)))-1._EB/(PLX(1)))
+                                FWY = MIN(1._EB, 1._EB/(1._EB-EXP(-PLX(2)))-1._EB/(PLX(2)))
+                                FWZ = MIN(1._EB, 1._EB/(1._EB-EXP(-PLX(3)))-1._EB/(PLX(3)))
+                                FWX = 1._EB/FWX; FWY = 1._EB/FWY; FWZ = 1._EB/FWZ
+                        END SELECT    
+                        
                     ENDIF
 
                     A_SUM = AXD*FWX + AYD*FWY + AZD*FWZ + AFD
@@ -4362,39 +4309,30 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
                     ILDX(I,J,K) = FWX*IL(I,J,K) - (FWX - 1._EB)*ILXU
                     ILDY(I,J,K) = FWY*IL(I,J,K) - (FWY - 1._EB)*ILYU
                     ILDZ(I,J,K) = FWZ*IL(I,J,K) - (FWZ - 1._EB)*ILZU
-                    CLIP = .FALSE.
+                    NEGATIVE_MASK = .FALSE.
                     FWXD = FWX; FWYD = FWY; FWZD = FWZ
-                    IF (ILDX(I,J,K)<0._EB) THEN                        
-                        MESHES(NM)%REL_CLIP = MESHES(NM)%REL_CLIP*MESHES(NM)%N_RAD_CLIP+ILDX(I,J,K)*RSA(N)/UIIOLD(I,J,K)
-                        MESHES(NM)%DLN_CLIP = MESHES(NM)%DLN_CLIP*MESHES(NM)%N_RAD_CLIP+ABS(DLX(N))
-                        MESHES(NM)%N_RAD_CLIP = MESHES(NM)%N_RAD_CLIP+1
-                        MESHES(NM)%REL_CLIP = MESHES(NM)%REL_CLIP/MESHES(NM)%N_RAD_CLIP
-                        MESHES(NM)%DLN_CLIP = MESHES(NM)%DLN_CLIP/MESHES(NM)%N_RAD_CLIP
-                        ILDX(I,J,K) = 0._EB
-                        FWX = 1._EB; FWXD = 0._EB
-                        CLIP = .TRUE.
+                    
+                    ! Check for negative intensities and apply corrections
+                    NEGATIVE_MASK(1) = (ILDX(I,J,K) < 0._EB)
+                    NEGATIVE_MASK(2) = (ILDY(I,J,K) < 0._EB)
+                    NEGATIVE_MASK(3) = (ILDZ(I,J,K) < 0._EB)
+                    
+                    IF (ANY(NEGATIVE_MASK)) THEN
+                        ! Apply corrections based on mask
+                        IF (NEGATIVE_MASK(1)) THEN
+                            ILDX(I,J,K) = 0._EB
+                            FWX = 1._EB; FWXD = 0._EB
+                        ENDIF
+                        IF (NEGATIVE_MASK(2)) THEN
+                            ILDY(I,J,K) = 0._EB
+                            FWY = 1._EB; FWYD = 0._EB
+                        ENDIF
+                        IF (NEGATIVE_MASK(3)) THEN
+                            ILDZ(I,J,K) = 0._EB
+                            FWZ = 1._EB; FWZD = 0._EB
+                        ENDIF
                     ENDIF
-                    IF (ILDY(I,J,K)<0._EB) THEN
-                        MESHES(NM)%REL_CLIP = MESHES(NM)%REL_CLIP*MESHES(NM)%N_RAD_CLIP+ILDY(I,J,K)*RSA(N)/UIIOLD(I,J,K)
-                        MESHES(NM)%DLN_CLIP = MESHES(NM)%DLN_CLIP*MESHES(NM)%N_RAD_CLIP+ABS(DLY(N))
-                        MESHES(NM)%N_RAD_CLIP = MESHES(NM)%N_RAD_CLIP+1
-                        MESHES(NM)%REL_CLIP = MESHES(NM)%REL_CLIP/MESHES(NM)%N_RAD_CLIP
-                        MESHES(NM)%DLN_CLIP = MESHES(NM)%DLN_CLIP/MESHES(NM)%N_RAD_CLIP
-                        ILDY(I,J,K) = 0._EB
-                        FWY = 1._EB; FWYD = 0._EB
-                        CLIP = .TRUE.
-                    ENDIF
-                    IF (ILDZ(I,J,K)<0._EB) THEN
-                        MESHES(NM)%REL_CLIP = MESHES(NM)%REL_CLIP*MESHES(NM)%N_RAD_CLIP+ILDZ(I,J,K)*RSA(N)/UIIOLD(I,J,K)
-                        MESHES(NM)%DLN_CLIP = MESHES(NM)%DLN_CLIP*MESHES(NM)%N_RAD_CLIP+ABS(DLZ(N))
-                        MESHES(NM)%N_RAD_CLIP = MESHES(NM)%N_RAD_CLIP+1
-                        MESHES(NM)%REL_CLIP = MESHES(NM)%REL_CLIP/MESHES(NM)%N_RAD_CLIP
-                        MESHES(NM)%DLN_CLIP = MESHES(NM)%DLN_CLIP/MESHES(NM)%N_RAD_CLIP
-                        ILDZ(I,J,K) = 0._EB
-                        FWZ = 1._EB; FWZD = 0._EB
-                        CLIP = .TRUE.
-                    ENDIF
-                    IF (CLIP) THEN
+                    IF (ANY(NEGATIVE_MASK)) THEN
                      A_SUM = AXD*FWXD + AYD*FWYD + AZD*FWZD + AFD
                      AIU_SUM = AXU*FWX*ILXU + AYU*FWY*ILYU + AZU*FWZ*ILZU + AILFU
                      IF (SOLID_PARTICLES) IL_UP(I,J,K) = MAX(0._EB,AIU_SUM/A_SUM)
@@ -4402,9 +4340,9 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
                      IL(I,J,K) = MAX(0._EB, RAP * (AIU_SUM + VC*RSA(N)*RFPI* &
                                  ( KFST4_GAS(I,J,K) + KFST4_PART(I,J,K) + RSA_RAT*&
                                  (SCAEFF(I,J,K)+SCAEFF_G(I,J,K))*UIIOLD(I,J,K) ) ) )
-                     IF (FWXD>0._EB) ILDX(I,J,K) = FWX*IL(I,J,K) - (FWX - 1._EB)*ILXU
-                     IF (FWYD>0._EB) ILDY(I,J,K) = FWY*IL(I,J,K) - (FWY - 1._EB)*ILYU
-                     IF (FWZD>0._EB) ILDZ(I,J,K) = FWZ*IL(I,J,K) - (FWZ - 1._EB)*ILZU
+                     IF (.NOT.NEGATIVE_MASK(1)) ILDX(I,J,K) = FWX*IL(I,J,K) - (FWX - 1._EB)*ILXU  
+                     IF (.NOT.NEGATIVE_MASK(2)) ILDY(I,J,K) = FWY*IL(I,J,K) - (FWY - 1._EB)*ILYU
+                     IF (.NOT.NEGATIVE_MASK(3)) ILDZ(I,J,K) = FWZ*IL(I,J,K) - (FWZ - 1._EB)*ILZU
                     ENDIF
                      
 
