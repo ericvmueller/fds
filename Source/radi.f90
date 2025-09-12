@@ -3450,7 +3450,6 @@ T_USED(9)=T_USED(9)+CURRENT_TIME()-TNOW
 
 CONTAINS
 
-
 !> \brief Finite Volume Method of radiation transport
 
 SUBROUTINE RADIATION_FVM
@@ -4475,6 +4474,19 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
                ENDDO OTHER_WALL_LOOP
             ENDDO INTERPOLATION_LOOP
 
+            ! Use subgrid interpolated intensity for flux to particle cloud
+            IF (INTERPOLATE_PART_INTENSITY) THEN
+               PARTICLE_INTERPOLATION_LOOP: DO IP=1,NLP
+                  LP => LAGRANGIAN_PARTICLE(IP)
+                  LPC => LAGRANGIAN_PARTICLE_CLASS(LP%CLASS_INDEX)
+                  IF (.NOT. LPC%INTERPOLATE_INTENSITY) CYCLE PARTICLE_INTERPOLATION_LOOP
+                  BC => BOUNDARY_COORD(LP%BC_INDEX)
+                  BR => BOUNDARY_RADIA(LP%BR_INDEX)                  
+                  BR%BAND(IBND)%ILW(N) = RSA(N) * &
+                     IDW_INTENSITY(BC%IIG,BC%JJG,BC%KKG,BC%X,BC%Y,BC%Z,IL,ILDX,ILDY,ILDZ)
+               ENDDO PARTICLE_INTERPOLATION_LOOP
+            ENDIF
+
             ! Compute projected intensity on particles with a specified ORIENTATION
 
             IF (ORIENTED_PARTICLES) THEN
@@ -4630,7 +4642,7 @@ IF (SOLID_PARTICLES .AND. UPDATE_INTENSITY) THEN
          ELSE
             EFLUX = 0._EB
          ENDIF
-         IF (LP%ORIENTATION_INDEX>0) THEN
+         IF (LP%ORIENTATION_INDEX>0 .OR. LPC%INTERPOLATE_INTENSITY) THEN
             BR => BOUNDARY_RADIA(LP%BR_INDEX)
             B1%Q_RAD_IN = 0._EB
             DO IBND=1,NUMBER_SPECTRAL_BANDS
@@ -4643,6 +4655,8 @@ IF (SOLID_PARTICLES .AND. UPDATE_INTENSITY) THEN
       ENDIF
    ENDDO PARTICLE_LOOP
 ENDIF
+
+
 
 DEALLOCATE(IJK_SLICE)
 
@@ -4674,7 +4688,6 @@ ENDIF
 ! UPDATE_ALL_ANGLES is a one-time only logical. If needed again, it will be reset again.
 
 UPDATE_ALL_ANGLES = .FALSE.
-
 
 END SUBROUTINE RADIATION_FVM
 
@@ -4735,8 +4748,83 @@ ENDDO
 
 END SUBROUTINE ADD_VOLUMETRIC_HEAT_SOURCE
 
-END SUBROUTINE COMPUTE_RADIATION
+!> \brief Get Inverse-Distance Weighted (IDW) intensity for interpolation to particles
 
+REAL(EB) FUNCTION IDW_INTENSITY(IIG,JJG,KKG, PX,PY,PZ, IL,ILDX,ILDY,ILDZ)
+
+INTEGER, INTENT(IN) :: IIG,JJG,KKG
+REAL(EB), INTENT(IN) :: PX,PY,PZ
+REAL(EB), INTENT(IN), DIMENSION(0:IBP1,0:JBP1,0:KBP1) :: IL,ILDX,ILDY,ILDZ
+
+REAL(EB) :: NUMERATOR, DENOMINATOR, D_WGT
+INTEGER :: I, II, JJ, KK
+REAL(EB), DIMENSION(3) :: XYZ_INT, PART_POS
+REAL(EB) :: IL_P(7), DIST(7)
+
+NUMERATOR = 0._EB
+DENOMINATOR = 0._EB
+PART_POS = (/PX, PY, PZ/)
+
+! Precompute all IL values and distances (use mesh coords via module state)
+! Point 1: Center
+II = IIG; JJ = JJG; KK = KKG
+IL_P(1) = IL(II, JJ, KK)
+XYZ_INT = (/XC(II), YC(JJ), ZC(KK)/)
+DIST(1) = NORM2(PART_POS - XYZ_INT)
+
+! Points 2-3: X faces
+II = IIG-1; JJ = JJG; KK = KKG
+IL_P(2) = ILDX(II, JJ, KK)
+XYZ_INT = (/X(II), YC(JJ), ZC(KK)/)
+DIST(2) = NORM2(PART_POS - XYZ_INT)
+
+II = IIG; JJ = JJG; KK = KKG
+IL_P(3) = ILDX(II, JJ, KK)
+XYZ_INT = (/X(II), YC(JJ), ZC(KK)/)
+DIST(3) = NORM2(PART_POS - XYZ_INT)
+
+! Points 4-5: Y faces
+II = IIG; JJ = JJG-1; KK = KKG
+IL_P(4) = ILDY(II, JJ, KK)
+XYZ_INT = (/XC(II), Y(JJ), ZC(KK)/)
+DIST(4) = NORM2(PART_POS - XYZ_INT)
+
+II = IIG; JJ = JJG; KK = KKG
+IL_P(5) = ILDY(II, JJ, KK)
+XYZ_INT = (/XC(II), Y(JJ), ZC(KK)/)
+DIST(5) = NORM2(PART_POS - XYZ_INT)
+
+! Points 6-7: Z faces
+II = IIG; JJ = JJG; KK = KKG-1
+IL_P(6) = ILDZ(II, JJ, KK)
+XYZ_INT = (/XC(II), YC(JJ), Z(KK)/)
+DIST(6) = NORM2(PART_POS - XYZ_INT)
+
+II = IIG; JJ = JJG; KK = KKG
+IL_P(7) = ILDZ(II, JJ, KK)
+XYZ_INT = (/XC(II), YC(JJ), Z(KK)/)
+DIST(7) = NORM2(PART_POS - XYZ_INT)
+
+! Check for exact matches first
+DO I = 1, 7
+    IF (DIST(I) < TWO_EPSILON_EB) THEN
+        IDW_INTENSITY = IL_P(I)
+        RETURN
+    ENDIF
+ENDDO
+
+! Calculate weights and accumulate
+DO I = 1, 7
+    D_WGT = 1._EB / DIST(I)**2._EB
+    NUMERATOR = NUMERATOR + IL_P(I) * D_WGT
+    DENOMINATOR = DENOMINATOR + D_WGT
+ENDDO
+
+IDW_INTENSITY = NUMERATOR / DENOMINATOR
+
+END FUNCTION IDW_INTENSITY
+
+END SUBROUTINE COMPUTE_RADIATION
 
 REAL(EB) FUNCTION BLACKBODY_FRACTION(L1,L2,TEMP)
 
