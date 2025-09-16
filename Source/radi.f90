@@ -4483,7 +4483,7 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
                   BC => BOUNDARY_COORD(LP%BC_INDEX)
                   BR => BOUNDARY_RADIA(LP%BR_INDEX)                  
                   BR%BAND(IBND)%ILW(N) = RSA(N) * &
-                     IDW_INTENSITY(BC%IIG,BC%JJG,BC%KKG,BC%X,BC%Y,BC%Z,IL,ILDX,ILDY,ILDZ)
+                     INTENSITY_INTERPOLATION(BC%IIG,BC%JJG,BC%KKG,BC%X,BC%Y,BC%Z,IL,ILDX,ILDY,ILDZ)
                ENDDO PARTICLE_INTERPOLATION_LOOP
             ENDIF
 
@@ -4656,8 +4656,6 @@ IF (SOLID_PARTICLES .AND. UPDATE_INTENSITY) THEN
    ENDDO PARTICLE_LOOP
 ENDIF
 
-
-
 DEALLOCATE(IJK_SLICE)
 
 ! Write out intensities to the radiation file (RADF)
@@ -4748,81 +4746,58 @@ ENDDO
 
 END SUBROUTINE ADD_VOLUMETRIC_HEAT_SOURCE
 
-!> \brief Get Inverse-Distance Weighted (IDW) intensity for interpolation to particles
+!> \brief Get intensity at particle via gradient-based interpolation (first-order Taylor)
 
-REAL(EB) FUNCTION IDW_INTENSITY(IIG,JJG,KKG, PX,PY,PZ, IL,ILDX,ILDY,ILDZ)
+REAL(EB) FUNCTION INTENSITY_INTERPOLATION(IIG,JJG,KKG, PX,PY,PZ, IL,ILDX,ILDY,ILDZ)
 
 INTEGER, INTENT(IN) :: IIG,JJG,KKG
 REAL(EB), INTENT(IN) :: PX,PY,PZ
 REAL(EB), INTENT(IN), DIMENSION(0:IBP1,0:JBP1,0:KBP1) :: IL,ILDX,ILDY,ILDZ
+REAL(EB) :: GX,GY,GZ, DX_CELL, DY_CELL, DZ_CELL
+REAL(EB) :: DX_P, DY_P, DZ_P
+REAL(EB) :: MIN_IL, MAX_IL
 
-REAL(EB) :: NUMERATOR, DENOMINATOR, D_WGT
-INTEGER :: I, II, JJ, KK
-REAL(EB), DIMENSION(3) :: XYZ_INT, PART_POS
-REAL(EB) :: IL_P(7), DIST(7)
+! Compute gradients from face-centered intensities and local cell sizes
+DX_CELL = X(IIG)   - X(IIG-1)
+DY_CELL = Y(JJG)   - Y(JJG-1)
+DZ_CELL = Z(KKG)   - Z(KKG-1)
 
-NUMERATOR = 0._EB
-DENOMINATOR = 0._EB
-PART_POS = (/PX, PY, PZ/)
+IF (DX_CELL > TWO_EPSILON_EB) THEN
+   GX = (ILDX(IIG,JJG,KKG) - ILDX(IIG-1,JJG,KKG)) / DX_CELL
+ELSE
+   GX = 0._EB
+ENDIF
 
-! Precompute all IL values and distances (use mesh coords via module state)
-! Point 1: Center
-II = IIG; JJ = JJG; KK = KKG
-IL_P(1) = IL(II, JJ, KK)
-XYZ_INT = (/XC(II), YC(JJ), ZC(KK)/)
-DIST(1) = NORM2(PART_POS - XYZ_INT)
+IF (DY_CELL > TWO_EPSILON_EB) THEN
+   GY = (ILDY(IIG,JJG,KKG) - ILDY(IIG,JJG-1,KKG)) / DY_CELL
+ELSE
+   GY = 0._EB
+ENDIF
 
-! Points 2-3: X faces
-II = IIG-1; JJ = JJG; KK = KKG
-IL_P(2) = ILDX(II, JJ, KK)
-XYZ_INT = (/X(II), YC(JJ), ZC(KK)/)
-DIST(2) = NORM2(PART_POS - XYZ_INT)
+IF (DZ_CELL > TWO_EPSILON_EB) THEN
+   GZ = (ILDZ(IIG,JJG,KKG) - ILDZ(IIG,JJG,KKG-1)) / DZ_CELL
+ELSE
+   GZ = 0._EB
+ENDIF
 
-II = IIG; JJ = JJG; KK = KKG
-IL_P(3) = ILDX(II, JJ, KK)
-XYZ_INT = (/X(II), YC(JJ), ZC(KK)/)
-DIST(3) = NORM2(PART_POS - XYZ_INT)
+DX_P = PX - XC(IIG)
+DY_P = PY - YC(JJG)
+DZ_P = PZ - ZC(KKG)
 
-! Points 4-5: Y faces
-II = IIG; JJ = JJG-1; KK = KKG
-IL_P(4) = ILDY(II, JJ, KK)
-XYZ_INT = (/XC(II), Y(JJ), ZC(KK)/)
-DIST(4) = NORM2(PART_POS - XYZ_INT)
+INTENSITY_INTERPOLATION = IL(IIG,JJG,KKG) + GX*DX_P + GY*DY_P + GZ*DZ_P
 
-II = IIG; JJ = JJG; KK = KKG
-IL_P(5) = ILDY(II, JJ, KK)
-XYZ_INT = (/XC(II), Y(JJ), ZC(KK)/)
-DIST(5) = NORM2(PART_POS - XYZ_INT)
+! Limit to local extrema defined by center and adjacent faces to avoid overshoots
+MAX_IL = MAXVAL((/ IL(IIG,JJG,KKG), &
+                  ILDX(IIG-1:IIG,JJG,KKG), &
+                  ILDY(IIG,JJG-1:JJG,KKG), &
+                  ILDZ(IIG,JJG,KKG-1:KKG) /))
+MIN_IL = MINVAL((/ IL(IIG,JJG,KKG), &
+                  ILDX(IIG-1:IIG,JJG,KKG), &
+                  ILDY(IIG,JJG-1:JJG,KKG), &
+                  ILDZ(IIG,JJG,KKG-1:KKG) /))
+INTENSITY_INTERPOLATION = MAX(MIN_IL, MIN(MAX_IL, INTENSITY_INTERPOLATION))
 
-! Points 6-7: Z faces
-II = IIG; JJ = JJG; KK = KKG-1
-IL_P(6) = ILDZ(II, JJ, KK)
-XYZ_INT = (/XC(II), YC(JJ), Z(KK)/)
-DIST(6) = NORM2(PART_POS - XYZ_INT)
-
-II = IIG; JJ = JJG; KK = KKG
-IL_P(7) = ILDZ(II, JJ, KK)
-XYZ_INT = (/XC(II), YC(JJ), Z(KK)/)
-DIST(7) = NORM2(PART_POS - XYZ_INT)
-
-! Check for exact matches first
-DO I = 1, 7
-    IF (DIST(I) < TWO_EPSILON_EB) THEN
-        IDW_INTENSITY = IL_P(I)
-        RETURN
-    ENDIF
-ENDDO
-
-! Calculate weights and accumulate
-DO I = 1, 7
-    D_WGT = 1._EB / DIST(I)**2._EB
-    NUMERATOR = NUMERATOR + IL_P(I) * D_WGT
-    DENOMINATOR = DENOMINATOR + D_WGT
-ENDDO
-
-IDW_INTENSITY = NUMERATOR / DENOMINATOR
-
-END FUNCTION IDW_INTENSITY
+END FUNCTION INTENSITY_INTERPOLATION
 
 END SUBROUTINE COMPUTE_RADIATION
 
