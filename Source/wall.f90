@@ -445,8 +445,6 @@ ELSEIF (PRESENT(PARTICLE_INDEX)) THEN
       VBAR = 0.5_EB*(VV(BC%IIG,BC%JJG,BC%KKG)+VV(BC%IIG,BC%JJG-1,BC%KKG)) - LP%V
       WBAR = 0.5_EB*(WW(BC%IIG,BC%JJG,BC%KKG)+WW(BC%IIG,BC%JJG,BC%KKG-1)) - LP%W
       B1%U_TANG = SQRT(UBAR**2+VBAR**2+WBAR**2)
-      IF(BC%IIG==2 .AND. BC%JJG==1 .AND. BC%KKG==20) WRITE(LU_ERR,*) TMP(:,BC%JJG,BC%KKG)
-
    
    ELSE ! Do gradient based interpolation for the near-surface quantities. B1%U_TANG interpolation is in part.f90
 
