@@ -2583,48 +2583,53 @@ V_OLD = LP%V
 W_OLD = LP%W
 
 ! Interpolate the nearest velocity components of the gas
+IF (LPC%SUBGRID_INTERPOLATION) THEN
+   ! Lower cell index for nearest 8 interpolation points
+   IIX = FLOOR(XI+.5_EB)
+   JJY = FLOOR(YJ+.5_EB)
+   KKZ = FLOOR(ZK+.5_EB)
+   ! For cut cells base nearest points on cell centroid
+   ICC = 0
+   IF (CC_IBM) THEN
+      ICC = CCVAR(IIG_OLD,JJG_OLD,KKG_OLD,CC_IDCC)
+      IF (ICC>0) THEN
+         IF (BC%X<=CUT_CELL(ICC)%XYZCEN(IAXIS,1) .AND. BC%X>XC(IIG_OLD)) IIX = IIX-1
+         IF (BC%X>=CUT_CELL(ICC)%XYZCEN(IAXIS,1) .AND. BC%X<XC(IIG_OLD)) IIX = IIX+1
+         IF (BC%Y<=CUT_CELL(ICC)%XYZCEN(JAXIS,1) .AND. BC%Y>YC(JJG_OLD)) JJY = JJY-1
+         IF (BC%Y>=CUT_CELL(ICC)%XYZCEN(JAXIS,1) .AND. BC%Y<YC(JJG_OLD)) JJY = JJY+1
+         IF (BC%Z<=CUT_CELL(ICC)%XYZCEN(KAXIS,1) .AND. BC%Z>ZC(KKG_OLD)) KKZ = KKZ-1
+         IF (BC%Z>=CUT_CELL(ICC)%XYZCEN(KAXIS,1) .AND. BC%Z<ZC(KKG_OLD)) KKZ = KKZ+1
+      ENDIF
+   ENDIF
 
-! Lower cell index for nearest 8 interpolation points
-IIX = FLOOR(XI+.5_EB)
-JJY = FLOOR(YJ+.5_EB)
-KKZ = FLOOR(ZK+.5_EB)
-! For cut cells base nearest points on cell centroid
-ICC = 0
-IF (CC_IBM) THEN
-   ICC = CCVAR(IIG_OLD,JJG_OLD,KKG_OLD,CC_IDCC)
-   IF (ICC>0) THEN
-      IF (BC%X<=CUT_CELL(ICC)%XYZCEN(IAXIS,1) .AND. BC%X>XC(IIG_OLD)) IIX = IIX-1
-      IF (BC%X>=CUT_CELL(ICC)%XYZCEN(IAXIS,1) .AND. BC%X<XC(IIG_OLD)) IIX = IIX+1
-      IF (BC%Y<=CUT_CELL(ICC)%XYZCEN(JAXIS,1) .AND. BC%Y>YC(JJG_OLD)) JJY = JJY-1
-      IF (BC%Y>=CUT_CELL(ICC)%XYZCEN(JAXIS,1) .AND. BC%Y<YC(JJG_OLD)) JJY = JJY+1
-      IF (BC%Z<=CUT_CELL(ICC)%XYZCEN(KAXIS,1) .AND. BC%Z>ZC(KKG_OLD)) KKZ = KKZ-1
-      IF (BC%Z>=CUT_CELL(ICC)%XYZCEN(KAXIS,1) .AND. BC%Z<ZC(KKG_OLD)) KKZ = KKZ+1
-   ENDIF
-ENDIF
-
-WGT=0._EB
-DO AXIS=IAXIS,KAXIS
-   IL = IIX; JL = JJY; KL = KKZ
-   IF (AXIS==IAXIS) THEN
-      IL = FLOOR(XI)
-      VEL_G = U(IL:IL+1,JL:JL+1,KL:KL+1)
-   ELSEIF (AXIS==JAXIS) THEN
-      JL = FLOOR(YJ)
-      VEL_G = V(IL:IL+1,JL:JL+1,KL:KL+1)
-   ELSEIF (AXIS==KAXIS) THEN
-      KL = FLOOR(ZK)
-      VEL_G = W(IL:IL+1,JL:JL+1,KL:KL+1)
-   ENDIF
-   IF (ICC>0) THEN
-      CALL GET_FACE_IDW(AXIS,IL,JL,KL,BC%X,BC%Y,BC%Z,WGT(:,:,:,AXIS))
-   ELSE
-      CALL GET_FACE_TLW(AXIS,IL,JL,KL,BC%X,BC%Y,BC%Z,WGT(:,:,:,AXIS),VEL_G)
-   ENDIF
-   VEL_G_INT(AXIS) = SUM(VEL_G*WGT(:,:,:,AXIS))
-ENDDO
-UBAR = VEL_G_INT(IAXIS)
-VBAR = VEL_G_INT(JAXIS)
-WBAR = VEL_G_INT(KAXIS)
+   WGT=0._EB
+   DO AXIS=IAXIS,KAXIS
+      IL = IIX; JL = JJY; KL = KKZ
+      IF (AXIS==IAXIS) THEN
+         IL = FLOOR(XI)
+         VEL_G = U(IL:IL+1,JL:JL+1,KL:KL+1)
+      ELSEIF (AXIS==JAXIS) THEN
+         JL = FLOOR(YJ)
+         VEL_G = V(IL:IL+1,JL:JL+1,KL:KL+1)
+      ELSEIF (AXIS==KAXIS) THEN
+         KL = FLOOR(ZK)
+         VEL_G = W(IL:IL+1,JL:JL+1,KL:KL+1)
+      ENDIF
+      IF (ICC>0) THEN
+         CALL GET_FACE_IDW(AXIS,IL,JL,KL,BC%X,BC%Y,BC%Z,WGT(:,:,:,AXIS))
+      ELSE
+         CALL GET_FACE_TLW(AXIS,IL,JL,KL,BC%X,BC%Y,BC%Z,WGT(:,:,:,AXIS),VEL_G)
+      ENDIF
+      VEL_G_INT(AXIS) = SUM(VEL_G*WGT(:,:,:,AXIS))
+   ENDDO
+   UBAR = VEL_G_INT(IAXIS)
+   VBAR = VEL_G_INT(JAXIS)
+   WBAR = VEL_G_INT(KAXIS)
+ELSE
+   UBAR = 0.5_EB*(U(BC%IIG,BC%JJG,BC%KKG)+U(BC%IIG-1,BC%JJG,BC%KKG))
+   VBAR = 0.5_EB*(V(BC%IIG,BC%JJG,BC%KKG)+V(BC%IIG,BC%JJG-1,BC%KKG))
+   WBAR = 0.5_EB*(W(BC%IIG,BC%JJG,BC%KKG)+W(BC%IIG,BC%JJG,BC%KKG-1))
+ENDIF 
 
 ! If the particle has a path, just follow the path and return
 
@@ -2988,26 +2993,34 @@ LP%ACCEL_X = LP%ACCEL_X + ACCEL_X
 LP%ACCEL_Y = LP%ACCEL_Y + ACCEL_Y
 LP%ACCEL_Z = LP%ACCEL_Z + ACCEL_Z
 
-DO AXIS=IAXIS,KAXIS
-   IL = IIX; JL = JJY; KL = KKZ
-   IF (AXIS == IAXIS) THEN
-      LP_FORCE = ACCEL_X/LP%RVC
-      IL       = FLOOR(XI)
-      FV_D     => FVX_D
-   ELSEIF (AXIS == JAXIS) THEN
-      LP_FORCE = ACCEL_Y/LP%RVC
-      JL       = FLOOR(YJ)
-      FV_D     => FVY_D
-   ELSEIF (AXIS == KAXIS) THEN
-      LP_FORCE = ACCEL_Z/LP%RVC
-      KL       = FLOOR(ZK)
-      FV_D     => FVZ_D
-   ENDIF
-   CALL GET_FACE_VOLUMES(AXIS,IL,JL,KL,FACE_VOLS)
-   VOL_WGT = FACE_VOLS*WGT(:,:,:,AXIS)
-   IF (ANY(VOL_WGT>TWO_EPSILON_EB)) VOL_WGT=WGT(:,:,:,AXIS)/SUM(VOL_WGT)
-   FV_D(IL:IL+1, JL:JL+1, KL:KL+1) = FV_D(IL:IL+1, JL:JL+1, KL:KL+1) - LP_FORCE*VOL_WGT
-ENDDO
+IF (LPC%SUBGRID_INTERPOLATION) THEN
+   DO AXIS=IAXIS,KAXIS
+      IL = IIX; JL = JJY; KL = KKZ
+      IF (AXIS == IAXIS) THEN
+         LP_FORCE = ACCEL_X/LP%RVC
+         IL       = FLOOR(XI)
+         FV_D     => FVX_D
+      ELSEIF (AXIS == JAXIS) THEN
+         LP_FORCE = ACCEL_Y/LP%RVC
+         JL       = FLOOR(YJ)
+         FV_D     => FVY_D
+      ELSEIF (AXIS == KAXIS) THEN
+         LP_FORCE = ACCEL_Z/LP%RVC
+         KL       = FLOOR(ZK)
+         FV_D     => FVZ_D
+      ENDIF
+      CALL GET_FACE_VOLUMES(AXIS,IL,JL,KL,FACE_VOLS)
+      VOL_WGT = FACE_VOLS*WGT(:,:,:,AXIS)
+      IF (ANY(VOL_WGT>TWO_EPSILON_EB)) VOL_WGT=WGT(:,:,:,AXIS)/SUM(VOL_WGT)
+      FV_D(IL:IL+1, JL:JL+1, KL:KL+1) = FV_D(IL:IL+1, JL:JL+1, KL:KL+1) - LP_FORCE*VOL_WGT
+   ENDDO
+ELSE
+   ! TEST ONLY
+   ! Currently does not handle stretching (face volumes considered equal), or solids
+   FVX_D(BC%IIG-1:BC%IIG,BC%JJG,BC%KKG) = FVX_D(BC%IIG-1:BC%IIG,BC%JJG,BC%KKG) - 0.5_EB*ACCEL_X/LP%RVC
+   FVY_D(BC%IIG,BC%JJG-1:BC%JJG,BC%KKG) = FVY_D(BC%IIG,BC%JJG-1:BC%JJG,BC%KKG) - 0.5_EB*ACCEL_Y/LP%RVC
+   FVZ_D(BC%IIG,BC%JJG,BC%KKG-1:BC%KKG) = FVZ_D(BC%IIG,BC%JJG,BC%KKG-1:BC%KKG) - 0.5_EB*ACCEL_Z/LP%RVC
+ENDIF
 
 ! store C_DRAG for output
 
