@@ -2,7 +2,6 @@
 import pandas as pd
 import numpy as np
 import os
-import matplotlib.pyplot as plt
 
 # include FDS plot styles, etc.
 import fdsplotlib
@@ -26,10 +25,13 @@ version_string = fdsplotlib.get_version_string(git_file)
 fig = fdsplotlib.plot_to_fig([0,50],[0,50],
                              x_min=0, x_max=50, y_min=0, y_max=50,
                              figure_size=(plot_style['Scat_Paper_Width'],plot_style['Scat_Paper_Height']),
+                             plot_size=(plot_style['Scat_Plot_Width'],plot_style['Scat_Plot_Height']),
+                             plot_origin=(plot_style['Scat_Plot_X'],plot_style['Scat_Plot_Y']),
                              legend_location='upper left',
                              revision_label=version_string,
-                             xlabel='Measured Heat Flux (kW/m$^2$)',
-                             ylabel='Predicted Heat Flux (kW/m$^2$)')
+                             x_label='Measured Heat Flux (kW/m$^2$)',
+                             y_label='Predicted Heat Flux (kW/m$^2$)'
+                             )
 
 for i in range(4):
 
@@ -56,9 +58,9 @@ for i in range(4):
     M_clean = M[valid_mask]
     
     # Add data to scatterplot
-    fig = fdsplotlib.plot_to_fig(E_clean, M_clean,figure_handle=fig,
-                                 marker_style=marker[i],
-                                 data_label=label[i])
+    fdsplotlib.plot_to_fig(E_clean, M_clean,figure_handle=fig,
+                           marker_style=marker[i],
+                           data_label=label[i])
                                  
 # Save as PDF
 fig_file =  os.path.join(figdir, f'Sandia_Pools.pdf')

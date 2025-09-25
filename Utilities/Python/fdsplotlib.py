@@ -96,6 +96,9 @@ def dataplot(config_filename,**kwargs):
 
         # print(pp.__dict__) # helpful for debug
 
+        if pp.switch_id=='s':
+           continue
+
         if 'all' not in plot_list:
             if pp.Dataname not in plot_list:
                 continue
@@ -113,12 +116,13 @@ def dataplot(config_filename,**kwargs):
             E = pd.read_csv(expdir+pp.d1_Filename, header=int(pp.d1_Col_Name_Row-1), sep=',', engine='python', comment='#', quotechar='"')
             E.columns = E.columns.str.strip()  # <-- Strip whitespace from headers
 
-            x = E[pp.d1_Ind_Col_Name].values[:].astype(float)
+            start_idx = int(pp.d1_Data_Row - pp.d1_Col_Name_Row - 1)
+            x = E[pp.d1_Ind_Col_Name].values[start_idx:].astype(float)
             # y = E[pp.d1_Dep_Col_Name].values[:].astype(float)
             col_names = [c.strip() for c in pp.d1_Dep_Col_Name.split('|')]
             # y = E[col_names].values.astype(float)
             y = np.column_stack([
-                E[cols].astype(float).sum(axis=1) if '+' in name else E[[name]].astype(float).values.ravel()
+                E[cols].iloc[start_idx:].astype(float).sum(axis=1) if '+' in name else E[[name]].iloc[start_idx:].astype(float).values.ravel()
                 for name in col_names
                 for cols in [name.split('+')]
             ])
@@ -161,8 +165,9 @@ def dataplot(config_filename,**kwargs):
                 # set header to the row where column names are stored (Python is 0 based)
                 E = pd.read_csv(expdir+pp.d1_Filename, header=int(pp.d1_Col_Name_Row-1), sep=',', engine='python', comment='#', quotechar='"')
                 E.columns = E.columns.str.strip()  # <-- Strip whitespace from headers
-                x = E[pp.d1_Ind_Col_Name].values[:].astype(float)
-                y = E[pp.d1_Dep_Col_Name].values[:].astype(float)
+                start_idx = int(pp.d1_Data_Row - pp.d1_Col_Name_Row - 1)
+                x = E[pp.d1_Ind_Col_Name].values[start_idx:].astype(float)
+                y = E[pp.d1_Dep_Col_Name].values[start_idx:].astype(float)
 
                 # plot the exp data
                 f = plot_to_fig(x_data=x, y_data=y,
@@ -179,12 +184,13 @@ def dataplot(config_filename,**kwargs):
         # get the model results
         M = pd.read_csv(cmpdir+pp.d2_Filename, header=int(pp.d2_Col_Name_Row-1), sep=',', engine='python', comment='#', quotechar='"')
         M.columns = M.columns.str.strip()  # <-- Strip whitespace from headers
-        x = M[pp.d2_Ind_Col_Name].values[:].astype(float)
+        start_idx = int(pp.d2_Data_Row - pp.d2_Col_Name_Row - 1)
+        x = M[pp.d2_Ind_Col_Name].values[start_idx:].astype(float)
         # y = M[pp.d2_Dep_Col_Name].values[:].astype(float)
         col_names = [c.strip() for c in pp.d2_Dep_Col_Name.split('|')]
         # y = M[col_names].values.astype(float)
         y = np.column_stack([
-            M[cols].astype(float).sum(axis=1) if '+' in name else M[[name]].astype(float).values.ravel()
+            M[cols].iloc[start_idx:].astype(float).sum(axis=1) if '+' in name else M[[name]].iloc[start_idx:].astype(float).values.ravel()
             for name in col_names
             for cols in [name.split('+')]
         ])
@@ -256,9 +262,13 @@ def plot_to_fig(x_data,y_data,**kwargs):
 
     ##### default parameters ######
     default_figure_size = (plot_style["Paper_Width"],plot_style["Paper_Height"])
+    default_plot_size = (plot_style["Plot_Width"],plot_style["Plot_Height"])
+    default_plot_origin = (plot_style["Plot_X"],plot_style["Plot_Y"])
     default_ticklabel_fontsize = plot_style["Label_Font_Size"]
     default_axeslabel_fontsize = plot_style["Label_Font_Size"]
     default_legend_fontsize = plot_style["Key_Font_Size"]
+    default_legend_location = 'best'
+    default_legend_framealpha = 1
     default_title_fontsize = plot_style["Title_Font_Size"]
     default_markevery = 1
     markerfacecolor = 'none'
@@ -276,13 +286,31 @@ def plot_to_fig(x_data,y_data,**kwargs):
     else:
         figure_size=default_figure_size
 
+    if kwargs.get('plot_size'):
+        plot_size=kwargs.get('plot_size')
+    else:
+        plot_size=default_plot_size
+
+    if kwargs.get('plot_origin'):
+        plot_origin=kwargs.get('plot_origin')
+    else:
+        plot_origin=default_plot_origin
+
     # if figure handle is passed, append to current figure, else generate a new figure
     if kwargs.get('figure_handle'):
         fig = kwargs.get('figure_handle')
         ax = fig.axes[0]
         plt.figure(fig.number)
+        using_existing_figure = True
     else:
-        fig, ax = plt.subplots(nrows=1, ncols=1, sharex=True, sharey=True, gridspec_kw={'hspace': 0, 'wspace': 0}, figsize=figure_size)
+        fig = plt.figure(figsize=figure_size)
+        using_existing_figure = False
+        # Convert to fractions of the figure size:
+        ax_w = plot_size[0] / figure_size[0]
+        ax_h = plot_size[1] / figure_size[1]
+        left   = plot_origin[0] / figure_size[0]
+        bottom = plot_origin[1] / figure_size[1]
+        ax = fig.add_axes([left, bottom, ax_w, ax_h])
 
     # select plot type
     if kwargs.get('plot_type'):
@@ -305,12 +333,30 @@ def plot_to_fig(x_data,y_data,**kwargs):
     else:
         markevery = default_markevery
 
+    if kwargs.get('legend_location'):
+        legend_location = kwargs.get('legend_location')
+    else:
+        legend_location = default_legend_location
+
+    if kwargs.get('legend_framealpha'):
+        legend_framealpha = kwargs.get('legend_framealpha')
+    else:
+        legend_framealpha = default_legend_framealpha
+
+    if kwargs.get('data_label'):
+        data_label = kwargs.get('data_label')
+    else:
+        data_label = None
+
+    # trap any data_labels set to blank (old matlab convention)
+    if isinstance(data_label, str) and data_label.lower() == 'blank':
+        data_label = None
 
     # generate the main x,y plot
     if plot_type=='linear':
         ax.plot(x_data,y_data,
             markevery=markevery,
-            label=kwargs.get('data_label'),
+            label=data_label,
             markerfacecolor=markerfacecolor,
             markeredgecolor=color,
             markeredgewidth=markeredgewidth,
@@ -323,7 +369,7 @@ def plot_to_fig(x_data,y_data,**kwargs):
     if plot_type=='loglog':
         ax.loglog(x_data,y_data,
             markevery=markevery,
-            label=kwargs.get('data_label'),
+            label=data_label,
             markerfacecolor=markerfacecolor,
             markeredgecolor=color,
             markeredgewidth=markeredgewidth,
@@ -336,7 +382,7 @@ def plot_to_fig(x_data,y_data,**kwargs):
     if plot_type=='semilogx':
         ax.semilogx(x_data,y_data,
             markevery=markevery,
-            label=kwargs.get('data_label'),
+            label=data_label,
             markerfacecolor=markerfacecolor,
             markeredgecolor=color,
             markeredgewidth=markeredgewidth,
@@ -349,7 +395,7 @@ def plot_to_fig(x_data,y_data,**kwargs):
     if plot_type=='semilogy':
         ax.semilogy(x_data,y_data,
             markevery=markevery,
-            label=kwargs.get('data_label'),
+            label=data_label,
             markerfacecolor=markerfacecolor,
             markeredgecolor=color,
             markeredgewidth=markeredgewidth,
@@ -396,19 +442,21 @@ def plot_to_fig(x_data,y_data,**kwargs):
     else:
         axeslabel_fontsize=default_axeslabel_fontsize
 
-    plt.xlabel(kwargs.get('x_label'), fontsize=axeslabel_fontsize)
-    plt.ylabel(kwargs.get('y_label'), fontsize=axeslabel_fontsize)
+    if not using_existing_figure:
+        plt.xlabel(kwargs.get('x_label'), fontsize=axeslabel_fontsize)
+        plt.ylabel(kwargs.get('y_label'), fontsize=axeslabel_fontsize)
 
     if kwargs.get('legend_fontsize'):
         legend_fontsize=kwargs.get('legend_fontsize')
     else:
         legend_fontsize=default_legend_fontsize
 
-    if kwargs.get('legend_location')=='outside':
-        plt.legend(fontsize=legend_fontsize,bbox_to_anchor=(1,1),loc='upper left',framealpha=kwargs.get('legend_framealpha'))
-    else:
-        # if kwargs.get('show_legend'):
-        plt.legend(fontsize=legend_fontsize,loc=kwargs.get('legend_location'),framealpha=kwargs.get('legend_framealpha'))
+    if data_label:
+        if kwargs.get('legend_location')=='outside':
+            plt.legend(fontsize=legend_fontsize,bbox_to_anchor=(1,1),loc='upper left',framealpha=legend_framealpha)
+        else:
+            # if kwargs.get('show_legend'):
+            plt.legend(fontsize=legend_fontsize,loc=legend_location,framealpha=legend_framealpha)
 
     # plot title
     if kwargs.get('plot_title'):
@@ -435,7 +483,7 @@ def plot_to_fig(x_data,y_data,**kwargs):
     if kwargs.get('revision_label'):
         add_version_string(ax, kwargs.get('revision_label'), plot_type)
 
-    fig.tight_layout()
+    # fig.tight_layout() # this should not be needed if figure_size and plot_size are both specified
 
     return fig
 
