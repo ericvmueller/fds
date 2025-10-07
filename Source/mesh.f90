@@ -478,9 +478,9 @@ INTEGER, POINTER, DIMENSION(:,:,:) :: K_AGL_SLICE
 INTEGER, POINTER, DIMENSION(:,:) :: LS_KLO_TERRAIN,LS_KHI_TERRAIN,K_LS,LS_SURF_INDEX
 INTEGER, POINTER :: N_TERRAIN_SLCF
 REAL(EB), POINTER, DIMENSION(:,:) :: FLUX0_LS,FLUX1_LS,PHI_LS,PHI1_LS,ROS_BACKU, &
-                                     ROS_HEAD,ROS_FLANK,WIND_EXP, &
-                                     SR_X_LS,SR_Y_LS,U_LS,V_LS,Z_LS,DZTDX,DZTDY,MAG_ZT, &
-                                     PHI_WS,UMF,THETA_ELPS,PHI_S_X,PHI_S_Y,PHI_W,LS_WORK1,LS_WORK2
+                                       ROS_HEAD,ROS_FLANK,WIND_EXP, &
+                                       SR_X_LS,SR_Y_LS,U_LS,V_LS,Z_LS,DZTDX,DZTDY,MAG_ZT, &
+                                       PHI_WS,UMF,THETA_ELPS,PHI_S_X,PHI_S_Y,PHI_W,LS_WORK1,LS_WORK2
 
 
 CONTAINS

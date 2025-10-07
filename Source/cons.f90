@@ -604,6 +604,8 @@ INTEGER :: LEVEL_SET_MODE=0               !< Indicator of the type of level set 
 LOGICAL :: LEVEL_SET_COUPLED_FIRE=.TRUE.  !< Indicator for fire and wind level set coupling
 LOGICAL :: LEVEL_SET_COUPLED_WIND=.TRUE.  !< Indicator for fire and wind level set coupling
 LOGICAL :: LEVEL_SET_ELLIPSE=.TRUE.       !< Indicator of Richards elliptical level set formulation
+REAL(EB) :: LSET_WIND_TAU=-1._EB         !< Time constant for level set wind moving average (s), -1 = no moving average
+LOGICAL :: LSET_WIND_FILTER=.FALSE.       !< Apply spatial filtering to level set wind field
 LOGICAL :: LSET_TAN2
 
 ! Parameters for Terrain and Wind simulation needs
