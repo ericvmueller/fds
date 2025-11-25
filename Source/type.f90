@@ -1521,6 +1521,13 @@ TYPE VENTS_TYPE
                Z_EDDY_MIN=0._EB,Z_EDDY_MAX=0._EB
    REAL(EB), ALLOCATABLE, DIMENSION(:,:) :: U_EDDY,V_EDDY,W_EDDY
    REAL(EB), ALLOCATABLE, DIMENSION(:) :: X_EDDY,Y_EDDY,Z_EDDY,CU_EDDY,CV_EDDY,CW_EDDY
+   ! DFSEM-specific fields (simplified version)
+   REAL(EB) :: SIGMA_DFSEM(3)=0._EB            ! Length scales (same for all eddies on vent)
+   REAL(EB) :: C1_DFSEM=0._EB                  ! Normalization coefficient (same for all eddies)
+   REAL(EB) :: C2_DFSEM=0._EB                  ! C2 coefficient from lookup table (same for all eddies)
+   REAL(EB), ALLOCATABLE, DIMENSION(:,:) :: ALPHA_EDDY  ! (3, N_EDDY) - eddy amplitudes (unique per eddy)
+   REAL(EB), ALLOCATABLE, DIMENSION(:,:) :: POSITION0_EDDY         ! (3, N_EDDY) - reference positions
+   REAL(EB) :: PATCH_NORMAL_DFSEM(3)=0._EB     ! Patch normal vector for DFSEM
 END TYPE VENTS_TYPE
 
 

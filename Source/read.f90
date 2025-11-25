@@ -11988,9 +11988,10 @@ USE CONTROL_VARIABLES, ONLY : CONTROL
 USE MISC_FUNCTIONS, ONLY: PROCESS_MESH_NEIGHBORHOOD
 
 INTEGER :: N,N_TOTAL,NM,NNN,IOR,I1,I2,J1,J2,K1,K2,RGB(3),N_EDDY,II,JJ,KK,OBST_INDEX,N_EXPLICIT,N_IMPLICIT_VENTS,I_MODE,&
-           N_ORIGINAL_VENTS,IC0,IC1,IC
+           N_ORIGINAL_VENTS,IC0,IC1,IC,DIR1,GAMMA2_EDDY
 REAL(EB) :: SPREAD_RATE,TRANSPARENCY,XYZ(3),TMP_EXTERIOR,DYNAMIC_PRESSURE,XB_USER(6),XB_MESH(6), &
             REYNOLDS_STRESS(3,3),L_EDDY,VEL_RMS,L_EDDY_IJ(3,3),UVW(3),RADIUS
+REAL(EB) :: SIGMA_AVG, SIGMA_PRODUCT, C2_ARRAY(8) = (/2.0_EB, 1.875_EB, 1.737_EB, 1.75_EB, 0.91_EB, 0.825_EB, 0.806_EB, 1.5_EB/)
 CHARACTER(LABEL_LENGTH) :: ID,DEVC_ID,CTRL_ID,SURF_ID,PRESSURE_RAMP,TMP_EXTERIOR_RAMP,MULT_ID,OBST_ID
 CHARACTER(25) :: COLOR
 TYPE(MULTIPLIER_TYPE), POINTER :: MR
@@ -12001,7 +12002,7 @@ TYPE IMPLICIT_VENT_TYPE
    CHARACTER(LABEL_LENGTH) :: MB='null',SURF_ID='null',ID='null'
 END TYPE
 TYPE(IMPLICIT_VENT_TYPE), ALLOCATABLE, DIMENSION(:) :: IMPLICIT_VENT
-NAMELIST /VENT/ AREA_ADJUST,COLOR,CTRL_ID,DB,DEVC_ID,DYNAMIC_PRESSURE,FYI,GEOM,ID,IOR,L_EDDY,L_EDDY_IJ, &
+NAMELIST /VENT/ AREA_ADJUST,COLOR,CTRL_ID,DB,DEVC_ID,DYNAMIC_PRESSURE,FYI,GEOM,GAMMA2_EDDY,ID,IOR,L_EDDY,L_EDDY_IJ, &
                 MB,MULT_ID,N_EDDY,OBST_ID,OUTLINE,PBX,PBY,PBZ,PRESSURE_RAMP,RADIUS,REYNOLDS_STRESS, &
                 RGB,SPREAD_RATE,SURF_ID,TEXTURE_ORIGIN,TMP_EXTERIOR,TMP_EXTERIOR_RAMP,TRANSPARENCY, &
                 UVW,VEL_RMS,XB,XYZ
@@ -12467,6 +12468,28 @@ MESH_LOOP_1: DO NM=1,NMESHES
                   VT%R_IJ = MAX(VT%R_IJ,1.E-10_EB)
                ENDIF
 
+               ! Compute DFSEM parameters if GAMMA2_EDDY is specified
+               IF (GAMMA2_EDDY > 0 .AND. GAMMA2_EDDY <= 8 .AND. L_EDDY > TWO_EPSILON_EB) THEN                 
+                  ! Set all length scales to smaller value first
+                  VT%SIGMA_DFSEM = L_EDDY / SQRT(REAL(GAMMA2_EDDY,EB))
+                  ! Find direction with largest eigenvalue (stress)
+                  ! R_IJ is assumed to be already in principal coordinates (diagonal)
+                  DIR1 = MAXLOC((/VT%R_IJ(1,1), VT%R_IJ(2,2), VT%R_IJ(3,3)/), 1)
+                  VT%SIGMA_DFSEM(DIR1) = L_EDDY                  
+                  ! Get C2 coefficient
+                  VT%C2_DFSEM = C2_ARRAY(GAMMA2_EDDY)                  
+                  ! Compute base C1 normalization coefficient (PCR:Eq. 11)
+                  ! Base c₁ = (σ_avg / (σx σy σz)) × min(σ)
+                  ! Note: sqrt(10*V_0/N_EDDY) factor applied later in SYNTHETIC_EDDY_SETUP
+                  SIGMA_AVG = SUM(VT%SIGMA_DFSEM)/3._EB
+                  SIGMA_PRODUCT = VT%SIGMA_DFSEM(1)*VT%SIGMA_DFSEM(2)*VT%SIGMA_DFSEM(3)
+                  VT%C1_DFSEM = (SIGMA_AVG/SIGMA_PRODUCT)*MINVAL(VT%SIGMA_DFSEM)
+               ELSE
+                  VT%SIGMA_DFSEM = 0._EB
+                  VT%C1_DFSEM = 0._EB
+                  VT%C2_DFSEM = 0._EB
+               ENDIF
+
                ! Check SEM parameters
 
                IF (N_EDDY>0) THEN
@@ -12721,6 +12744,7 @@ ID                = 'null'
 IOR               = 0
 L_EDDY            = 0._EB
 L_EDDY_IJ         = 0._EB
+GAMMA2_EDDY       = 0
 MB                = 'null'
 MULT_ID           = 'null'
 N_EDDY            = 0
