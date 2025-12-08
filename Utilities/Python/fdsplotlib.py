@@ -528,8 +528,8 @@ def dataplot(config_filename, **kwargs):
             f = plot_to_fig(
                 x_data=y_i if flip_axis else x_i,
                 y_data=x_i if flip_axis else y_i,
-                revision_label=version_string,
-                figure_handle=f,                  # keep same figure
+                revision_label=version_string if dtest else None,
+                figure_handle=f,
                 data_label=d2_key_labels[i],
                 line_style=d2_styles[i],
             )
@@ -708,6 +708,77 @@ def get_data(E, spec, start_idx):
     return y, col_names
 
 
+def configure_fds_fonts(**kwargs):
+    import matplotlib.pyplot as plt
+    import platform
+
+    use_tex = kwargs.get('usetex', False)
+    system  = platform.system()
+
+    # OS-dependent serif stack
+    if system == "Linux":
+        primary_serif = "Nimbus Roman"
+        serif_list = [
+            "Nimbus Roman",
+            "Times",
+            "Times New Roman",
+            "serif",
+        ]
+    else:
+        primary_serif = "Times"
+        serif_list = [
+            "Times",
+            "Times New Roman",
+            "Nimbus Roman",
+            "serif",
+        ]
+
+    # ------------------------------------------------------------
+    # Core default config (applies to BOTH branches)
+    # ------------------------------------------------------------
+    rc = {
+        "pdf.use14corefonts": True,        # use Base-14 when possible
+        "text.usetex": use_tex,            # route text through TeX or not
+
+        "font.family": "serif",
+        "font.serif": serif_list,
+        "font.sans-serif": serif_list,
+
+        "axes.unicode_minus": False,
+        "pdf.compression": 9,
+    }
+
+    # ------------------------------------------------------------
+    # Branch A: NON-TeX Mode  (usetex=False)
+    # Use mathtext for math, STIX for math glyphs
+    # Keep Times/Nimbus for normal text
+    # Very small PDFs
+    # ------------------------------------------------------------
+    if not use_tex:
+        rc.update({
+            "mathtext.fontset": "stix",
+            "mathtext.default": "it",    # italic math by default
+        })
+
+    # ------------------------------------------------------------
+    # Branch B: Full TeX rendering  (usetex=True)
+    #   - Times for body
+    #   - newtxtext/newtxmath to Times-ify math
+    #   - Disable STIX mathtext completely
+    # ------------------------------------------------------------
+    else:
+        rc.update({
+            "mathtext.fontset": "cm",     # or "custom" — anything NOT stix
+            "mathtext.default": "rm",     # don't auto-italic mathtext in TeX mode
+            "text.latex.preamble": r"""
+                \usepackage{newtxtext}
+                \usepackage{newtxmath}
+            """,
+        })
+
+    plt.rcParams.update(rc)
+
+
 def plot_to_fig(x_data,y_data,**kwargs):
     """
     Create a simple x,y plot and return the fig handle
@@ -718,30 +789,30 @@ def plot_to_fig(x_data,y_data,**kwargs):
     # for key, value in kwargs.items():
     #     print ("%s == %s" %(key, value))
 
-    plot_style = get_plot_style("fds")
-
     import matplotlib.pyplot as plt
     import matplotlib.ticker as ticker
 
-    plt.rcParams.update({
-        "pdf.use14corefonts": True,
-        "text.usetex": False,
+    plot_style = get_plot_style("fds")
 
-        # Text and math in Times New Roman
-        "font.family": "serif",
-        "font.serif": ["Times", "Times New Roman"],
+    # plt.rcParams.update({
+    #     "pdf.use14corefonts": True,
+    #     "text.usetex": False,
 
-        "mathtext.fontset": "custom",
-        "mathtext.rm": "Times",
-        "mathtext.it": "Times New Roman:italic",
-        "mathtext.bf": "Times:bold",
-        "mathtext.cal": "Times New Roman:italic",
-        "mathtext.tt": "Courier New",
-        "mathtext.default": "it",
+    #     # Text and math in Times New Roman
+    #     "font.family": "serif",
+    #     "font.serif": ["Times", "Times New Roman"],
 
-        "axes.unicode_minus": False,
-        "pdf.compression": 9,
-    })
+    #     "mathtext.fontset": "custom",
+    #     "mathtext.rm": "Times",
+    #     "mathtext.it": "Times New Roman:italic",
+    #     "mathtext.bf": "Times:bold",
+    #     "mathtext.cal": "Times New Roman:italic",
+    #     "mathtext.tt": "Courier New",
+    #     "mathtext.default": "it",
+
+    #     "axes.unicode_minus": False,
+    #     "pdf.compression": 9,
+    # })
 
     import logging
     # Suppress just the 'findfont' warnings from matplotlib's font manager
@@ -775,17 +846,33 @@ def plot_to_fig(x_data,y_data,**kwargs):
     # if figure handle is passed, append to current figure, else generate a new figure
     if kwargs.get('figure_handle'):
         fig = kwargs.get('figure_handle')
+
         if fig.axes:
             ax = fig.axes[0]
         else:
-            # Ensure we have at least one axes
             ax = fig.add_subplot(111)
+
         plt.figure(fig.number)
         using_existing_figure = True
+
+        # ---- restore original usetex for this figure ----
+        use_tex = getattr(fig, "_fds_usetex", False)
+        plt.rcParams["text.usetex"] = use_tex
+
     else:
         fig = plt.figure(figsize=figure_size)
         using_existing_figure = False
-        # Convert to fractions of the figure size:
+
+        # Take usetex from kwargs, default to False
+        use_tex = kwargs.get('usetex', False)
+
+        # ---- apply font settings before any text is drawn ----
+        configure_fds_fonts(usetex=use_tex)
+
+        # ---- record the choice on the figure for later calls ----
+        fig._fds_usetex = use_tex
+
+        # Create axes
         ax_w = plot_size[0] / figure_size[0]
         ax_h = plot_size[1] / figure_size[1]
         left   = plot_origin[0] / figure_size[0]
@@ -856,14 +943,6 @@ def plot_to_fig(x_data,y_data,**kwargs):
     if linestyle == '--': dashes = kwargs.get('line_dashes',(6, 6))
     if linestyle == '-.': dashes = kwargs.get('line_dashes',(6, 3, 1, 3))
     if linestyle == ':': dashes = kwargs.get('line_dashes',(1, 3))
-
-    # This set is what we were using in Matlab
-    # if linestyle == '': dashes = (None, None); linewidth = 0;
-    # if linestyle == '-': dashes = (None, None)
-    # if linestyle == '--': dashes = kwargs.get('line_dashes',(10, 6.2))
-    # if linestyle == '-.': dashes = kwargs.get('line_dashes',(12, 7.4, 3, 7.4))
-    # if linestyle == ':': dashes = kwargs.get('line_dashes',(1, 3))
-
 
     data_label = kwargs.get('data_label',None)
 
@@ -976,6 +1055,7 @@ def plot_to_fig(x_data,y_data,**kwargs):
     plt.setp( ax.yaxis.get_majorticklabels(), rotation=0, fontsize=ticklabel_fontsize )
 
     axeslabel_fontsize=kwargs.get('axeslabel_fontsize',default_axeslabel_fontsize)
+
     if not using_existing_figure:
         plt.xlabel(kwargs.get('x_label'), fontsize=axeslabel_fontsize)
         plt.ylabel(kwargs.get('y_label'), fontsize=axeslabel_fontsize)
@@ -1014,6 +1094,88 @@ def plot_to_fig(x_data,y_data,**kwargs):
                       fontsize=ax._legend_fontsize,
                       frameon=False)
 
+        # plot title
+        if kwargs.get('plot_title'):
+            if kwargs.get('title_fontsize'):
+                title_fontsize=kwargs.get('title_fontsize')
+            else:
+                title_fontsize=default_title_fontsize
+
+            plt.text(0.05, 0.95, kwargs.get('plot_title'),
+            transform=plt.gca().transAxes,
+            fontsize=title_fontsize,
+            verticalalignment='top',
+            horizontalalignment='left')
+
+        # set axes and tick properties
+        xmin=kwargs.get('x_min')
+        xmax=kwargs.get('x_max')
+        ymin=kwargs.get('y_min')
+        ymax=kwargs.get('y_max')
+
+        ax.set_xlim(xmin,xmax)
+        ax.set_ylim(ymin,ymax)
+
+        # ------------------------------------------------------------
+        # TICK HANDLING (clean, deterministic)
+        # ------------------------------------------------------------
+
+        scale_x = ax.get_xscale()
+        scale_y = ax.get_yscale()
+
+        # -------------------------------
+        # X-axis ticks
+        # -------------------------------
+        if xticks is not None:
+            # USER EXPLICIT OVERRIDE
+            ax.set_xticks(xticks)
+            ax.xaxis.set_major_formatter(ticker.FormatStrFormatter('%g'))
+
+        elif xnumticks is not None:
+            # USER requests a number of ticks
+            if scale_x == "log":
+                ax.set_xticks(np.logspace(np.log10(xmin), np.log10(xmax), xnumticks))
+            else:
+                ax.set_xticks(np.linspace(xmin, xmax, xnumticks))
+
+        else:
+            # DEFAULT behavior
+            if scale_x == "log":
+                ax.xaxis.set_major_locator(ticker.LogLocator(base=10))
+                ax.xaxis.set_major_formatter(ticker.LogFormatterSciNotation(base=10))
+            else:
+                ax.xaxis.set_major_locator(ticker.MaxNLocator(nbins=detault_nticks, min_n_ticks=4))
+                sf = ticker.ScalarFormatter()
+                sf.set_powerlimits((-3, 4))
+                ax.xaxis.set_major_formatter(sf)
+
+        # -------------------------------
+        # Y-axis ticks
+        # -------------------------------
+        if yticks is not None:
+            # USER EXPLICIT OVERRIDE
+            ax.set_yticks(yticks)
+            ax.yaxis.set_major_formatter(ticker.FormatStrFormatter('%g'))
+
+        elif ynumticks is not None:
+            # USER requests a number of ticks
+            if scale_y == "log":
+                ax.set_yticks(np.logspace(np.log10(ymin), np.log10(ymax), ynumticks))
+            else:
+                ax.set_yticks(np.linspace(ymin, ymax, ynumticks))
+
+        else:
+            # DEFAULT behavior
+            if scale_y == "log":
+                ax.yaxis.set_major_locator(ticker.LogLocator(base=10))
+                ax.yaxis.set_major_formatter(ticker.LogFormatterSciNotation(base=10))
+            else:
+                ax.yaxis.set_major_locator(ticker.MaxNLocator(nbins=detault_nticks, min_n_ticks=4))
+                sf = ticker.ScalarFormatter()
+                sf.set_powerlimits((-3, 4))
+                ax.yaxis.set_major_formatter(sf)
+
+
     # --- case 3: existing figure, adding more data ---
     else:
         loc = getattr(ax, '_legend_loc', 'best')
@@ -1027,72 +1189,6 @@ def plot_to_fig(x_data,y_data,**kwargs):
                       bbox_to_anchor=bbox,
                       fontsize=fontsize,
                       framealpha=framealpha)
-
-
-    # plot title
-    if kwargs.get('plot_title'):
-        if kwargs.get('title_fontsize'):
-            title_fontsize=kwargs.get('title_fontsize')
-        else:
-            title_fontsize=default_title_fontsize
-
-        plt.text(0.05, 0.95, kwargs.get('plot_title'),
-        transform=plt.gca().transAxes,
-        fontsize=title_fontsize,
-        verticalalignment='top',
-        horizontalalignment='left')
-
-    # set axes and tick properties
-    xmin=kwargs.get('x_min')
-    xmax=kwargs.get('x_max')
-    ymin=kwargs.get('y_min')
-    ymax=kwargs.get('y_max')
-
-    ax.set_xlim(xmin,xmax)
-    ax.set_ylim(ymin,ymax)
-
-    # --- Tick handling AFTER limits are set ---
-    if ax.get_xscale() == 'linear':
-        # ----- LINEAR AXIS -----
-        if xticks is None and xnumticks is None:
-            ax.xaxis.set_major_locator(ticker.MaxNLocator(nbins=detault_nticks, min_n_ticks=4))
-            sf = ticker.ScalarFormatter(useMathText=True)
-            sf.set_powerlimits((-3, 4))
-            ax.xaxis.set_major_formatter(sf)
-
-    elif ax.get_xscale() == 'log':
-        # ----- LOG AXIS -----
-        # Do not touch scalar formatters – LogFormatter is correct.
-        ax.xaxis.set_major_locator(ticker.LogLocator(base=10))
-        ax.xaxis.set_major_formatter(ticker.LogFormatterSciNotation(base=10))
-
-    # Same for y-axis
-    if ax.get_yscale() == 'linear':
-        if yticks is None and ynumticks is None:
-            ax.yaxis.set_major_locator(ticker.MaxNLocator(nbins=detault_nticks, min_n_ticks=4))
-            sf = ticker.ScalarFormatter(useMathText=True)
-            sf.set_powerlimits((-3, 4))
-            ax.yaxis.set_major_formatter(sf)
-
-    elif ax.get_yscale() == 'log':
-        ax.yaxis.set_major_locator(ticker.LogLocator(base=10))
-        ax.yaxis.set_major_formatter(ticker.LogFormatterSciNotation(base=10))
-
-    # set number of ticks if requested by the user
-    if xnumticks is not None:
-        if plot_type in ('loglog', 'semilogx'):
-            ax.set_xticks(np.logspace(xmin, xmax, xnumticks))
-        else:
-            ax.set_xticks(np.linspace(xmin, xmax, xnumticks))
-    if ynumticks is not None:
-        if plot_type in ('loglog', 'semilogy'):
-            ax.set_yticks(np.logspace(ymin, ymax, ynumticks))
-        else:
-            ax.set_yticks(np.linspace(ymin, ymax, ynumticks))
-
-    # set ticks if requested by the user
-    if xticks is not None: ax.set_xticks(xticks)
-    if yticks is not None: ax.set_yticks(yticks)
 
     if kwargs.get('revision_label'):
         add_version_string(ax=ax, version_str=kwargs.get('revision_label'), plot_type=plot_type, font_size=version_fontsize)
@@ -1440,14 +1536,14 @@ def define_plot_parameters(D, irow, lightweight=False):
         d.Font_Interpreter = get('Font_Interpreter')
 
         # --- sanitization for human-facing strings ---
-        d.Plot_Title      = sanitize(safe_strip(d.Plot_Title))
-        d.Ind_Title       = sanitize(safe_strip(d.Ind_Title))
-        d.Dep_Title       = sanitize(safe_strip(d.Dep_Title))
-        d.Quantity        = sanitize(safe_strip(d.Quantity))
-        d.Metric          = sanitize(safe_strip(d.Metric))
-        d.Group_Key_Label = sanitize(safe_strip(d.Group_Key_Label))
-        d.d1_Key          = sanitize(safe_strip(d.d1_Key))
-        d.d2_Key          = sanitize(safe_strip(d.d2_Key))
+        d.Plot_Title      = safe_strip(d.Plot_Title)
+        d.Ind_Title       = safe_strip(d.Ind_Title)
+        d.Dep_Title       = safe_strip(d.Dep_Title)
+        d.Quantity        = safe_strip(d.Quantity)
+        d.Metric          = safe_strip(d.Metric)
+        d.Group_Key_Label = safe_strip(d.Group_Key_Label)
+        d.d1_Key          = safe_strip(d.d1_Key)
+        d.d2_Key          = safe_strip(d.d2_Key)
 
         return d
 
@@ -1514,14 +1610,14 @@ def define_plot_parameters(D, irow, lightweight=False):
     d = plot_parameters_full()
 
     # --- sanitization block (unchanged) ---
-    d.Plot_Title      = sanitize(safe_strip(d.Plot_Title))
-    d.Ind_Title       = sanitize(safe_strip(d.Ind_Title))
-    d.Dep_Title       = sanitize(safe_strip(d.Dep_Title))
-    d.Quantity        = sanitize(safe_strip(d.Quantity))
-    d.Metric          = sanitize(safe_strip(d.Metric))
-    d.Group_Key_Label = sanitize(safe_strip(d.Group_Key_Label))
-    d.d1_Key          = sanitize(safe_strip(d.d1_Key))
-    d.d2_Key          = sanitize(safe_strip(d.d2_Key))
+    d.Plot_Title      = safe_strip(d.Plot_Title)
+    d.Ind_Title       = safe_strip(d.Ind_Title)
+    d.Dep_Title       = safe_strip(d.Dep_Title)
+    d.Quantity        = safe_strip(d.Quantity)
+    d.Metric          = safe_strip(d.Metric)
+    d.Group_Key_Label = safe_strip(d.Group_Key_Label)
+    d.d1_Key          = safe_strip(d.d1_Key)
+    d.d2_Key          = safe_strip(d.d2Key)
 
     return d
 
