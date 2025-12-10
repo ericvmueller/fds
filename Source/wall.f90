@@ -393,8 +393,8 @@ TYPE(SURFACE_TYPE), POINTER :: SF
 TYPE(LAGRANGIAN_PARTICLE_TYPE), POINTER, OPTIONAL :: LP
 TYPE(LAGRANGIAN_PARTICLE_CLASS_TYPE), POINTER :: LPC
 TYPE(THIN_WALL_TYPE), POINTER, OPTIONAL :: TW
-REAL(EB) :: TSI,RAMP_FACTOR,UBAR,VBAR,WBAR,DX_P,DY_P,DZ_P,R_DX,R_DY,R_DZ
-INTEGER :: N
+REAL(EB) :: TSI,RAMP_FACTOR,UBAR,VBAR,WBAR,TLW(0:1,0:1,0:1)
+INTEGER :: N,TLW_IND(1:3)
 
 IF (PRESENT(WALL_INDEX)) THEN
 
@@ -449,15 +449,12 @@ ELSEIF (PRESENT(PARTICLE_INDEX)) THEN
    ELSE ! Do gradient based interpolation for the near-surface quantities. B1%U_TANG interpolation is in part.f90
 
       ! Get reusable interpolation coefficients
-      CALL GET_CENTER_DELTAS(BC%IIG,BC%JJG,BC%KKG,R_DX,R_DY,R_DZ)
-      DX_P = BC%X - XC(BC%IIG) 
-      DY_P = BC%Y - YC(BC%JJG)
-      DZ_P = BC%Z - ZC(BC%KKG)
+      CALL GET_TRILINEAR_WEIGHTS(BC%IIG,BC%JJG,BC%KKG,BC%X,BC%Y,BC%Z,TLW_IND,TLW)
       IF (SF%TMP_GAS_FRONT < 0._EB) B1%TMP_G = & 
-         SCALAR_TO_POINT(BC%IIG,BC%JJG,BC%KKG,DX_P,DY_P,DZ_P,R_DX,R_DY,R_DZ,TMP)
-      B1%RHO_G = SCALAR_TO_POINT(BC%IIG,BC%JJG,BC%KKG,DX_P,DY_P,DZ_P,R_DX,R_DY,R_DZ,RHOP)      
+         SCALAR_TO_POINT(TLW_IND,TLW,TMP)
+      B1%RHO_G = SCALAR_TO_POINT(TLW_IND,TLW,RHOP)      
       DO N=1,N_TRACKED_SPECIES
-         B1%ZZ_G(N) = SCALAR_TO_POINT(BC%IIG,BC%JJG,BC%KKG,DX_P,DY_P,DZ_P,R_DX,R_DY,R_DZ,ZZP(:,:,:,N))
+         B1%ZZ_G(N) = SCALAR_TO_POINT(TLW_IND,TLW,ZZP(:,:,:,N))
       ENDDO
 
    ENDIF
@@ -489,65 +486,97 @@ ENDIF
 END SUBROUTINE NEAR_SURFACE_GAS_VARIABLES
 
 
-!> \brief Gradient-based interpolation of a cell-centered scalar to an arbitrary point.
-REAL(EB) FUNCTION SCALAR_TO_POINT(IIG,JJG,KKG,DX_P,DY_P,DZ_P,R_DX,R_DY,R_DZ,FIELD)
+REAL(EB) FUNCTION SCALAR_TO_POINT(TLW_IND,TLW,FIELD)
 
-INTEGER, INTENT(IN) :: IIG,JJG,KKG
-REAL(EB), INTENT(IN) :: DX_P,DY_P,DZ_P,R_DX,R_DY,R_DZ
+INTEGER, INTENT(IN) :: TLW_IND(1:3)
+REAL(EB), INTENT(IN) :: TLW(0:1,0:1,0:1)
 REAL(EB), INTENT(IN), DIMENSION(-1:IBP1+1,-1:JBP1+1,-1:KBP1+1) :: FIELD
-REAL(EB) :: GX,GY,GZ,MIN_F,MAX_F
+INTEGER :: II,JJ,KK
 
-GX = 0._EB; GY = 0._EB; GZ = 0._EB
-MIN_F = FIELD(IIG,JJG,KKG)
-MAX_F = FIELD(IIG,JJG,KKG)
-
-IF (R_DX>TWO_EPSILON_EB) THEN
-   GX = R_DX*(FIELD(IIG+1,JJG,KKG) - FIELD(IIG-1,JJG,KKG))
-   MIN_F = MIN(MIN_F,MINVAL(FIELD(IIG-1:IIG+1,JJG,KKG)))
-   MAX_F = MAX(MAX_F,MAXVAL(FIELD(IIG-1:IIG+1,JJG,KKG)))
-ENDIF
-IF (R_DY>TWO_EPSILON_EB) THEN 
-   GY = R_DY*(FIELD(IIG,JJG+1,KKG) - FIELD(IIG,JJG-1,KKG))
-   MIN_F = MIN(MIN_F,MINVAL(FIELD(IIG,JJG-1:JJG+1,KKG)))
-   MAX_F = MAX(MAX_F,MAXVAL(FIELD(IIG,JJG-1:JJG+1,KKG)))
-ENDIF
-IF (R_DZ>TWO_EPSILON_EB) THEN 
-   GZ = R_DZ*(FIELD(IIG,JJG,KKG+1) - FIELD(IIG,JJG,KKG-1))
-   MIN_F = MIN(MIN_F,MINVAL(FIELD(IIG,JJG,KKG-1:KKG+1)))
-   MAX_F = MAX(MAX_F,MAXVAL(FIELD(IIG,JJG,KKG-1:KKG+1)))
-ENDIF
-
-SCALAR_TO_POINT = FIELD(IIG,JJG,KKG) + GX*DX_P + GY*DY_P + GZ*DZ_P
-! Limit to local extrema to avoid overshoots
-SCALAR_TO_POINT = MIN(MAX(SCALAR_TO_POINT,MIN_F),MAX_F)
+SCALAR_TO_POINT = 0._EB
+DO KK=0,1
+   DO JJ=0,1
+      DO II=0,1
+         SCALAR_TO_POINT = SCALAR_TO_POINT + &
+            TLW(II,JJ,KK) * FIELD(TLW_IND(IAXIS)+II, TLW_IND(JAXIS)+JJ, TLW_IND(KAXIS)+KK)
+      ENDDO
+   ENDDO
+ENDDO
 
 END FUNCTION SCALAR_TO_POINT
 
-
-!> \brief Get inverse spacings for re-use in scalar interpolation at cell (IIG,JJG,KKG)
-!> Returns 1/(center span) per axis using available gas neighbors; zero if either neighbor is solid
-SUBROUTINE GET_CENTER_DELTAS(IIG,JJG,KKG,R_DX,R_DY,R_DZ)
+!> \brief Get trilinear interpolation weights for cell-centered quantities
+!> \param IIG particle x cell index
+!> \param JJG particle y cell index
+!> \param KKG particle z cell index
+!> \param P_X particle x coordinate
+!> \param P_Y particle y coordinate
+!> \param P_Z particle z coordinate
+!> \param TLW_IND(AXIS,1:2) Output: upper and lower cell indices for interpolation
+!> \param TLW(0:1,0:1,0:1) Output: trilinear weights for the 8 cells
+SUBROUTINE GET_TRILINEAR_WEIGHTS(IIG,JJG,KKG,P_X,P_Y,P_Z,TLW_IND,TLW)
 
 INTEGER, INTENT(IN) :: IIG,JJG,KKG
-REAL(EB), INTENT(OUT) :: R_DX, R_DY, R_DZ
-INTEGER :: IWC(-3:3)
+REAL(EB), INTENT(IN) :: P_X,P_Y,P_Z
+INTEGER, INTENT(OUT) :: TLW_IND(1:3)
+REAL(EB), INTENT(OUT) :: TLW(0:1,0:1,0:1)
+REAL(EB) :: P,PP,R,RR,S,SS,TLW_SUM
+LOGICAL :: VALID_MASK(0:1,0:1,0:1)
+INTEGER :: II,JJ,KK
 
-R_DX=0._EB; R_DY=0._EB; R_DZ=0._EB
-IWC = CELL(CELL_INDEX(IIG,JJG,KKG))%WALL_INDEX
+! Determine which cell centers to use based on particle location relative to cell center
+TLW_IND(IAXIS) = IIG; TLW_IND(JAXIS) = JJG; TLW_IND(KAXIS) = KKG
+! Particle is below cell center
+IF (P_X < XC(IIG)) TLW_IND(IAXIS) = IIG - 1
+IF (P_Y < YC(JJG)) TLW_IND(JAXIS) = JJG - 1
+IF (P_Z < ZC(KKG)) TLW_IND(KAXIS) = KKG - 1
 
-IF (.NOT. (WALL(IWC(-1))%BOUNDARY_TYPE==SOLID_BOUNDARY) .OR. &
-   (WALL(IWC(1))%BOUNDARY_TYPE==SOLID_BOUNDARY)) &
-   R_DX = 1._EB / MAX(TWO_EPSILON_EB, XC(IIG+1)-XC(IIG-1))
+! Compute normalized coordinates within the interpolation box
+P = (P_X - XC(TLW_IND(IAXIS))) / MAX(TWO_EPSILON_EB, XC(TLW_IND(IAXIS)+1) - XC(TLW_IND(IAXIS)))
+R = (P_Y - YC(TLW_IND(JAXIS))) / MAX(TWO_EPSILON_EB, YC(TLW_IND(JAXIS)+1) - YC(TLW_IND(JAXIS)))
+S = (P_Z - ZC(TLW_IND(KAXIS))) / MAX(TWO_EPSILON_EB, ZC(TLW_IND(KAXIS)+1) - ZC(TLW_IND(KAXIS)))
 
-IF (.NOT. (WALL(IWC(-2))%BOUNDARY_TYPE==SOLID_BOUNDARY) .OR. &
-   (WALL(IWC(2))%BOUNDARY_TYPE==SOLID_BOUNDARY)) &
-   R_DY = 1._EB / MAX(TWO_EPSILON_EB, YC(JJG+1)-YC(JJG-1))
+P = MIN(1._EB, MAX(0._EB, P))
+R = MIN(1._EB, MAX(0._EB, R))
+S = MIN(1._EB, MAX(0._EB, S))
 
-IF (.NOT. (WALL(IWC(-3))%BOUNDARY_TYPE==SOLID_BOUNDARY) .OR. &
-   (WALL(IWC(3))%BOUNDARY_TYPE==SOLID_BOUNDARY)) &
-   R_DZ = 1._EB / MAX(TWO_EPSILON_EB, ZC(KKG+1)-ZC(KKG-1))
+PP = 1._EB - P
+RR = 1._EB - R
+SS = 1._EB - S
 
-END SUBROUTINE GET_CENTER_DELTAS
+! Compute trilinear weights
+TLW(0,0,0) = PP * RR * SS
+TLW(1,0,0) = P  * RR * SS
+TLW(0,1,0) = PP * R  * SS
+TLW(0,0,1) = PP * RR * S
+TLW(1,1,0) = P  * R  * SS
+TLW(1,0,1) = P  * RR * S
+TLW(0,1,1) = PP * R  * S
+TLW(1,1,1) = P  * R  * S
+
+! Determine if any cells should be excluded (solid)
+VALID_MASK = .TRUE.
+DO KK=0,1
+   DO JJ=0,1
+      DO II=0,1
+         IF (CELL(CELL_INDEX(TLW_IND(IAXIS)+II,TLW_IND(JAXIS)+JJ,TLW_IND(KAXIS)+KK))%SOLID) &
+            VALID_MASK(II,JJ,KK) = .FALSE.
+      ENDDO
+   ENDDO
+ENDDO
+TLW_SUM = SUM(TLW, MASK=VALID_MASK)
+IF (TLW_SUM > TWO_EPSILON_EB) THEN
+   ! Zero out solids
+   WHERE (.NOT. VALID_MASK) TLW = 0._EB
+   ! Renormalize
+   WHERE (VALID_MASK) TLW = TLW / TLW_SUM
+ELSE
+   TLW = 0._EB
+ENDIF
+
+
+END SUBROUTINE GET_TRILINEAR_WEIGHTS
+
 
 !> \brief Calculate the surface temperature TMP_F
 !> \param NM Mesh number
