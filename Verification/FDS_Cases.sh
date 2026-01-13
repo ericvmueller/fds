@@ -20,10 +20,10 @@ $QFDS -d Aerosols propane_flame_deposition_thermophoretic.fds
 $QFDS -d Aerosols propane_flame_deposition_turbulent.fds
 $QFDS -d Aerosols soot_oxidation_wall.fds
 
-$QFDS -p 36 -d Atmospheric_Effects atmospheric_boundary_layer_1.fds
-$QFDS -p 36 -d Atmospheric_Effects atmospheric_boundary_layer_2.fds
-$QFDS -p 36 -d Atmospheric_Effects atmospheric_boundary_layer_3.fds
-$QFDS -p 36 -d Atmospheric_Effects atmospheric_boundary_layer_4.fds
+$QFDS -p 16 -d Atmospheric_Effects atmospheric_boundary_layer_1.fds
+$QFDS -p 16 -d Atmospheric_Effects atmospheric_boundary_layer_2.fds
+$QFDS -p 16 -d Atmospheric_Effects atmospheric_boundary_layer_3.fds
+$QFDS -p 16 -d Atmospheric_Effects atmospheric_boundary_layer_4.fds
 $QFDS -d Atmospheric_Effects lee_waves.fds
 $QFDS -d Atmospheric_Effects stack_effect.fds
 $QFDS -d Atmospheric_Effects lapse_rate.fds
@@ -433,6 +433,7 @@ $QFDS -p 4 -d Pressure_Solver dancing_eddies_ulmat.fds
 $QFDS -p 4 -d Pressure_Solver dancing_eddies_ulmat_hypre.fds
 $QFDS -p 4 -d Pressure_Solver dancing_eddies_uglmat.fds
 $QFDS -p 4 -d Pressure_Solver dancing_eddies_uglmat_hypre.fds
+$QFDS -p 4 -d Pressure_Solver dancing_eddies_uglmat_refine.fds
 $QFDS -p 4 -d Pressure_Solver dancing_eddies_tight.fds
 $QFDS -p 4 -d Pressure_Solver dancing_eddies_tight_no_precon.fds
 $QFDS -p 4 -d Pressure_Solver dancing_eddies_default.fds
@@ -441,6 +442,7 @@ $QFDS -p 8 -d Pressure_Solver duct_flow_ulmat.fds
 $QFDS -p 8 -d Pressure_Solver duct_flow_ulmat_hypre.fds
 $QFDS -p 8 -d Pressure_Solver duct_flow_uglmat.fds
 $QFDS -p 8 -d Pressure_Solver duct_flow_uglmat_hypre.fds
+$QFDS -p 8 -d Pressure_Solver duct_flow_uglmat_refine.fds
 $QFDS -p 5 -d Pressure_Solver hallways.fds
 $QFDS -p 8 -d Pressure_Solver tunnel_demo.fds
 $QFDS -p 8 -d Pressure_Solver tunnel_demo_glmat.fds
