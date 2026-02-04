@@ -4284,7 +4284,7 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
                             CASE DEFAULT ! Upwind (step)
                                 FWX = 1._EB; FWY = 1._EB; FWZ = 1._EB
                             CASE(2) ! diamond
-                                FWX = 0.5_EB; FWY = 0.5_EB; FWZ = 0.5_EB
+                                FWX = 2.0_EB; FWY = 2.0_EB; FWZ = 2.0_EB
                             CASE(4) ! exponential v2
                                 PLX(:) = HUGE_EB
                                 IF(ABS(DLANG(1,N))>0._EB) PLX(1) = DX(I)/ABS(DLANG(1,N))
