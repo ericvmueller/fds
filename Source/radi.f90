@@ -3469,7 +3469,7 @@ INTEGER  :: N,NN,IIG,JJG,KKG,I,J,K,IW,ICF,II,JJ,KK,IOR,IC,IWUP,IWDOWN, &
             ISTART, IEND, ISTEP, JSTART, JEND, JSTEP, &
             KSTART, KEND, KSTEP, NSTART, NEND, NSTEP, &
             I_UIID, N_UPDATES, IBND, NOM, ARRAY_INDEX, NRA, &
-            IMIN, JMIN, KMIN, IMAX, JMAX, KMAX, N_SLICE, M_IJK, IJK, LL
+            IMIN, JMIN, KMIN, IMAX, JMAX, KMAX, N_SLICE, M_IJK, IJK, LL, NEG_ITER
 INTEGER  :: IADD,IFACE,INDCF
 INTEGER, ALLOCATABLE :: IJK_SLICE(:,:)
 LOGICAL :: NEGATIVE_MASK(3)
@@ -4314,12 +4314,14 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
                     NEGATIVE_MASK = .FALSE.
                     FWXD = FWX; FWYD = FWY; FWZD = FWZ
                     
-                    ! Check for negative intensities and apply corrections
-                    NEGATIVE_MASK(1) = (ILDX(I,J,K) < 0._EB)
-                    NEGATIVE_MASK(2) = (ILDY(I,J,K) < 0._EB)
-                    NEGATIVE_MASK(3) = (ILDZ(I,J,K) < 0._EB)
-                    
-                    IF (ANY(NEGATIVE_MASK)) THEN
+                    ! Check for negative intensities and apply corrections (persistent masks)
+                    DO NEG_ITER = 1, 3
+                        NEGATIVE_MASK(1) = NEGATIVE_MASK(1) .OR. (ILDX(I,J,K) < 0._EB)
+                        NEGATIVE_MASK(2) = NEGATIVE_MASK(2) .OR. (ILDY(I,J,K) < 0._EB)
+                        NEGATIVE_MASK(3) = NEGATIVE_MASK(3) .OR. (ILDZ(I,J,K) < 0._EB)
+                        
+                        IF (.NOT.ANY(NEGATIVE_MASK)) EXIT
+
                         ! Apply corrections based on mask
                         IF (NEGATIVE_MASK(1)) THEN
                             ILDX(I,J,K) = 0._EB
@@ -4333,19 +4335,18 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
                             ILDZ(I,J,K) = 0._EB
                             FWZ = 1._EB; FWZD = 0._EB
                         ENDIF
-                    ENDIF
-                    IF (ANY(NEGATIVE_MASK)) THEN
-                     A_SUM = AXD*FWXD + AYD*FWYD + AZD*FWZD + AFD
-                     AIU_SUM = AXU*FWX*ILXU + AYU*FWY*ILYU + AZU*FWZ*ILZU + AILFU
-                     IF (SOLID_PARTICLES) IL_UP(I,J,K) = MAX(0._EB,AIU_SUM/A_SUM)
-                     RAP = 1._EB/(A_SUM + EXTCOE(I,J,K)*VC*RSA(N))
-                     IL(I,J,K) = MAX(0._EB, RAP * (AIU_SUM + VC*RSA(N)*RFPI* &
-                                 ( KFST4_GAS(I,J,K) + KFST4_PART(I,J,K) + RSA_RAT*&
-                                 (SCAEFF(I,J,K)+SCAEFF_G(I,J,K))*UIIOLD(I,J,K) ) ) )
-                     IF (.NOT.NEGATIVE_MASK(1)) ILDX(I,J,K) = FWX*IL(I,J,K) - (FWX - 1._EB)*ILXU  
-                     IF (.NOT.NEGATIVE_MASK(2)) ILDY(I,J,K) = FWY*IL(I,J,K) - (FWY - 1._EB)*ILYU
-                     IF (.NOT.NEGATIVE_MASK(3)) ILDZ(I,J,K) = FWZ*IL(I,J,K) - (FWZ - 1._EB)*ILZU
-                    ENDIF
+
+                        A_SUM = AXD*FWXD + AYD*FWYD + AZD*FWZD + AFD
+                        AIU_SUM = AXU*FWX*ILXU + AYU*FWY*ILYU + AZU*FWZ*ILZU + AILFU
+                        IF (SOLID_PARTICLES) IL_UP(I,J,K) = MAX(0._EB,AIU_SUM/A_SUM)
+                        RAP = 1._EB/(A_SUM + EXTCOE(I,J,K)*VC*RSA(N))
+                        IL(I,J,K) = MAX(0._EB, RAP * (AIU_SUM + VC*RSA(N)*RFPI* &
+                                    ( KFST4_GAS(I,J,K) + KFST4_PART(I,J,K) + RSA_RAT*&
+                                    (SCAEFF(I,J,K)+SCAEFF_G(I,J,K))*UIIOLD(I,J,K) ) ) )
+                        IF (.NOT.NEGATIVE_MASK(1)) ILDX(I,J,K) = FWX*IL(I,J,K) - (FWX - 1._EB)*ILXU  
+                        IF (.NOT.NEGATIVE_MASK(2)) ILDY(I,J,K) = FWY*IL(I,J,K) - (FWY - 1._EB)*ILYU
+                        IF (.NOT.NEGATIVE_MASK(3)) ILDZ(I,J,K) = FWZ*IL(I,J,K) - (FWZ - 1._EB)*ILZU
+                    ENDDO
                      
 
                   ENDDO SLICE_LOOP
