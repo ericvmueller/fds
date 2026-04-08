@@ -818,9 +818,9 @@ ENDIF
 
 IF (CFL_FILE) THEN
    OPEN(UNIT=LU_CFL,FILE=FN_CFL,FORM='FORMATTED',STATUS='UNKNOWN',POSITION='REWIND',DECIMAL=DECIMAL_SPECIFIER)
-   WRITE(TCFORM,'(A,I0,2A)') "(",22,CHAR_LIST,")"
+   WRITE(TCFORM,'(A,I0,2A)') "(",27,CHAR_LIST,")"
    WRITE(LU_CFL,TCFORM) 'Cycle','t','dt','CFL','Mesh','i','j','k','u_i-1','u_i','v_j-1','v_j','w_k-1','w_k',&
-                        'div','mu','HRRPUV','tau','VN','Mesh','i','j','k'
+                       'div','mu','HRRPUV','tau','VN','Mesh','i','j','k','part CFL','part mesh','drag CFL','drag mesh'
 ENDIF
 
 ! Special output for CVODE substeps

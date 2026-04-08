@@ -1847,10 +1847,6 @@ LOGICAL :: TEST_POS, BOUNCE_CF, IN_CFACE, SLIDE_CF, EXT_CFACE
 INTEGER :: DIND, MADD(3,3)
 INTEGER, PARAMETER :: EYE3(1:3,1:3)=RESHAPE( (/1,0,0, 0,1,0, 0,0,1 /), (/3,3/) )
 
-! Zero out max particle velocity if CFL number is to be bound by particle speed.
-
-PART_UVWMAX = 0._EB
-
 IF (MESHES(NM)%NLP==0) RETURN
 
 ! Set the CPU timer and point to the current mesh variables
@@ -1863,6 +1859,10 @@ IF (PARTICLE_DRAG) THEN
    FVY_D = 0._EB
    FVZ_D = 0._EB
 ENDIF
+
+! Zero out max particle velocity if CFL number is to be bound by particle speed.
+PART_UVWMAX = 0._EB
+DRAG_UVWMAX = 0._EB
 
 IF (CC_IBM) CALL CUTFACE_VELOCITIES(NM,U,V,W,CUTFACES=.TRUE.)
 
@@ -3004,7 +3004,7 @@ ELSE PARTICLE_NON_STATIC_IF ! Drag calculation for stationary, airborne particle
       ACCEL_Y  = 0._EB
       DRAG_MAX(2) = 0._EB
    ENDIF
-   IF (ANY(ABS(DRAG_MAX)>PART_UVWMAX)) PART_UVWMAX = MAX(PART_UVWMAX,MAXVAL(DRAG_MAX))
+   IF (ANY(ABS(DRAG_MAX)>DRAG_UVWMAX)) DRAG_UVWMAX = MAX(DRAG_UVWMAX,MAXVAL(DRAG_MAX))
 
 ENDIF PARTICLE_NON_STATIC_IF
 
@@ -4576,7 +4576,7 @@ USE CC_SCALARS, ONLY: CUTFACE_VELOCITIES
 INTEGER, INTENT(IN) :: NM
 REAL(EB), INTENT(IN) :: DT
 REAL(EB), POINTER, DIMENSION(:,:,:) :: UU,VV,WW
-REAL(EB) :: RDT,UODT,VODT,WODT
+REAL(EB) :: RDT,UODT,VODT,WODT,DRAG_RATE
 INTEGER :: I,J,K
 
 IF (MESHES(NM)%NLP==0) RETURN
@@ -4584,6 +4584,7 @@ IF (MESHES(NM)%NLP==0) RETURN
 CALL POINT_TO_MESH(NM)
 
 RDT = 1._EB/DT
+! DRAG_UVWMAX = 0._EB
 
 IF (PREDICTOR) THEN
    UU => U
@@ -4606,9 +4607,14 @@ DO K=0,KBAR
          UODT = ABS(UU(I,J,K)*RDT)
          VODT = ABS(VV(I,J,K)*RDT)
          WODT = ABS(WW(I,J,K)*RDT)
+         DRAG_RATE = MAX(ABS(FVX_D(I,J,K))/(ABS(UU(I,J,K))+TWENTY_EPSILON_EB), &
+                         ABS(FVY_D(I,J,K))/(ABS(VV(I,J,K))+TWENTY_EPSILON_EB), &
+                         ABS(FVZ_D(I,J,K))/(ABS(WW(I,J,K))+TWENTY_EPSILON_EB))
+         ! DRAG_UVWMAX = MAX(DRAG_UVWMAX,DRAG_RATE)
          FVX(I,J,K) = FVX(I,J,K) + MIN(UODT,MAX(-UODT,FVX_D(I,J,K)))
          FVY(I,J,K) = FVY(I,J,K) + MIN(VODT,MAX(-VODT,FVY_D(I,J,K)))
          FVZ(I,J,K) = FVZ(I,J,K) + MIN(WODT,MAX(-WODT,FVZ_D(I,J,K)))
+         ! IF((-UODT > FVX_D(I,J,K)) .OR. (UODT < FVX_D(I,J,K))) WRITE(LU_ERR,*) 'fx clip',NM
       ENDDO
    ENDDO
 ENDDO
