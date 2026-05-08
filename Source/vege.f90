@@ -824,6 +824,10 @@ FLUX_ILOOP: DO J=1,JBAR
 
          LB = 0.936_EB * EXP(0.2566_EB * UMF_DUM) + 0.461_EB * EXP(-0.1548_EB * UMF_DUM) - 0.397_EB
 
+         ! User adjustment
+
+         LB = LB*LEVEL_SET_ELLIPSE_FACTOR
+
          ! Constraint LB max = 8 from Finney 2004
 
          LB = MAX(1.0_EB,MIN(LB,8.0_EB))  ! (Bova et al., Eq. A7)
