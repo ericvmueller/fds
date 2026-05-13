@@ -1239,6 +1239,93 @@ Z1 = A*SIN(TWOPI*U2)
 END SUBROUTINE BOX_MULLER
 
 
+!> \brief Mix a 64-bit integer into a pseudo-random 64-bit integer.
+!> \param X Input integer key
+!> \returns Mixed integer value
+
+PURE FUNCTION SEM_MIX64(X) RESULT(Y)
+
+INTEGER(KIND=8), INTENT(IN) :: X
+INTEGER(KIND=8) :: Y,Z
+
+Z = X + INT(Z'9E3779B97F4A7C15',KIND=8)
+Z = IEOR(Z,ISHFT(Z,-30))
+Z = Z*INT(Z'BF58476D1CE4E5B9',KIND=8)
+Z = IEOR(Z,ISHFT(Z,-27))
+Z = Z*INT(Z'94D049BB133111EB',KIND=8)
+Y = IEOR(Z,ISHFT(Z,-31))
+
+END FUNCTION SEM_MIX64
+
+
+!> \brief Build a deterministic 64-bit key for SEM random sampling.
+!> \param VENT_TOTAL_INDEX Global vent identifier
+!> \param EDDY_ID Eddy index
+!> \param ICYC Global time step counter
+!> \param COMPONENT Component selector (for x/y/z/eps choices)
+!> \param BASE_SEED User-provided base seed
+!> \returns Deterministic key value
+
+PURE FUNCTION SEM_KEY64(VENT_TOTAL_INDEX,EDDY_ID,ICYC,COMPONENT,BASE_SEED) RESULT(K)
+
+INTEGER, INTENT(IN) :: VENT_TOTAL_INDEX,EDDY_ID,ICYC,COMPONENT
+INTEGER(KIND=8), INTENT(IN) :: BASE_SEED
+INTEGER(KIND=8) :: K
+
+K = BASE_SEED
+K = K + INT(Z'9E3779B97F4A7C15',KIND=8)*INT(VENT_TOTAL_INDEX,KIND=8)
+K = IEOR(K,INT(Z'BF58476D1CE4E5B9',KIND=8)*INT(EDDY_ID,KIND=8))
+K = K + INT(Z'94D049BB133111EB',KIND=8)*INT(ICYC,KIND=8)
+K = IEOR(K,INT(Z'D2B74407B1CE6E93',KIND=8)*INT(COMPONENT,KIND=8))
+K = SEM_MIX64(K)
+
+END FUNCTION SEM_KEY64
+
+
+!> \brief Stateless deterministic uniform random value in [0,1).
+!> \param VENT_TOTAL_INDEX Global vent identifier
+!> \param EDDY_ID Eddy index
+!> \param ICYC Global time step counter
+!> \param COMPONENT Component selector (for x/y/z/eps choices)
+!> \param BASE_SEED User-provided base seed
+!> \returns Uniform random value in [0,1)
+
+PURE FUNCTION SEM_U01(VENT_TOTAL_INDEX,EDDY_ID,ICYC,COMPONENT,BASE_SEED) RESULT(R)
+
+INTEGER, INTENT(IN) :: VENT_TOTAL_INDEX,EDDY_ID,ICYC,COMPONENT
+INTEGER(KIND=8), INTENT(IN) :: BASE_SEED
+INTEGER(KIND=8) :: BITS53
+REAL(EB) :: R
+
+BITS53 = IAND(ISHFT(SEM_KEY64(VENT_TOTAL_INDEX,EDDY_ID,ICYC,COMPONENT,BASE_SEED),-11), &
+              INT(Z'001FFFFFFFFFFFFF',KIND=8))
+R = REAL(BITS53,EB)/9007199254740992._EB
+
+END FUNCTION SEM_U01
+
+
+!> \brief Stateless deterministic random sign in {-1,+1}.
+!> \param VENT_TOTAL_INDEX Global vent identifier
+!> \param EDDY_ID Eddy index
+!> \param ICYC Global time step counter
+!> \param COMPONENT Component selector
+!> \param BASE_SEED User-provided base seed
+!> \returns -1 or +1
+
+PURE FUNCTION SEM_PM1(VENT_TOTAL_INDEX,EDDY_ID,ICYC,COMPONENT,BASE_SEED) RESULT(SGN)
+
+INTEGER, INTENT(IN) :: VENT_TOTAL_INDEX,EDDY_ID,ICYC,COMPONENT
+INTEGER(KIND=8), INTENT(IN) :: BASE_SEED
+REAL(EB) :: SGN
+INTEGER(KIND=8) :: KEY
+
+KEY = SEM_KEY64(VENT_TOTAL_INDEX,EDDY_ID,ICYC,COMPONENT,BASE_SEED)
+SGN = -1._EB
+IF (IAND(KEY,1_8)==1_8) SGN = 1._EB
+
+END FUNCTION SEM_PM1
+
+
 !> \brief Flux-limiting function related to mass transfer B-number
 
 REAL(EB) FUNCTION F_B(B)
