@@ -23,6 +23,7 @@ PUBLIC :: INIT_TURB_ARRAYS, VARDEN_DYNSMAG, &
 ! - Communicators are keyed by VT%TOTAL_INDEX so only sibling vent sections are mixed.
 TYPE(MPI_COMM), ALLOCATABLE, SAVE :: SEM_COMM_BY_TOTAL(:)
 LOGICAL, ALLOCATABLE, SAVE :: SEM_SPLIT_VENT(:), SEM_RANK_HAS_VENT(:)
+INTEGER, ALLOCATABLE, SAVE :: SEM_N_EDDY_VENT(:)
 LOGICAL, SAVE :: SEM_COMMS_INITIALIZED = .FALSE.
 
 
@@ -1634,11 +1635,15 @@ TYPE(VENTS_TYPE), POINTER :: VT
 INTEGER :: NE,NV,NT,COLOR,IERROR,IERR
 REAL(EB), POINTER, DIMENSION(:,:) :: A_IJ,R_IJ
 
+IF (.NOT.ALLOCATED(SEM_N_EDDY_VENT)) ALLOCATE(SEM_N_EDDY_VENT(N_VENT_TOTAL))
 IF (N_MPI_PROCESSES>1) THEN
    IF (.NOT.ALLOCATED(SEM_SPLIT_VENT)) ALLOCATE(SEM_SPLIT_VENT(N_VENT_TOTAL))
    IF (.NOT.ALLOCATED(SEM_RANK_HAS_VENT)) ALLOCATE(SEM_RANK_HAS_VENT(N_VENT_TOTAL))
    IF (.NOT.ALLOCATED(SEM_COMM_BY_TOTAL)) ALLOCATE(SEM_COMM_BY_TOTAL(N_VENT_TOTAL))
-   IF (.NOT.SEM_COMMS_INITIALIZED) THEN
+ENDIF
+IF (.NOT.SEM_COMMS_INITIALIZED) THEN
+   SEM_N_EDDY_VENT = 0
+   IF (N_MPI_PROCESSES>1) THEN
       SEM_SPLIT_VENT = .FALSE.
       SEM_RANK_HAS_VENT = .FALSE.
    ENDIF
@@ -1647,10 +1652,13 @@ ENDIF
 VENT_LOOP: DO NV=1,MESHES(NM)%N_VENT
    VT => MESHES(NM)%VENTS(NV)
    IF (VT%N_EDDY==0) CYCLE VENT_LOOP
-   IF (N_MPI_PROCESSES>1 .AND. .NOT.SEM_COMMS_INITIALIZED) THEN
+   IF (.NOT.SEM_COMMS_INITIALIZED) THEN
       NT = VT%TOTAL_INDEX
-      SEM_RANK_HAS_VENT(NT) = .TRUE.
-      IF (ABS(VT%FDS_AREA-VT%TOTAL_FDS_AREA)>TWO_EPSILON_EB) SEM_SPLIT_VENT(NT) = .TRUE.
+      SEM_N_EDDY_VENT(NT) = MAX(SEM_N_EDDY_VENT(NT),VT%N_EDDY)
+      IF (N_MPI_PROCESSES>1) THEN
+         SEM_RANK_HAS_VENT(NT) = .TRUE.
+         IF (ABS(VT%FDS_AREA-VT%TOTAL_FDS_AREA)>TWO_EPSILON_EB) SEM_SPLIT_VENT(NT) = .TRUE.
+      ENDIF
    ENDIF
 
    SELECT CASE(ABS(VT%IOR))
@@ -1698,34 +1706,39 @@ VENT_LOOP: DO NV=1,MESHES(NM)%N_VENT
 ENDDO VENT_LOOP
 
 IF (N_MPI_PROCESSES>1 .AND. .NOT.SEM_COMMS_INITIALIZED .AND. NM==UPPER_MESH_INDEX) THEN
-   ! Gather split-vent flags over all ranks before building TOTAL_INDEX communicators.
-   CALL MPI_ALLREDUCE(MPI_IN_PLACE,SEM_SPLIT_VENT(1),N_VENT_TOTAL,MPI_LOGICAL,MPI_LOR,MPI_COMM_WORLD,IERR)
-   DO NT=1,N_VENT_TOTAL
-      COLOR = MPI_UNDEFINED
-      IF (SEM_SPLIT_VENT(NT) .AND. SEM_RANK_HAS_VENT(NT)) COLOR = NT
-      ! Ranks with the same TOTAL_INDEX color share one communicator.
-      CALL MPI_COMM_SPLIT(MPI_COMM_WORLD,COLOR,MY_RANK,SEM_COMM_BY_TOTAL(NT),IERR)
-   ENDDO
+   IF (N_VENT_TOTAL>0) THEN
+      CALL MPI_ALLREDUCE(MPI_IN_PLACE,SEM_N_EDDY_VENT(1),N_VENT_TOTAL,MPI_INTEGER,MPI_MAX,MPI_COMM_WORLD,IERR)
+      ! Gather split-vent flags over all ranks before building TOTAL_INDEX communicators.
+      CALL MPI_ALLREDUCE(MPI_IN_PLACE,SEM_SPLIT_VENT(1),N_VENT_TOTAL,MPI_LOGICAL,MPI_LOR,MPI_COMM_WORLD,IERR)
+      DO NT=1,N_VENT_TOTAL
+         COLOR = MPI_UNDEFINED
+         IF (SEM_SPLIT_VENT(NT) .AND. SEM_RANK_HAS_VENT(NT)) COLOR = NT
+         ! Ranks with the same TOTAL_INDEX color share one communicator.
+         CALL MPI_COMM_SPLIT(MPI_COMM_WORLD,COLOR,MY_RANK,SEM_COMM_BY_TOTAL(NT),IERR)
+      ENDDO
+   ENDIF
    SEM_COMMS_INITIALIZED = .TRUE.
 ENDIF
 
 END SUBROUTINE SYNTHETIC_EDDY_SETUP
 
 
-SUBROUTINE SYNTHETIC_TURBULENCE(DT,T,NM)
+SUBROUTINE SYNTHETIC_TURBULENCE(DT,T)
 
 USE MATH_FUNCTIONS, ONLY: EVALUATE_RAMP
 USE TRAN, ONLY: GET_IJK
 
 REAL(EB), INTENT(IN) :: DT,T
-INTEGER, INTENT(IN) :: NM
-INTEGER :: NE,NV,II,JJ,KK,IERROR,IERR
+INTEGER :: NE,NV,NT,II,JJ,KK,IERROR,IERR,NM,NM2,N_EDDY_TOTAL
+INTEGER :: NV2
 TYPE(VENTS_TYPE), POINTER :: VT
+TYPE(VENTS_TYPE), POINTER :: VT2
 TYPE(SURFACE_TYPE), POINTER :: SF
 REAL(EB) :: XX,YY,ZZ,SHAPE_FACTOR,VOLUME_WEIGHTING_FACTOR(3),EDDY_VOLUME(3),PROFILE_FACTOR,RAMP_T,TSI,&
             VEL_NORMAL,VEL_TANG_1,VEL_TANG_2,Z_WGT,SIGMA_X_MAX,SIGMA_Y_MAX,SIGMA_Z_MAX
 REAL(EB), ALLOCATABLE :: EDDY_BUFFER(:)
 TYPE(MPI_COMM) :: COMM_SEM
+LOGICAL :: NEED_SEM_COMBINE
 INTEGER, PARAMETER :: SHAPE_CODE=1 ! 1=tent, 2=tophat
 
 ! Reference:
@@ -1735,256 +1748,309 @@ INTEGER, PARAMETER :: SHAPE_CODE=1 ! 1=tent, 2=tophat
 !
 ! See Chapter 4: The Synthetic Eddy Method
 
-CALL POINT_TO_MESH(NM)
+! Pass 1: advect only locally owned eddies; non-owned entries are zeroed.
+MESH_ADVECT_LOOP: DO NM=LOWER_MESH_INDEX,UPPER_MESH_INDEX
+   CALL POINT_TO_MESH(NM)
+   VENT_ADVECT_LOOP: DO NV=1,N_VENT
+      VT => VENTS(NV)
+      IF (VT%N_EDDY==0) CYCLE VENT_ADVECT_LOOP
 
-VENT_LOOP: DO NV=1,N_VENT
-   VT => VENTS(NV)
-   IF (VT%N_EDDY==0) CYCLE VENT_LOOP
-   SIGMA_X_MAX = MAXVAL(VT%SIGMA_IJ(:,1))
-   SIGMA_Y_MAX = MAXVAL(VT%SIGMA_IJ(:,2))
-   SIGMA_Z_MAX = MAXVAL(VT%SIGMA_IJ(:,3))
+      VT%U_EDDY = 0._EB
+      VT%V_EDDY = 0._EB
+      VT%W_EDDY = 0._EB
+      SF => SURFACE(VT%SURF_INDEX)
 
-   VT%U_EDDY = 0._EB
-   VT%V_EDDY = 0._EB
-   VT%W_EDDY = 0._EB
-   SF => SURFACE(VT%SURF_INDEX)
-
-   IF ( .NOT. (VT%BOUNDARY_TYPE==OPEN_BOUNDARY .AND. OPEN_WIND_BOUNDARY)) THEN
-      IF (ABS(SF%T_IGN-T_BEGIN)<=SPACING(SF%T_IGN) .AND. SF%RAMP(TIME_VELO)%INDEX>=1) THEN
-         TSI = T
-      ELSE
-         TSI=T-SF%T_IGN
+      IF ( .NOT. (VT%BOUNDARY_TYPE==OPEN_BOUNDARY .AND. OPEN_WIND_BOUNDARY)) THEN
+         IF (ABS(SF%T_IGN-T_BEGIN)<=SPACING(SF%T_IGN) .AND. SF%RAMP(TIME_VELO)%INDEX>=1) THEN
+            TSI = T
+         ELSE
+            TSI=T-SF%T_IGN
+         ENDIF
+         RAMP_T = EVALUATE_RAMP(TSI,SF%RAMP(TIME_VELO)%INDEX,TAU=SF%RAMP(TIME_VELO)%TAU)
+         VEL_NORMAL = SF%VEL     *RAMP_T
+         VEL_TANG_1 = SF%VEL_T(1)*RAMP_T
+         VEL_TANG_2 = SF%VEL_T(2)*RAMP_T
       ENDIF
-      RAMP_T = EVALUATE_RAMP(TSI,SF%RAMP(TIME_VELO)%INDEX,TAU=SF%RAMP(TIME_VELO)%TAU)
-      VEL_NORMAL = SF%VEL     *RAMP_T
-      VEL_TANG_1 = SF%VEL_T(1)*RAMP_T
-      VEL_TANG_2 = SF%VEL_T(2)*RAMP_T
+
+      IOR_SELECT: SELECT CASE(ABS(VT%IOR))
+         CASE(1)
+            EDDY_LOOP_1: DO NE=1,VT%N_EDDY ! loop over eddies
+               IF (.NOT. (VT%Y_EDDY(NE)>=VT%Y1 .AND. VT%Y_EDDY(NE)<VT%Y2 .AND. &
+                                 VT%Z_EDDY(NE)>=VT%Z1 .AND. VT%Z_EDDY(NE)<VT%Z2)) THEN
+                  VT%X_EDDY(NE)  = 0._EB; VT%Y_EDDY(NE)  = 0._EB; VT%Z_EDDY(NE)  = 0._EB;
+                  VT%CU_EDDY(NE) = 0._EB; VT%CV_EDDY(NE) = 0._EB; VT%CW_EDDY(NE) = 0._EB;
+                  CYCLE EDDY_LOOP_1
+               ENDIF
+               
+               ! determine advection velocity based on eddy position
+               PROFILE_FACTOR = 1._EB
+               IF ( VT%BOUNDARY_TYPE==OPEN_BOUNDARY .AND. OPEN_WIND_BOUNDARY ) THEN
+                  ZZ=CELLSK(MIN(CELLSK_HI,MAX(CELLSK_LO,FLOOR((VT%Z_EDDY(NE)-ZS)*RDZINT))))
+                  KK=FLOOR(ZZ+1._EB)
+                  Z_WGT = ZZ+0.5_EB-FLOOR(ZZ+0.5_EB)
+                  IF (Z_WGT>0.5_EB) KK = KK - 1
+                  VEL_NORMAL = -(U_WIND(KK)*(1.0-Z_WGT)+U_WIND(KK+1)*Z_WGT)
+                  VEL_TANG_1 = (V_WIND(KK)*(1.0-Z_WGT)+V_WIND(KK+1)*Z_WGT)
+                  VEL_TANG_2 = (W_WIND(KK)*(1.0-Z_WGT)+W_WIND(KK+1)*Z_WGT)
+               ELSEIF (SF%RAMP(VELO_PROF_Z)%INDEX>0) THEN
+                  PROFILE_FACTOR = EVALUATE_RAMP(VT%Z_EDDY(NE),SF%RAMP(VELO_PROF_Z)%INDEX)
+               ENDIF
+
+               VT%X_EDDY(NE) = VT%X_EDDY(NE) - DT*VEL_NORMAL*PROFILE_FACTOR*SIGN(1._EB,REAL(VT%IOR,EB))
+               VT%Y_EDDY(NE) = VT%Y_EDDY(NE) + DT*VEL_TANG_1*PROFILE_FACTOR
+               VT%Z_EDDY(NE) = VT%Z_EDDY(NE) + DT*VEL_TANG_2*PROFILE_FACTOR
+               IERROR=0;      CALL EDDY_POSITION(NE,NV,NM,IERROR)
+               IF (IERROR==1) CALL EDDY_AMPLITUDE(NE,NV,NM)
+            ENDDO EDDY_LOOP_1
+         CASE(2)
+            EDDY_LOOP_2: DO NE=1,VT%N_EDDY
+               IF (.NOT. (VT%X_EDDY(NE)>=VT%X1 .AND. VT%X_EDDY(NE)<VT%X2 .AND. &
+                                 VT%Z_EDDY(NE)>=VT%Z1 .AND. VT%Z_EDDY(NE)<VT%Z2)) THEN
+                  VT%X_EDDY(NE)  = 0._EB; VT%Y_EDDY(NE)  = 0._EB; VT%Z_EDDY(NE)  = 0._EB
+                  VT%CU_EDDY(NE) = 0._EB; VT%CV_EDDY(NE) = 0._EB; VT%CW_EDDY(NE) = 0._EB
+                  CYCLE EDDY_LOOP_2
+               ENDIF
+
+               ! determine advection velocity based on eddy position
+               PROFILE_FACTOR = 1._EB
+               IF ( VT%BOUNDARY_TYPE==OPEN_BOUNDARY .AND. OPEN_WIND_BOUNDARY ) THEN
+                  ZZ=CELLSK(MIN(CELLSK_HI,MAX(CELLSK_LO,FLOOR((VT%Z_EDDY(NE)-ZS)*RDZINT))))
+                  KK=FLOOR(ZZ+1._EB)
+                  Z_WGT = ZZ+0.5_EB-FLOOR(ZZ+0.5_EB)
+                  IF (Z_WGT>0.5_EB) KK = KK - 1
+                  VEL_TANG_1 = (U_WIND(KK)*(1.0-Z_WGT)+U_WIND(KK+1)*Z_WGT)
+                  VEL_NORMAL = -(V_WIND(KK)*(1.0-Z_WGT)+V_WIND(KK+1)*Z_WGT)
+                  VEL_TANG_2 = (W_WIND(KK)*(1.0-Z_WGT)+W_WIND(KK+1)*Z_WGT)
+               ELSEIF (SF%RAMP(VELO_PROF_Z)%INDEX>0) THEN 
+                  PROFILE_FACTOR = EVALUATE_RAMP(VT%Z_EDDY(NE),SF%RAMP(VELO_PROF_Z)%INDEX)
+               ENDIF
+
+               VT%X_EDDY(NE) = VT%X_EDDY(NE) + DT*VEL_TANG_1*PROFILE_FACTOR
+               VT%Y_EDDY(NE) = VT%Y_EDDY(NE) - DT*VEL_NORMAL*PROFILE_FACTOR*SIGN(1._EB,REAL(VT%IOR,EB))
+               VT%Z_EDDY(NE) = VT%Z_EDDY(NE) + DT*VEL_TANG_2*PROFILE_FACTOR
+               IERROR=0;      CALL EDDY_POSITION(NE,NV,NM,IERROR)
+               IF (IERROR==1) CALL EDDY_AMPLITUDE(NE,NV,NM)
+            ENDDO EDDY_LOOP_2
+         CASE(3)
+            EDDY_LOOP_3: DO NE=1,VT%N_EDDY
+               IF (.NOT. (VT%X_EDDY(NE)>=VT%X1 .AND. VT%X_EDDY(NE)<VT%X2 .AND. &
+                                 VT%Y_EDDY(NE)>=VT%Y1 .AND. VT%Y_EDDY(NE)<VT%Y2)) THEN
+                  VT%X_EDDY(NE)  = 0._EB; VT%Y_EDDY(NE)  = 0._EB; VT%Z_EDDY(NE)  = 0._EB
+                  VT%CU_EDDY(NE) = 0._EB; VT%CV_EDDY(NE) = 0._EB; VT%CW_EDDY(NE) = 0._EB
+                  CYCLE EDDY_LOOP_3
+               ENDIF
+
+               ! determine advection velocity based on eddy position
+               PROFILE_FACTOR = 1._EB
+               IF ( VT%BOUNDARY_TYPE==OPEN_BOUNDARY .AND. OPEN_WIND_BOUNDARY ) THEN
+                  ZZ=CELLSK(MIN(CELLSK_HI,MAX(CELLSK_LO,FLOOR((VT%Z_EDDY(NE)-ZS)*RDZINT))))
+                  KK=FLOOR(ZZ+1._EB)
+                  Z_WGT = ZZ+0.5_EB-FLOOR(ZZ+0.5_EB)
+                  IF (Z_WGT>0.5_EB) KK = KK - 1
+                  VEL_TANG_1 = (U_WIND(KK)*(1.0-Z_WGT)+U_WIND(KK+1)*Z_WGT)
+                  VEL_TANG_2 = (V_WIND(KK)*(1.0-Z_WGT)+V_WIND(KK+1)*Z_WGT)
+                  VEL_NORMAL = -(W_WIND(KK)*(1.0-Z_WGT)+W_WIND(KK+1)*Z_WGT)
+               ELSEIF (SF%RAMP(VELO_PROF_Z)%INDEX>0) THEN
+                  PROFILE_FACTOR = EVALUATE_RAMP(VT%Z_EDDY(NE),SF%RAMP(VELO_PROF_Z)%INDEX)
+               ENDIF
+               
+               VT%X_EDDY(NE) = VT%X_EDDY(NE) + DT*VEL_TANG_1*PROFILE_FACTOR
+               VT%Y_EDDY(NE) = VT%Y_EDDY(NE) + DT*VEL_TANG_2*PROFILE_FACTOR
+               VT%Z_EDDY(NE) = VT%Z_EDDY(NE) - DT*VEL_NORMAL*PROFILE_FACTOR*SIGN(1._EB,REAL(VT%IOR,EB))
+               IERROR=0;      CALL EDDY_POSITION(NE,NV,NM,IERROR)
+               IF (IERROR==1) CALL EDDY_AMPLITUDE(NE,NV,NM)
+            ENDDO EDDY_LOOP_3
+      END SELECT IOR_SELECT
+   ENDDO VENT_ADVECT_LOOP
+ENDDO MESH_ADVECT_LOOP
+
+! Only make buffers for SEM eddy info if VENTS have been split
+NEED_SEM_COMBINE = LOWER_MESH_INDEX<UPPER_MESH_INDEX
+IF (N_MPI_PROCESSES>1) THEN
+   IF (SEM_COMMS_INITIALIZED) THEN
+      IF (ALLOCATED(SEM_SPLIT_VENT)) NEED_SEM_COMBINE = NEED_SEM_COMBINE .OR. ANY(SEM_SPLIT_VENT)
    ENDIF
+ENDIF
 
-   IOR_SELECT: SELECT CASE(ABS(VT%IOR))
-      CASE(1)
-         EDDY_LOOP_1: DO NE=1,VT%N_EDDY ! loop over eddies
-            IF (.NOT. (VT%Y_EDDY(NE)>=VT%Y1 .AND. VT%Y_EDDY(NE)<VT%Y2 .AND. &
-                               VT%Z_EDDY(NE)>=VT%Z1 .AND. VT%Z_EDDY(NE)<VT%Z2)) THEN
-               VT%X_EDDY(NE)  = 0._EB; VT%Y_EDDY(NE)  = 0._EB; VT%Z_EDDY(NE)  = 0._EB;
-               VT%CU_EDDY(NE) = 0._EB; VT%CV_EDDY(NE) = 0._EB; VT%CW_EDDY(NE) = 0._EB;
-               CYCLE EDDY_LOOP_1
-            ENDIF
-            
-            ! determine advection velocity based on eddy position
-            PROFILE_FACTOR = 1._EB
-            IF ( VT%BOUNDARY_TYPE==OPEN_BOUNDARY .AND. OPEN_WIND_BOUNDARY ) THEN
-               ZZ=CELLSK(MIN(CELLSK_HI,MAX(CELLSK_LO,FLOOR((VT%Z_EDDY(NE)-ZS)*RDZINT))))
-               KK=FLOOR(ZZ+1._EB)
-               Z_WGT = ZZ+0.5_EB-FLOOR(ZZ+0.5_EB)
-               IF (Z_WGT>0.5_EB) KK = KK - 1
-               VEL_NORMAL = -(U_WIND(KK)*(1.0-Z_WGT)+U_WIND(KK+1)*Z_WGT)
-               VEL_TANG_1 = (V_WIND(KK)*(1.0-Z_WGT)+V_WIND(KK+1)*Z_WGT)
-               VEL_TANG_2 = (W_WIND(KK)*(1.0-Z_WGT)+W_WIND(KK+1)*Z_WGT)
-            ELSEIF (SF%RAMP(VELO_PROF_Z)%INDEX>0) THEN
-               PROFILE_FACTOR = EVALUATE_RAMP(VT%Z_EDDY(NE),SF%RAMP(VELO_PROF_Z)%INDEX)
-            ENDIF
+! Pass 2: combine eddy state across local vent sections with the same TOTAL_INDEX, then across ranks.
+IF (NEED_SEM_COMBINE) THEN
+   VENT_COMBINE_LOOP: DO NT=1,N_VENT_TOTAL
+      N_EDDY_TOTAL = SEM_N_EDDY_VENT(NT)
+      IF (N_EDDY_TOTAL==0) CYCLE VENT_COMBINE_LOOP
 
-            VT%X_EDDY(NE) = VT%X_EDDY(NE) - DT*VEL_NORMAL*PROFILE_FACTOR*SIGN(1._EB,REAL(VT%IOR,EB))
-            VT%Y_EDDY(NE) = VT%Y_EDDY(NE) + DT*VEL_TANG_1*PROFILE_FACTOR
-            VT%Z_EDDY(NE) = VT%Z_EDDY(NE) + DT*VEL_TANG_2*PROFILE_FACTOR
-            IERROR=0;      CALL EDDY_POSITION(NE,NV,NM,IERROR)
-            IF (IERROR==1) CALL EDDY_AMPLITUDE(NE,NV,NM)
-         ENDDO EDDY_LOOP_1
-      CASE(2)
-         EDDY_LOOP_2: DO NE=1,VT%N_EDDY
-            IF (.NOT. (VT%X_EDDY(NE)>=VT%X1 .AND. VT%X_EDDY(NE)<VT%X2 .AND. &
-                               VT%Z_EDDY(NE)>=VT%Z1 .AND. VT%Z_EDDY(NE)<VT%Z2)) THEN
-               VT%X_EDDY(NE)  = 0._EB; VT%Y_EDDY(NE)  = 0._EB; VT%Z_EDDY(NE)  = 0._EB
-               VT%CU_EDDY(NE) = 0._EB; VT%CV_EDDY(NE) = 0._EB; VT%CW_EDDY(NE) = 0._EB
-               CYCLE EDDY_LOOP_2
-            ENDIF
+      IF (ALLOCATED(EDDY_BUFFER)) DEALLOCATE(EDDY_BUFFER)
+      ALLOCATE(EDDY_BUFFER(6*N_EDDY_TOTAL))
+      EDDY_BUFFER = 0._EB
 
-            ! determine advection velocity based on eddy position
-            PROFILE_FACTOR = 1._EB
-            IF ( VT%BOUNDARY_TYPE==OPEN_BOUNDARY .AND. OPEN_WIND_BOUNDARY ) THEN
-               ZZ=CELLSK(MIN(CELLSK_HI,MAX(CELLSK_LO,FLOOR((VT%Z_EDDY(NE)-ZS)*RDZINT))))
-               KK=FLOOR(ZZ+1._EB)
-               Z_WGT = ZZ+0.5_EB-FLOOR(ZZ+0.5_EB)
-               IF (Z_WGT>0.5_EB) KK = KK - 1
-               VEL_TANG_1 = (U_WIND(KK)*(1.0-Z_WGT)+U_WIND(KK+1)*Z_WGT)
-               VEL_NORMAL = -(V_WIND(KK)*(1.0-Z_WGT)+V_WIND(KK+1)*Z_WGT)
-               VEL_TANG_2 = (W_WIND(KK)*(1.0-Z_WGT)+W_WIND(KK+1)*Z_WGT)
-            ELSEIF (SF%RAMP(VELO_PROF_Z)%INDEX>0) THEN 
-               PROFILE_FACTOR = EVALUATE_RAMP(VT%Z_EDDY(NE),SF%RAMP(VELO_PROF_Z)%INDEX)
-            ENDIF
+      ! Sum contributions from all local mesh sections that share this TOTAL_INDEX.
+      DO NM2=LOWER_MESH_INDEX,UPPER_MESH_INDEX
+         DO NV2=1,MESHES(NM2)%N_VENT
+            VT2 => MESHES(NM2)%VENTS(NV2)
+            IF (VT2%N_EDDY==0 .OR. VT2%TOTAL_INDEX/=NT) CYCLE
+            EDDY_BUFFER(1:N_EDDY_TOTAL) = EDDY_BUFFER(1:N_EDDY_TOTAL) + VT2%X_EDDY(1:N_EDDY_TOTAL)
+            EDDY_BUFFER(N_EDDY_TOTAL+1:2*N_EDDY_TOTAL) = EDDY_BUFFER(N_EDDY_TOTAL+1:2*N_EDDY_TOTAL) + &
+               VT2%Y_EDDY(1:N_EDDY_TOTAL)
+            EDDY_BUFFER(2*N_EDDY_TOTAL+1:3*N_EDDY_TOTAL) = EDDY_BUFFER(2*N_EDDY_TOTAL+1:3*N_EDDY_TOTAL) + &
+               VT2%Z_EDDY(1:N_EDDY_TOTAL)
+            EDDY_BUFFER(3*N_EDDY_TOTAL+1:4*N_EDDY_TOTAL) = EDDY_BUFFER(3*N_EDDY_TOTAL+1:4*N_EDDY_TOTAL) + &
+               VT2%CU_EDDY(1:N_EDDY_TOTAL)
+            EDDY_BUFFER(4*N_EDDY_TOTAL+1:5*N_EDDY_TOTAL) = EDDY_BUFFER(4*N_EDDY_TOTAL+1:5*N_EDDY_TOTAL) + &
+               VT2%CV_EDDY(1:N_EDDY_TOTAL)
+            EDDY_BUFFER(5*N_EDDY_TOTAL+1:6*N_EDDY_TOTAL) = EDDY_BUFFER(5*N_EDDY_TOTAL+1:6*N_EDDY_TOTAL) + &
+               VT2%CW_EDDY(1:N_EDDY_TOTAL)
+         ENDDO
+      ENDDO
 
-            VT%X_EDDY(NE) = VT%X_EDDY(NE) + DT*VEL_TANG_1*PROFILE_FACTOR
-            VT%Y_EDDY(NE) = VT%Y_EDDY(NE) - DT*VEL_NORMAL*PROFILE_FACTOR*SIGN(1._EB,REAL(VT%IOR,EB))
-            VT%Z_EDDY(NE) = VT%Z_EDDY(NE) + DT*VEL_TANG_2*PROFILE_FACTOR
-            IERROR=0;      CALL EDDY_POSITION(NE,NV,NM,IERROR)
-            IF (IERROR==1) CALL EDDY_AMPLITUDE(NE,NV,NM)
-         ENDDO EDDY_LOOP_2
-      CASE(3)
-         EDDY_LOOP_3: DO NE=1,VT%N_EDDY
-            IF (.NOT. (VT%X_EDDY(NE)>=VT%X1 .AND. VT%X_EDDY(NE)<VT%X2 .AND. &
-                               VT%Y_EDDY(NE)>=VT%Y1 .AND. VT%Y_EDDY(NE)<VT%Y2)) THEN
-               VT%X_EDDY(NE)  = 0._EB; VT%Y_EDDY(NE)  = 0._EB; VT%Z_EDDY(NE)  = 0._EB
-               VT%CU_EDDY(NE) = 0._EB; VT%CV_EDDY(NE) = 0._EB; VT%CW_EDDY(NE) = 0._EB
-               CYCLE EDDY_LOOP_3
+      ! If split across ranks, combine rank-local totals on the cached communicator.
+      IF (N_MPI_PROCESSES>1) THEN
+         IF (SEM_COMMS_INITIALIZED) THEN
+            IF (SEM_SPLIT_VENT(NT)) THEN
+               COMM_SEM = SEM_COMM_BY_TOTAL(NT)
+               CALL MPI_ALLREDUCE(MPI_IN_PLACE,EDDY_BUFFER(1),6*N_EDDY_TOTAL,MPI_DOUBLE_PRECISION,MPI_SUM,COMM_SEM,IERR)
             ENDIF
-
-            ! determine advection velocity based on eddy position
-            PROFILE_FACTOR = 1._EB
-            IF ( VT%BOUNDARY_TYPE==OPEN_BOUNDARY .AND. OPEN_WIND_BOUNDARY ) THEN
-               ZZ=CELLSK(MIN(CELLSK_HI,MAX(CELLSK_LO,FLOOR((VT%Z_EDDY(NE)-ZS)*RDZINT))))
-               KK=FLOOR(ZZ+1._EB)
-               Z_WGT = ZZ+0.5_EB-FLOOR(ZZ+0.5_EB)
-               IF (Z_WGT>0.5_EB) KK = KK - 1
-               VEL_TANG_1 = (U_WIND(KK)*(1.0-Z_WGT)+U_WIND(KK+1)*Z_WGT)
-               VEL_TANG_2 = (V_WIND(KK)*(1.0-Z_WGT)+V_WIND(KK+1)*Z_WGT)
-               VEL_NORMAL = -(W_WIND(KK)*(1.0-Z_WGT)+W_WIND(KK+1)*Z_WGT)
-            ELSEIF (SF%RAMP(VELO_PROF_Z)%INDEX>0) THEN
-               PROFILE_FACTOR = EVALUATE_RAMP(VT%Z_EDDY(NE),SF%RAMP(VELO_PROF_Z)%INDEX)
-            ENDIF
-            
-            VT%X_EDDY(NE) = VT%X_EDDY(NE) + DT*VEL_TANG_1*PROFILE_FACTOR
-            VT%Y_EDDY(NE) = VT%Y_EDDY(NE) + DT*VEL_TANG_2*PROFILE_FACTOR
-            VT%Z_EDDY(NE) = VT%Z_EDDY(NE) - DT*VEL_NORMAL*PROFILE_FACTOR*SIGN(1._EB,REAL(VT%IOR,EB))
-            IERROR=0;      CALL EDDY_POSITION(NE,NV,NM,IERROR)
-            IF (IERROR==1) CALL EDDY_AMPLITUDE(NE,NV,NM)
-         ENDDO EDDY_LOOP_3
-   END SELECT IOR_SELECT
-
-   IF (N_MPI_PROCESSES>1 .AND. SEM_COMMS_INITIALIZED) THEN
-      IF (SEM_SPLIT_VENT(VT%TOTAL_INDEX)) THEN
-         ! Single packed reduction for x/y/z and amplitudes on the cached TOTAL_INDEX communicator.
-         COMM_SEM = SEM_COMM_BY_TOTAL(VT%TOTAL_INDEX)
-         IF (ALLOCATED(EDDY_BUFFER)) DEALLOCATE(EDDY_BUFFER)
-         ALLOCATE(EDDY_BUFFER(6*VT%N_EDDY))
-         EDDY_BUFFER(1:VT%N_EDDY) = VT%X_EDDY(1:VT%N_EDDY)
-         EDDY_BUFFER(VT%N_EDDY+1:2*VT%N_EDDY) = VT%Y_EDDY(1:VT%N_EDDY)
-         EDDY_BUFFER(2*VT%N_EDDY+1:3*VT%N_EDDY) = VT%Z_EDDY(1:VT%N_EDDY)
-         EDDY_BUFFER(3*VT%N_EDDY+1:4*VT%N_EDDY) = VT%CU_EDDY(1:VT%N_EDDY)
-         EDDY_BUFFER(4*VT%N_EDDY+1:5*VT%N_EDDY) = VT%CV_EDDY(1:VT%N_EDDY)
-         EDDY_BUFFER(5*VT%N_EDDY+1:6*VT%N_EDDY) = VT%CW_EDDY(1:VT%N_EDDY)
-         CALL MPI_ALLREDUCE(MPI_IN_PLACE,EDDY_BUFFER(1),6*VT%N_EDDY,MPI_DOUBLE_PRECISION,MPI_SUM,COMM_SEM,IERR)
-         VT%X_EDDY(1:VT%N_EDDY)  = EDDY_BUFFER(1:VT%N_EDDY)
-         VT%Y_EDDY(1:VT%N_EDDY)  = EDDY_BUFFER(VT%N_EDDY+1:2*VT%N_EDDY)
-         VT%Z_EDDY(1:VT%N_EDDY)  = EDDY_BUFFER(2*VT%N_EDDY+1:3*VT%N_EDDY)
-         VT%CU_EDDY(1:VT%N_EDDY) = EDDY_BUFFER(3*VT%N_EDDY+1:4*VT%N_EDDY)
-         VT%CV_EDDY(1:VT%N_EDDY) = EDDY_BUFFER(4*VT%N_EDDY+1:5*VT%N_EDDY)
-         VT%CW_EDDY(1:VT%N_EDDY) = EDDY_BUFFER(5*VT%N_EDDY+1:6*VT%N_EDDY)
-         DEALLOCATE(EDDY_BUFFER)
+         ENDIF
       ENDIF
-   ENDIF
 
-   IOR_APPLY_SELECT: SELECT CASE(ABS(VT%IOR))
-      CASE(1)
-         DO NE=1,VT%N_EDDY
-            IF (.NOT.(ABS(VT%X_EDDY(NE)-VT%X1)<=SIGMA_X_MAX .AND. &
-                      VT%Y_EDDY(NE)>=VT%Y1-SIGMA_Y_MAX .AND. VT%Y_EDDY(NE)<=VT%Y2+SIGMA_Y_MAX .AND. &
-                      VT%Z_EDDY(NE)>=VT%Z1-SIGMA_Z_MAX .AND. VT%Z_EDDY(NE)<=VT%Z2+SIGMA_Z_MAX)) CYCLE
-            DO KK=VT%K1+1,VT%K2
+      ! Copy the merged eddy state back to every local sibling section.
+      DO NM2=LOWER_MESH_INDEX,UPPER_MESH_INDEX
+         DO NV2=1,MESHES(NM2)%N_VENT
+            VT2 => MESHES(NM2)%VENTS(NV2)
+            IF (VT2%N_EDDY==0 .OR. VT2%TOTAL_INDEX/=NT) CYCLE
+            VT2%X_EDDY(1:N_EDDY_TOTAL)  = EDDY_BUFFER(1:N_EDDY_TOTAL)
+            VT2%Y_EDDY(1:N_EDDY_TOTAL)  = EDDY_BUFFER(N_EDDY_TOTAL+1:2*N_EDDY_TOTAL)
+            VT2%Z_EDDY(1:N_EDDY_TOTAL)  = EDDY_BUFFER(2*N_EDDY_TOTAL+1:3*N_EDDY_TOTAL)
+            VT2%CU_EDDY(1:N_EDDY_TOTAL) = EDDY_BUFFER(3*N_EDDY_TOTAL+1:4*N_EDDY_TOTAL)
+            VT2%CV_EDDY(1:N_EDDY_TOTAL) = EDDY_BUFFER(4*N_EDDY_TOTAL+1:5*N_EDDY_TOTAL)
+            VT2%CW_EDDY(1:N_EDDY_TOTAL) = EDDY_BUFFER(5*N_EDDY_TOTAL+1:6*N_EDDY_TOTAL)
+         ENDDO
+      ENDDO
+
+      DEALLOCATE(EDDY_BUFFER)
+   ENDDO VENT_COMBINE_LOOP
+ENDIF
+
+! Pass 3: apply eddy contributions to the local vent section.
+MESH_APPLY_LOOP: DO NM=LOWER_MESH_INDEX,UPPER_MESH_INDEX
+   CALL POINT_TO_MESH(NM)
+   VENT_APPLY_LOOP: DO NV=1,N_VENT
+      VT => VENTS(NV)
+      IF (VT%N_EDDY==0) CYCLE VENT_APPLY_LOOP
+      SIGMA_X_MAX = MAXVAL(VT%SIGMA_IJ(:,1))
+      SIGMA_Y_MAX = MAXVAL(VT%SIGMA_IJ(:,2))
+      SIGMA_Z_MAX = MAXVAL(VT%SIGMA_IJ(:,3))
+
+      IOR_APPLY_SELECT: SELECT CASE(ABS(VT%IOR))
+         CASE(1)
+            DO NE=1,VT%N_EDDY
+               IF (.NOT.(ABS(VT%X_EDDY(NE)-VT%X1)<=SIGMA_X_MAX .AND. &
+                        VT%Y_EDDY(NE)>=VT%Y1-SIGMA_Y_MAX .AND. VT%Y_EDDY(NE)<=VT%Y2+SIGMA_Y_MAX .AND. &
+                        VT%Z_EDDY(NE)>=VT%Z1-SIGMA_Z_MAX .AND. VT%Z_EDDY(NE)<=VT%Z2+SIGMA_Z_MAX)) CYCLE
+               DO KK=VT%K1+1,VT%K2
+                  DO JJ=VT%J1+1,VT%J2
+                     XX = (VT%X1  - VT%X_EDDY(NE))/VT%SIGMA_IJ(1,1)
+                     YY = (YC(JJ) - VT%Y_EDDY(NE))/VT%SIGMA_IJ(1,2)
+                     ZZ = (ZC(KK) - VT%Z_EDDY(NE))/VT%SIGMA_IJ(1,3)
+                     SHAPE_FACTOR = SHAPE_FUNCTION(XX,SHAPE_CODE)*SHAPE_FUNCTION(YY,SHAPE_CODE)*SHAPE_FUNCTION(ZZ,SHAPE_CODE)
+                     VT%U_EDDY(JJ,KK) = VT%U_EDDY(JJ,KK) + VT%CU_EDDY(NE)*SHAPE_FACTOR
+
+                     XX = (VT%X1  - VT%X_EDDY(NE))/VT%SIGMA_IJ(2,1)
+                     YY = (YC(JJ) - VT%Y_EDDY(NE))/VT%SIGMA_IJ(2,2)
+                     ZZ = (ZC(KK) - VT%Z_EDDY(NE))/VT%SIGMA_IJ(2,3)
+                     SHAPE_FACTOR = SHAPE_FUNCTION(XX,SHAPE_CODE)*SHAPE_FUNCTION(YY,SHAPE_CODE)*SHAPE_FUNCTION(ZZ,SHAPE_CODE)
+                     VT%V_EDDY(JJ,KK) = VT%V_EDDY(JJ,KK) + VT%CV_EDDY(NE)*SHAPE_FACTOR
+
+                     XX = (VT%X1  - VT%X_EDDY(NE))/VT%SIGMA_IJ(3,1)
+                     YY = (YC(JJ) - VT%Y_EDDY(NE))/VT%SIGMA_IJ(3,2)
+                     ZZ = (ZC(KK) - VT%Z_EDDY(NE))/VT%SIGMA_IJ(3,3)
+                     SHAPE_FACTOR = SHAPE_FUNCTION(XX,SHAPE_CODE)*SHAPE_FUNCTION(YY,SHAPE_CODE)*SHAPE_FUNCTION(ZZ,SHAPE_CODE)
+                     VT%W_EDDY(JJ,KK) = VT%W_EDDY(JJ,KK) + VT%CW_EDDY(NE)*SHAPE_FACTOR
+                  ENDDO
+               ENDDO
+            ENDDO
+         CASE(2)
+            DO NE=1,VT%N_EDDY
+               IF (.NOT.(VT%X_EDDY(NE)>=VT%X1-SIGMA_X_MAX .AND. VT%X_EDDY(NE)<=VT%X2+SIGMA_X_MAX .AND. &
+                        ABS(VT%Y_EDDY(NE)-VT%Y1)<=SIGMA_Y_MAX .AND. &
+                        VT%Z_EDDY(NE)>=VT%Z1-SIGMA_Z_MAX .AND. VT%Z_EDDY(NE)<=VT%Z2+SIGMA_Z_MAX)) CYCLE
+               DO KK=VT%K1+1,VT%K2
+                  DO II=VT%I1+1,VT%I2
+                     XX = (XC(II) - VT%X_EDDY(NE))/VT%SIGMA_IJ(1,1)
+                     YY = (VT%Y1  - VT%Y_EDDY(NE))/VT%SIGMA_IJ(1,2)
+                     ZZ = (ZC(KK) - VT%Z_EDDY(NE))/VT%SIGMA_IJ(1,3)
+                     SHAPE_FACTOR = SHAPE_FUNCTION(XX,SHAPE_CODE)*SHAPE_FUNCTION(YY,SHAPE_CODE)*SHAPE_FUNCTION(ZZ,SHAPE_CODE)
+                     VT%U_EDDY(II,KK) = VT%U_EDDY(II,KK) + VT%CU_EDDY(NE)*SHAPE_FACTOR
+
+                     XX = (XC(II) - VT%X_EDDY(NE))/VT%SIGMA_IJ(2,1)
+                     YY = (VT%Y1  - VT%Y_EDDY(NE))/VT%SIGMA_IJ(2,2)
+                     ZZ = (ZC(KK) - VT%Z_EDDY(NE))/VT%SIGMA_IJ(2,3)
+                     SHAPE_FACTOR = SHAPE_FUNCTION(XX,SHAPE_CODE)*SHAPE_FUNCTION(YY,SHAPE_CODE)*SHAPE_FUNCTION(ZZ,SHAPE_CODE)
+                     VT%V_EDDY(II,KK) = VT%V_EDDY(II,KK) + VT%CV_EDDY(NE)*SHAPE_FACTOR
+
+                     XX = (XC(II) - VT%X_EDDY(NE))/VT%SIGMA_IJ(3,1)
+                     YY = (VT%Y1  - VT%Y_EDDY(NE))/VT%SIGMA_IJ(3,2)
+                     ZZ = (ZC(KK) - VT%Z_EDDY(NE))/VT%SIGMA_IJ(3,3)
+                     SHAPE_FACTOR = SHAPE_FUNCTION(XX,SHAPE_CODE)*SHAPE_FUNCTION(YY,SHAPE_CODE)*SHAPE_FUNCTION(ZZ,SHAPE_CODE)
+                     VT%W_EDDY(II,KK) = VT%W_EDDY(II,KK) + VT%CW_EDDY(NE)*SHAPE_FACTOR
+                  ENDDO
+               ENDDO
+            ENDDO
+         CASE(3)
+            DO NE=1,VT%N_EDDY
+               IF (.NOT.(VT%X_EDDY(NE)>=VT%X1-SIGMA_X_MAX .AND. VT%X_EDDY(NE)<=VT%X2+SIGMA_X_MAX .AND. &
+                        VT%Y_EDDY(NE)>=VT%Y1-SIGMA_Y_MAX .AND. VT%Y_EDDY(NE)<=VT%Y2+SIGMA_Y_MAX .AND. &
+                        ABS(VT%Z_EDDY(NE)-VT%Z1)<=SIGMA_Z_MAX)) CYCLE
                DO JJ=VT%J1+1,VT%J2
-                  XX = (VT%X1  - VT%X_EDDY(NE))/VT%SIGMA_IJ(1,1)
-                  YY = (YC(JJ) - VT%Y_EDDY(NE))/VT%SIGMA_IJ(1,2)
-                  ZZ = (ZC(KK) - VT%Z_EDDY(NE))/VT%SIGMA_IJ(1,3)
-                  SHAPE_FACTOR = SHAPE_FUNCTION(XX,SHAPE_CODE)*SHAPE_FUNCTION(YY,SHAPE_CODE)*SHAPE_FUNCTION(ZZ,SHAPE_CODE)
-                  VT%U_EDDY(JJ,KK) = VT%U_EDDY(JJ,KK) + VT%CU_EDDY(NE)*SHAPE_FACTOR
+                  DO II=VT%I1+1,VT%I2
+                     XX = (XC(II) - VT%X_EDDY(NE))/VT%SIGMA_IJ(1,1)
+                     YY = (YC(JJ) - VT%Y_EDDY(NE))/VT%SIGMA_IJ(1,2)
+                     ZZ = (VT%Z1  - VT%Z_EDDY(NE))/VT%SIGMA_IJ(1,3)
+                     SHAPE_FACTOR = SHAPE_FUNCTION(XX,SHAPE_CODE)*SHAPE_FUNCTION(YY,SHAPE_CODE)*SHAPE_FUNCTION(ZZ,SHAPE_CODE)
+                     VT%U_EDDY(II,JJ) = VT%U_EDDY(II,JJ) + VT%CU_EDDY(NE)*SHAPE_FACTOR
 
-                  XX = (VT%X1  - VT%X_EDDY(NE))/VT%SIGMA_IJ(2,1)
-                  YY = (YC(JJ) - VT%Y_EDDY(NE))/VT%SIGMA_IJ(2,2)
-                  ZZ = (ZC(KK) - VT%Z_EDDY(NE))/VT%SIGMA_IJ(2,3)
-                  SHAPE_FACTOR = SHAPE_FUNCTION(XX,SHAPE_CODE)*SHAPE_FUNCTION(YY,SHAPE_CODE)*SHAPE_FUNCTION(ZZ,SHAPE_CODE)
-                  VT%V_EDDY(JJ,KK) = VT%V_EDDY(JJ,KK) + VT%CV_EDDY(NE)*SHAPE_FACTOR
+                     XX = (XC(II) - VT%X_EDDY(NE))/VT%SIGMA_IJ(2,1)
+                     YY = (YC(JJ) - VT%Y_EDDY(NE))/VT%SIGMA_IJ(2,2)
+                     ZZ = (VT%Z1  - VT%Z_EDDY(NE))/VT%SIGMA_IJ(2,3)
+                     SHAPE_FACTOR = SHAPE_FUNCTION(XX,SHAPE_CODE)*SHAPE_FUNCTION(YY,SHAPE_CODE)*SHAPE_FUNCTION(ZZ,SHAPE_CODE)
+                     VT%V_EDDY(II,JJ) = VT%V_EDDY(II,JJ) + VT%CV_EDDY(NE)*SHAPE_FACTOR
 
-                  XX = (VT%X1  - VT%X_EDDY(NE))/VT%SIGMA_IJ(3,1)
-                  YY = (YC(JJ) - VT%Y_EDDY(NE))/VT%SIGMA_IJ(3,2)
-                  ZZ = (ZC(KK) - VT%Z_EDDY(NE))/VT%SIGMA_IJ(3,3)
-                  SHAPE_FACTOR = SHAPE_FUNCTION(XX,SHAPE_CODE)*SHAPE_FUNCTION(YY,SHAPE_CODE)*SHAPE_FUNCTION(ZZ,SHAPE_CODE)
-                  VT%W_EDDY(JJ,KK) = VT%W_EDDY(JJ,KK) + VT%CW_EDDY(NE)*SHAPE_FACTOR
+                     XX = (XC(II) - VT%X_EDDY(NE))/VT%SIGMA_IJ(3,1)
+                     YY = (YC(JJ) - VT%Y_EDDY(NE))/VT%SIGMA_IJ(3,2)
+                     ZZ = (VT%Z1  - VT%Z_EDDY(NE))/VT%SIGMA_IJ(3,3)
+                     SHAPE_FACTOR = SHAPE_FUNCTION(XX,SHAPE_CODE)*SHAPE_FUNCTION(YY,SHAPE_CODE)*SHAPE_FUNCTION(ZZ,SHAPE_CODE)
+                     VT%W_EDDY(II,JJ) = VT%W_EDDY(II,JJ) + VT%CW_EDDY(NE)*SHAPE_FACTOR
+                  ENDDO
                ENDDO
             ENDDO
-         ENDDO
-      CASE(2)
-         DO NE=1,VT%N_EDDY
-            IF (.NOT.(VT%X_EDDY(NE)>=VT%X1-SIGMA_X_MAX .AND. VT%X_EDDY(NE)<=VT%X2+SIGMA_X_MAX .AND. &
-                      ABS(VT%Y_EDDY(NE)-VT%Y1)<=SIGMA_Y_MAX .AND. &
-                      VT%Z_EDDY(NE)>=VT%Z1-SIGMA_Z_MAX .AND. VT%Z_EDDY(NE)<=VT%Z2+SIGMA_Z_MAX)) CYCLE
-            DO KK=VT%K1+1,VT%K2
-               DO II=VT%I1+1,VT%I2
-                  XX = (XC(II) - VT%X_EDDY(NE))/VT%SIGMA_IJ(1,1)
-                  YY = (VT%Y1  - VT%Y_EDDY(NE))/VT%SIGMA_IJ(1,2)
-                  ZZ = (ZC(KK) - VT%Z_EDDY(NE))/VT%SIGMA_IJ(1,3)
-                  SHAPE_FACTOR = SHAPE_FUNCTION(XX,SHAPE_CODE)*SHAPE_FUNCTION(YY,SHAPE_CODE)*SHAPE_FUNCTION(ZZ,SHAPE_CODE)
-                  VT%U_EDDY(II,KK) = VT%U_EDDY(II,KK) + VT%CU_EDDY(NE)*SHAPE_FACTOR
+      END SELECT IOR_APPLY_SELECT
 
-                  XX = (XC(II) - VT%X_EDDY(NE))/VT%SIGMA_IJ(2,1)
-                  YY = (VT%Y1  - VT%Y_EDDY(NE))/VT%SIGMA_IJ(2,2)
-                  ZZ = (ZC(KK) - VT%Z_EDDY(NE))/VT%SIGMA_IJ(2,3)
-                  SHAPE_FACTOR = SHAPE_FUNCTION(XX,SHAPE_CODE)*SHAPE_FUNCTION(YY,SHAPE_CODE)*SHAPE_FUNCTION(ZZ,SHAPE_CODE)
-                  VT%V_EDDY(II,KK) = VT%V_EDDY(II,KK) + VT%CV_EDDY(NE)*SHAPE_FACTOR
+      EDDY_VOLUME(1) = VT%SIGMA_IJ(1,1)*VT%SIGMA_IJ(1,2)*VT%SIGMA_IJ(1,3)
+      EDDY_VOLUME(2) = VT%SIGMA_IJ(2,1)*VT%SIGMA_IJ(2,2)*VT%SIGMA_IJ(2,3)
+      EDDY_VOLUME(3) = VT%SIGMA_IJ(3,1)*VT%SIGMA_IJ(3,2)*VT%SIGMA_IJ(3,3)
 
-                  XX = (XC(II) - VT%X_EDDY(NE))/VT%SIGMA_IJ(3,1)
-                  YY = (VT%Y1  - VT%Y_EDDY(NE))/VT%SIGMA_IJ(3,2)
-                  ZZ = (ZC(KK) - VT%Z_EDDY(NE))/VT%SIGMA_IJ(3,3)
-                  SHAPE_FACTOR = SHAPE_FUNCTION(XX,SHAPE_CODE)*SHAPE_FUNCTION(YY,SHAPE_CODE)*SHAPE_FUNCTION(ZZ,SHAPE_CODE)
-                  VT%W_EDDY(II,KK) = VT%W_EDDY(II,KK) + VT%CW_EDDY(NE)*SHAPE_FACTOR
-               ENDDO
-            ENDDO
-         ENDDO
-      CASE(3)
-         DO NE=1,VT%N_EDDY
-            IF (.NOT.(VT%X_EDDY(NE)>=VT%X1-SIGMA_X_MAX .AND. VT%X_EDDY(NE)<=VT%X2+SIGMA_X_MAX .AND. &
-                      VT%Y_EDDY(NE)>=VT%Y1-SIGMA_Y_MAX .AND. VT%Y_EDDY(NE)<=VT%Y2+SIGMA_Y_MAX .AND. &
-                      ABS(VT%Z_EDDY(NE)-VT%Z1)<=SIGMA_Z_MAX)) CYCLE
-            DO JJ=VT%J1+1,VT%J2
-               DO II=VT%I1+1,VT%I2
-                  XX = (XC(II) - VT%X_EDDY(NE))/VT%SIGMA_IJ(1,1)
-                  YY = (YC(JJ) - VT%Y_EDDY(NE))/VT%SIGMA_IJ(1,2)
-                  ZZ = (VT%Z1  - VT%Z_EDDY(NE))/VT%SIGMA_IJ(1,3)
-                  SHAPE_FACTOR = SHAPE_FUNCTION(XX,SHAPE_CODE)*SHAPE_FUNCTION(YY,SHAPE_CODE)*SHAPE_FUNCTION(ZZ,SHAPE_CODE)
-                  VT%U_EDDY(II,JJ) = VT%U_EDDY(II,JJ) + VT%CU_EDDY(NE)*SHAPE_FACTOR
+      VOLUME_WEIGHTING_FACTOR(1) = MIN(1._EB,SQRT(VT%EDDY_BOX_VOLUME/REAL(VT%N_EDDY,EB)/EDDY_VOLUME(1)))
+      VOLUME_WEIGHTING_FACTOR(2) = MIN(1._EB,SQRT(VT%EDDY_BOX_VOLUME/REAL(VT%N_EDDY,EB)/EDDY_VOLUME(2)))
+      VOLUME_WEIGHTING_FACTOR(3) = MIN(1._EB,SQRT(VT%EDDY_BOX_VOLUME/REAL(VT%N_EDDY,EB)/EDDY_VOLUME(3)))
 
-                  XX = (XC(II) - VT%X_EDDY(NE))/VT%SIGMA_IJ(2,1)
-                  YY = (YC(JJ) - VT%Y_EDDY(NE))/VT%SIGMA_IJ(2,2)
-                  ZZ = (VT%Z1  - VT%Z_EDDY(NE))/VT%SIGMA_IJ(2,3)
-                  SHAPE_FACTOR = SHAPE_FUNCTION(XX,SHAPE_CODE)*SHAPE_FUNCTION(YY,SHAPE_CODE)*SHAPE_FUNCTION(ZZ,SHAPE_CODE)
-                  VT%V_EDDY(II,JJ) = VT%V_EDDY(II,JJ) + VT%CV_EDDY(NE)*SHAPE_FACTOR
+      ! note: EDDY_VOLUME included in SQRT based on Jung-il Choi write up.
 
-                  XX = (XC(II) - VT%X_EDDY(NE))/VT%SIGMA_IJ(3,1)
-                  YY = (YC(JJ) - VT%Y_EDDY(NE))/VT%SIGMA_IJ(3,2)
-                  ZZ = (VT%Z1  - VT%Z_EDDY(NE))/VT%SIGMA_IJ(3,3)
-                  SHAPE_FACTOR = SHAPE_FUNCTION(XX,SHAPE_CODE)*SHAPE_FUNCTION(YY,SHAPE_CODE)*SHAPE_FUNCTION(ZZ,SHAPE_CODE)
-                  VT%W_EDDY(II,JJ) = VT%W_EDDY(II,JJ) + VT%CW_EDDY(NE)*SHAPE_FACTOR
-               ENDDO
-            ENDDO
-         ENDDO
-   END SELECT IOR_APPLY_SELECT
+      VT%U_EDDY = VT%U_EDDY*VOLUME_WEIGHTING_FACTOR(1)
+      VT%V_EDDY = VT%V_EDDY*VOLUME_WEIGHTING_FACTOR(2)
+      VT%W_EDDY = VT%W_EDDY*VOLUME_WEIGHTING_FACTOR(3)
 
-   EDDY_VOLUME(1) = VT%SIGMA_IJ(1,1)*VT%SIGMA_IJ(1,2)*VT%SIGMA_IJ(1,3)
-   EDDY_VOLUME(2) = VT%SIGMA_IJ(2,1)*VT%SIGMA_IJ(2,2)*VT%SIGMA_IJ(2,3)
-   EDDY_VOLUME(3) = VT%SIGMA_IJ(3,1)*VT%SIGMA_IJ(3,2)*VT%SIGMA_IJ(3,3)
+      ! subtract mean from normal components so that fluctuations do not affect global volume flow
 
-   VOLUME_WEIGHTING_FACTOR(1) = MIN(1._EB,SQRT(VT%EDDY_BOX_VOLUME/REAL(VT%N_EDDY,EB)/EDDY_VOLUME(1)))
-   VOLUME_WEIGHTING_FACTOR(2) = MIN(1._EB,SQRT(VT%EDDY_BOX_VOLUME/REAL(VT%N_EDDY,EB)/EDDY_VOLUME(2)))
-   VOLUME_WEIGHTING_FACTOR(3) = MIN(1._EB,SQRT(VT%EDDY_BOX_VOLUME/REAL(VT%N_EDDY,EB)/EDDY_VOLUME(3)))
-
-   ! note: EDDY_VOLUME included in SQRT based on Jung-il Choi write up.
-
-   VT%U_EDDY = VT%U_EDDY*VOLUME_WEIGHTING_FACTOR(1)
-   VT%V_EDDY = VT%V_EDDY*VOLUME_WEIGHTING_FACTOR(2)
-   VT%W_EDDY = VT%W_EDDY*VOLUME_WEIGHTING_FACTOR(3)
-
-   ! subtract mean from normal components so that fluctuations do not affect global volume flow
-
-   SELECT CASE (ABS(VT%IOR))
-      CASE(1)
-         VT%U_EDDY = VT%U_EDDY - SUM(VT%U_EDDY)/SIZE(VT%U_EDDY)
-      CASE(2)
-         VT%V_EDDY = VT%V_EDDY - SUM(VT%V_EDDY)/SIZE(VT%V_EDDY)
-      CASE(3)
-         VT%W_EDDY = VT%W_EDDY - SUM(VT%W_EDDY)/SIZE(VT%W_EDDY)
-   END SELECT
+      SELECT CASE (ABS(VT%IOR))
+         CASE(1)
+            VT%U_EDDY = VT%U_EDDY - SUM(VT%U_EDDY)/SIZE(VT%U_EDDY)
+         CASE(2)
+            VT%V_EDDY = VT%V_EDDY - SUM(VT%V_EDDY)/SIZE(VT%V_EDDY)
+         CASE(3)
+            VT%W_EDDY = VT%W_EDDY - SUM(VT%W_EDDY)/SIZE(VT%W_EDDY)
+      END SELECT
 
 
-ENDDO VENT_LOOP
+   ENDDO VENT_APPLY_LOOP
+ENDDO MESH_APPLY_LOOP
 
 END SUBROUTINE SYNTHETIC_TURBULENCE
 
