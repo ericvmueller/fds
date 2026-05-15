@@ -12097,7 +12097,7 @@ MESH_LOOP_1: DO NM=1,NMESHES
             WRITE(MESSAGE,'(3A)') 'ERROR(807): VENT ',TRIM(ID),' cannot use MULT_ID because it uses DB.'
             CALL SHUTDOWN(MESSAGE,PROCESS_0_ONLY=.FALSE.) ; RETURN
          ENDIF
-         XB = (/XS,XF,YS,YF,ZS,ZF/)
+         XB = (/XS_MIN,XF_MAX,YS_MIN,YF_MAX,ZS_MIN,ZF_MAX/)
          SELECT CASE (DB)
             CASE('XMIN') ; XB(1:2) = XS_MIN+TWENTY_EPSILON_EB
             CASE('XMAX') ; XB(1:2) = XF_MAX-TWENTY_EPSILON_EB
