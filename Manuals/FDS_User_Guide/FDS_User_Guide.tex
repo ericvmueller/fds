@@ -6398,7 +6398,7 @@ where $l$ is the screen thickness (equal to the wire diameter), $\mu$ is the vis
 \end{eqnarray}
 This correlation was developed using window screens with \ct{FREE_AREA_FRACTION} ranging from ~0.3 to ~0.6.
 
-The \ct{MISC} input parameter \ct{PARTICLE_CFL_MAX} controls the time step on the pressure drop across a screen (or other porous media). If a screen or other porous media introduces numerical instabilities, reducing the value of \ct{PARTICLE_CFL_MAX} below 1 may resolve them.
+The \ct{MISC} input parameters \ct{DRAG_CFL_MIN} and \ct{DRAG_CFL_MAX} control the time step on the pressure drop across a screen (or other porous media). They are 0.8 and 1.0 by default. If a screen or other porous media introduces numerical instabilities, reducing these values may resolve them.
 
 \subsection{Electrical Cables}
 \label{info:THIEF}
@@ -9045,14 +9045,23 @@ Very simply, notice that if $\delta t \, \nu/\delta x^2 = 1/2$ then $u_i^{n+1} =
 
 
 
-\subsection{Stability of particle transport}
+\subsection{Stability of Particle Transport}
 \label{info:PART_Stability}
 
 The movement of Lagrangian particles over the course of a time step is calculated using an analytical solution and remains stable regardless of the time step used by the flow solver. However, if the particle moves over the width of several grid cells in a single time step, the momentum transferred between the particle and the gas cannot be allocated properly to all of the affected cells. To overcome this problem, FDS subdivides the gas phase time step based on each particle's velocity. For example, if the particle travels across two cells in a single gas phase time step, then its trajectory is calculated by subdividing the time step into two.
 
 In some cases with extremely fast particles, however, the stability of the overall flow behavior may require setting an additional parameter that limits the time step of the flow solver according to the speed of the fastest particle in the simulation.  The actual value of of the constraint is limited to the range from \ct{PARTICLE_CFL_MIN} to \ct{PARTICLE_CFL_MAX} on the \ct{MISC} line. A value of 1 (default) means that the fastest moving particle can move a distance of one grid cell during the time step. Because very fast nozzle velocities can cause extremely small time steps and hence very long run times, the \ct{PARTICLE_CFL} constraint is set to \ct{F} by default.  Setting \ct{PARTICLE_CFL} to \ct{T} on the \ct{MISC} line activates this constraint.
 
+\subsection{Stability of Drag Forces}
+\label{info:Drag_Stability}
 
+Drag forces may show up as additional flux terms in the momentum equation. This is the case for particles representing porous media (see Section~\ref{info:porous_media} or Section~\ref{info:vegetation}) as well as surface drag when simulating wildland fires using the boundary fuel model (Section~\ref{info:level_set}) or level set models (Section~\ref{info:boundary_fuel_model}). Excessive forces can cause unstable behavior and so an additional constraint is introduced by computing a velocity increment based on the force-per-volume, $\mathbf{f_b}$, and comparing that to the characteristic velocity scale of the flow.
+
+\begin{equation}
+    \frac{f_{b,i} \Delta t}{\rho u_i} < 1
+\end{equation}
+
+The value of the constraint can be adjusted with \ct{DRAG_CFL_MIN} and \ct{DRAG_CFL_MAX} on the \ct{MISC} line. The default values are 0.8 and 1, respectively. The constraint can also be ignored by setting \ct{DRAG_CFL} to \ct{F} on the \ct{MISC}, but is activated by default.
 
 
 \subsection{Heat Transfer Constraint}
@@ -12676,6 +12685,9 @@ Keyword                                         & Type         & Description    
 \ct{C_VREMAN}                                   & Real         & Section~\ref{info:LES}                  &              & 0.07              \\ \hline
 \ct{C_WALE}                                     & Real         & Section~\ref{info:LES}                  &              & 0.60              \\ \hline
 \ct{DEPOSITION}                                 & Logical      & Section~\ref{info:deposition}           &              & \ct{T}           \\ \hline
+\ct{DRAG_CFL}                                   & Logical      & Section~\ref{info:Drag_Stability}       &              & \ct{T}           \\ \hline
+\ct{DRAG_CFL_MAX}                               & Real         & Section~\ref{info:Drag_Stability}       &              & 1.0               \\ \hline
+\ct{DRAG_CFL_MIN}                               & Real         & Section~\ref{info:Drag_Stability}       &              & 0.8               \\ \hline
 \ct{EXTERNAL_FILENAME}                          & Character    & Section~\ref{info:external_control}     &              &                   \\ \hline
 \ct{FIXED_LES_FILTER_WIDTH}                     & Real         & Section~\ref{info:LES}                  & m            &                   \\ \hline
 \ct{FLUX_LIMITER}                               & Integer      & Section~\ref{info:flux_limiters}        &              & 2                 \\ \hline
