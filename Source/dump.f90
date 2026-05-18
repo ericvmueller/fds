@@ -542,6 +542,7 @@ REAL(EB), INTENT(IN) :: T,DT
 INTEGER :: NN,I,N,N_OUT,N_ZONE_TMP,LU,J, N_NODE_OUT, N_DUCT_OUT, NS
 INTEGER, ALLOCATABLE, DIMENSION(:) :: DUCT_CELL
 CHARACTER(80) :: FN
+CHARACTER(512) :: CFL_HEADER
 CHARACTER(LABEL_LENGTH) :: LAB,UNITS
 CHARACTER(LABEL_LENGTH+7), DIMENSION(42) :: LABEL='null'
 
@@ -816,9 +817,10 @@ ENDIF
 
 IF (CFL_FILE) THEN
    OPEN(UNIT=LU_CFL,FILE=FN_CFL,FORM='FORMATTED',STATUS='UNKNOWN',POSITION='REWIND',DECIMAL=DECIMAL_SPECIFIER)
-   WRITE(TCFORM,'(A,I0,2A)') "(",27,CHAR_LIST,")"
-   WRITE(LU_CFL,TCFORM) 'Cycle','t','dt','CFL','Mesh','i','j','k','u_i-1','u_i','v_j-1','v_j','w_k-1','w_k',&
-                       'div','mu','HRRPUV','tau','VN','Mesh','i','j','k','part CFL','part mesh','drag CFL','drag mesh'
+   CFL_HEADER = 'Cycle,t,dt,CFL,Mesh,i,j,k,u_i-1,u_i,v_j-1,v_j,w_k-1,w_k,div,mu,HRRPUV,tau,VN,Mesh,i,j,k'
+   IF (PARTICLE_CFL) CFL_HEADER = TRIM(CFL_HEADER)//',part CFL,part mesh'
+   IF (DRAG_CFL) CFL_HEADER = TRIM(CFL_HEADER)//',drag CFL,drag mesh'
+   WRITE(LU_CFL,'(A)') TRIM(CFL_HEADER)
 ENDIF
 
 ! Special output for CVODE substeps
