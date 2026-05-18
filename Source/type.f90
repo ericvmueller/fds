@@ -1515,7 +1515,9 @@ TYPE VENTS_TYPE
    CHARACTER(LABEL_LENGTH) :: DEVC_ID='null',CTRL_ID='null',ID='null'
    ! turbulent inflow (experimental)
    INTEGER :: N_EDDY=0
+   LOGICAL :: DFSEM=.FALSE. ! use Divergence-Free SEM (Poletto et al. 2013)
    REAL(EB) :: R_IJ(3,3)=0._EB,A_IJ(3,3)=0._EB,SIGMA_IJ(3,3)=0._EB,EDDY_BOX_VOLUME=0._EB, &
+              SIGMA_DFSEM(3)=0._EB,C1_DFSEM=0._EB,C2_DFSEM=1._EB,DFSEM_ROT(3,3)=0._EB, &
                X_EDDY_MIN=0._EB,X_EDDY_MAX=0._EB, &
                Y_EDDY_MIN=0._EB,Y_EDDY_MAX=0._EB, &
                Z_EDDY_MIN=0._EB,Z_EDDY_MAX=0._EB
