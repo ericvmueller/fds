@@ -1844,8 +1844,8 @@ T_NOW = CURRENT_TIME()
 
 CALL POINT_TO_MESH(NM)
 
-! zero out drag-based CFL number if no particle drag
-IF (.NOT.PARTICLE_DRAG) DRAG_STABILITY_MAX = 0._EB
+! Store only boundary-fuel drag contribution in this routine
+DRAG_STABILITY_MAX = 0._EB
 
 ! Point to the appropriate velocity field
 
