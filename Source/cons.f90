@@ -352,8 +352,8 @@ REAL(EB) :: SMOKE_ALBEDO=0.3_EB                !< Parmeter used by Smokeview
 REAL(EB) :: Y_WERNER_WENGLE=11.81_EB           !< Limit of y+ in Werner-Wengle model
 REAL(EB) :: PARTICLE_CFL_MAX=1.0_EB            !< Upper limit of CFL constraint based on particle velocity
 REAL(EB) :: PARTICLE_CFL_MIN=0.8_EB            !< Lower limit of CFL constraint based on particle velocity
-REAL(EB) :: DRAG_CFL_MAX=1.0_EB                !< Upper limit of CFL constraint based on drag force
-REAL(EB) :: DRAG_CFL_MIN=0.8_EB                !< Lower limit of CFL constraint based on drag force
+REAL(EB) :: DRAG_CFL_MAX=0.2_EB                !< Upper limit of CFL constraint based on drag force
+REAL(EB) :: DRAG_CFL_MIN=0.1_EB                !< Lower limit of CFL constraint based on drag force
 REAL(EB) :: GRAV=9.80665_EB                    !< Acceleration of gravity (m/s2)
 REAL(EB), ALLOCATABLE, DIMENSION(:) :: H_V_H2O !< Heat of vaporization for water (J/kg)
 REAL(EB) :: CHI_R_MIN=0._EB                    !< Lower bound for radiative fraction
