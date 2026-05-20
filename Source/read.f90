@@ -4679,6 +4679,11 @@ REAC_READ_LOOP: DO NR=1,N_REACTIONS
 
    RN => REACTION(NR)
 
+   IF (C > 0._EB .OR. H > 0._EB .OR. O > 0._EB .OR. H > 0._EB) THEN
+       WRITE(MESSAGE,'(A)') 'WARNING: Recommend using SPEC to define FUEL chemistry for REAC'
+         IF (MY_RANK==0) WRITE(LU_ERR,'(A)') TRIM(MESSAGE)
+   ENDIF  
+   
    IF ((A > 0._EB .OR. E > 0._EB) .AND. (C>TWENTY_EPSILON_EB .OR. H>TWENTY_EPSILON_EB)) THEN
       WRITE(MESSAGE,'(A,I0,A)') 'ERROR(189): REAC ',NR,' cannot use both finite rate REAC and simple chemistry.'
       CALL SHUTDOWN(MESSAGE) ; RETURN
@@ -14065,6 +14070,13 @@ READ_DEVC_LOOP: DO NN=1,N_DEVC_READ
       N_DEVC = N_DEVC + 1
 
       DV => DEVICE(N_DEVC)
+
+      IF (TRIM(QUANTITY)=='TOTAL NUMBER OF PARTICLES' .AND. SPATIAL_STATISTIC=='null') THEN
+         MESH_DEVICE = 0
+         DO NM=1,NMESHES
+            IF (PROCESS(NM)==MY_RANK) MESH_DEVICE(NM) = 1
+         ENDDO
+      ENDIF
 
       MESH_DEVICE_ARRAY(1:NMESHES,N_DEVC) = MESH_DEVICE(1:NMESHES)
 
