@@ -188,14 +188,6 @@ IF (MODE==2) RETURN
 ALLOCATE(M%LS_WORK1(0:IBAR,0:JBAR))    ; CALL ChkMemErr('VEGE:LEVEL SET','LS_WORK1',IZERO)
 ALLOCATE(M%LS_WORK2(0:IBAR,0:JBAR))    ; CALL ChkMemErr('VEGE:LEVEL SET','LS_WORK2',IZERO)
 
-! Define spread rate across domain (including no burn areas)
-
-ALLOCATE(M%ROS_HEAD(IBAR,JBAR))    ; CALL ChkMemErr('VEGE:LEVEL SET','ROS_HEAD',IZERO)  ; ROS_HEAD => M%ROS_HEAD
-
-! Assign spread rates (i.e., vegetation types) to locations on terrain
-
-ROS_HEAD  = 0.0_EB
-
 ! Flux limiters
 ! LIMITER_LS=1 First order upwinding
 ! LIMITER_LS=2 SUPERBEE
@@ -217,15 +209,8 @@ ALLOCATE(M%MAG_ZT(IBAR,JBAR)); CALL ChkMemErr('VEGE:LEVEL SET','MAG_ZT',IZERO) ;
 
 ! Rothermel 'Phi' factors for effects of Wind and Slope on ROS
 
-ALLOCATE(M%PHI_WS(IBAR,JBAR))   ; CALL ChkMemErr('VEGE:LEVEL SET','PHI_W',IZERO)   ; PHI_WS => M%PHI_WS    ; PHI_WS = 0.0_EB
 ALLOCATE(M%PHI_S_X(IBAR,JBAR))  ; CALL ChkMemErr('VEGE:LEVEL SET','PHI_S_X',IZERO) ; PHI_S_X => M%PHI_S_X
 ALLOCATE(M%PHI_S_Y(IBAR,JBAR))  ; CALL ChkMemErr('VEGE:LEVEL SET','PHI_S_Y',IZERO) ; PHI_S_Y => M%PHI_S_Y
-
-! UMF = wind speed at mid-flame height
-
-ALLOCATE(M%UMF(IBAR,JBAR))    ; CALL ChkMemErr('VEGE:LEVEL SET','UMF',IZERO) ; M%UMF = 0._EB ; UMF => M%UMF
-ALLOCATE(M%THETA_ELPS(IBAR,JBAR))    ; CALL ChkMemErr('VEGE:LEVEL SET','THETA_ELPS',IZERO) ; THETA_ELPS => M%THETA_ELPS
-THETA_ELPS = 0.0_EB ! Normal to fireline
 
 ! ROS in X and Y directions
 
@@ -316,8 +301,7 @@ INTEGER, INTENT(IN) :: NM
 REAL(EB), INTENT(IN) :: T,DT
 INTEGER :: IIG,IW,JJG,IC,OUTPUT_INDEX
 INTEGER :: KDUM,KWIND,ICF,IKT
-REAL(EB) :: UMF_TMP,PHX,PHY,MAG_PHI,PHI_S,PHI_W_X,PHI_W_Y,UMF_X,UMF_Y,ROS_MAG,UMF_MAG,&
-            WIND_FACTOR,SIN_THETA,COS_THETA,THETA,ZWIND(2),U_Z(2),V_Z(2),REF_WIND_HEIGHT
+REAL(EB) :: UMF_TMP,ROS_MAG,SIN_THETA,COS_THETA,THETA,ZWIND(2),U_Z(2),V_Z(2),REF_WIND_HEIGHT
 
 T_NOW = CURRENT_TIME()
 
@@ -423,80 +407,9 @@ DO JJG=1,JBAR
       IF (SF%VEG_LSET_WIND_HEIGHT<0._EB) &
          UMF_TMP = 1.83_EB / LOG((20.0_EB + 1.18_EB * SF%VEG_LSET_HT) /(0.43_EB * SF%VEG_LSET_HT))  ! Bova et al., Eq. A2
 
-      ! Factor 60 converts U from m/s to m/min which is used in elliptical model.
-
-      UMF_X = UMF_TMP * U_LS(IIG,JJG) * 60.0_EB
-      UMF_Y = UMF_TMP * V_LS(IIG,JJG) * 60.0_EB
-      UMF_MAG = SQRT(UMF_X**2 + UMF_Y**2)
-
-      ! Adjust wind for output slices
+      ! Convert to midflame wind (m/s). Spread model-specific ROS projection is computed in LEVEL_SET_SPREAD_RATE.
       U_LS(IIG,JJG) = UMF_TMP * U_LS(IIG,JJG)
       V_LS(IIG,JJG) = UMF_TMP * V_LS(IIG,JJG)
-
-      ! Compute wind factor affecting spread rate R(U) = R_0*(1+WIND_FACTOR)
-
-      IF (SF%I_RAMP_LS_WIND>0) THEN
-         WIND_FACTOR = EVALUATE_RAMP(UMF_MAG/60._EB,SF%I_RAMP_LS_WIND)
-      ELSE
-         WIND_FACTOR = SF%C_ROTH * ((3.281_EB * UMF_MAG)**SF%B_ROTH) * SF%BETA_ROTH ! Bova et al., Eq. A1
-      ENDIF
-
-
-      IF (UMF_MAG>TWENTY_EPSILON_EB) THEN
-         PHI_W_X = WIND_FACTOR*UMF_X/UMF_MAG
-         PHI_W_Y = WIND_FACTOR*UMF_Y/UMF_MAG
-      ELSE
-         PHI_W_X = 0.0_EB
-         PHI_W_Y = 0.0_EB
-      ENDIF
-
-      ! Include Rothermel slope factor
-
-      PHI_S = SQRT(PHI_S_X(IIG,JJG)+PHI_S_Y(IIG,JJG))
-
-      IF (PHI_S > 0.0_EB) THEN
-
-         PHX = PHI_W_X + PHI_S_X(IIG,JJG)
-         PHY = PHI_W_Y + PHI_S_Y(IIG,JJG)
-         MAG_PHI = SQRT(PHX**2 + PHY**2)
-
-         ! Total phi (phi_w + phi_s) for use in spread rate section
-
-         PHI_WS(IIG,JJG) = MAG_PHI
-
-         ! Theta_elps is angle of direction (0 to 2pi) of highest spread rate
-         ! 0<=theta_elps<=2pi as measured clockwise from Y-axis
-
-         THETA_ELPS(IIG,JJG) = ATAN2(PHY,PHX)
-
-         ! "Effective midflame windspeed" used in length-to-breadth ratio calculation (spread rate routine)
-         ! is the wind + slope effect obtained by solving Phi_w eqs. above for UMF
-         ! 8/8/13 - Changed phi_ws to Phi_s below to match Farsite, i.e., instead of adding phi_w and phi_s
-         ! and then calculating effective wind speed, phi_s is converted to an effected wind speed and added
-         ! to UMF calculated from the wind. Effective U has units of m/min in Wilson formula.
-         ! 0.3048 ~= 1/3.281
-
-         UMF_TMP = &
-         0.3048_EB/PHI_S*(SF%BETA_ROTH*PHI_S/SF%C_ROTH)**(1._EB/SF%B_ROTH)
-
-         UMF_X = UMF_X + UMF_TMP*PHI_S_X(IIG,JJG)
-         UMF_Y = UMF_Y + UMF_TMP*PHI_S_Y(IIG,JJG)
-
-      ELSE
-
-         PHI_WS(IIG,JJG) = SQRT(PHI_W_X**2 + PHI_W_Y**2)
-         THETA_ELPS(IIG,JJG) = ATAN2(PHI_W_Y,PHI_W_X)
-
-      ENDIF
-
-      UMF(IIG,JJG) = SQRT(UMF_X**2 + UMF_Y**2)  ! U in Eq. A6, Bova et al.
-
-      ! The following two lines convert ATAN2 output to compass system (0 to 2 pi CW from +Y-axis)
-
-      THETA_ELPS(IIG,JJG) = PIO2 - THETA_ELPS(IIG,JJG)
-      IF (THETA_ELPS(IIG,JJG) < 0.0_EB) THETA_ELPS(IIG,JJG) = 2.0_EB*PI + THETA_ELPS(IIG,JJG)
-
-      IF (SF%VEG_LSET_ROS_00 > 0._EB) ROS_HEAD(IIG,JJG) = SF%VEG_LSET_ROS_00*(1._EB + PHI_WS(IIG,JJG))  ! Bova et al., Eq. A3
 
    ENDDO
 ENDDO
@@ -760,11 +673,16 @@ END SUBROUTINE GET_BOUNDARY_VALUES
 
 SUBROUTINE LEVEL_SET_SPREAD_RATE
 
+USE MATH_FUNCTIONS, ONLY: EVALUATE_RAMP
 INTEGER :: I,J,IM1,IP1,JM1,JP1
 REAL(EB) :: DPHIDX,DPHIDY,F_EAST,F_WEST,F_NORTH,F_SOUTH,MAG_F
 REAL(EB) :: COS_THETA,SIN_THETA,XSF,YSF,UMF_DUM
 REAL(EB) :: AROS,A_ELPS,A_ELPS2,BROS,B_ELPS2,B_ELPS,C_ELPS,DENOM,ROS_TMP,LB,LBD,HB
+REAL(EB) :: ROS_00,RN,UMF_MAG,UMF_N,SLOPE_MAG,SLOPE_N
+REAL(EB) :: PHI_W_MAG,PHI_W_PROJ,PHI_S_MAG,PHI_S_PROJ,SLOPE_COEFF
+REAL(EB) :: UMF_X,UMF_Y,WIND_FACTOR,PHI_W_X,PHI_W_Y,PHI_S,PHX,PHY,MAG_PHI,THETA_ELPS_TMP,UMF_TMP
 REAL(EB), DIMENSION(:) :: NORMAL_FIRELINE(2)
+REAL(EB), DIMENSION(:) :: U_VEC(2),UHAT(2),SLOPE_VEC(2),SHAT(2)
 
 IF (PREDICTOR) THEN
    PHI_LS_P => PHI_LS
@@ -805,69 +723,173 @@ FLUX_ILOOP: DO J=1,JBAR
         YSF=0._EB
       ENDIF
 
+      SF => SURFACE(LS_SURF_INDEX(I,J))
+
       ! ROS does not change with wind or slope
-      IF (SURFACE(LS_SURF_INDEX(I,J))%VEG_LSET_ROS_FIXED) THEN
-         SR_X_LS(I,J) = SURFACE(LS_SURF_INDEX(I,J))%VEG_LSET_ROS_00*NORMAL_FIRELINE(1) !spread rate components
-         SR_Y_LS(I,J) = SURFACE(LS_SURF_INDEX(I,J))%VEG_LSET_ROS_00*NORMAL_FIRELINE(2)
+      IF (SF%VEG_LSET_ROS_FIXED) THEN
+         SR_X_LS(I,J) = SF%VEG_LSET_ROS_00*NORMAL_FIRELINE(1) !spread rate components
+         SR_Y_LS(I,J) = SF%VEG_LSET_ROS_00*NORMAL_FIRELINE(2)
       ELSE
-         ! Effective wind direction (theta) is clockwise from y-axis (Richards 1990)
-         COS_THETA = COS(THETA_ELPS(I,J))
-         SIN_THETA = SIN(THETA_ELPS(I,J))
+         SELECT CASE (LEVEL_SET_PROJECTION_MODE)
+            CASE (1)
+               ! Richards/FARSITE ellipse model: build effective wind+slope direction/magnitude,
+               ! then project ellipse spread rates onto x-y components.
+               ! Factor 60 converts U from m/s to m/min for the ellipse model.
+               UMF_X = 60._EB*U_LS(I,J)
+               UMF_Y = 60._EB*V_LS(I,J)
+               UMF_MAG = SQRT(UMF_X**2 + UMF_Y**2)
 
-         ROS_TMP = ROS_HEAD(I,J)
+               ! Compute wind factor affecting spread rate: R(U) = R_0*(1 + WIND_FACTOR).
+               IF (SF%I_RAMP_LS_WIND>0) THEN
+                  WIND_FACTOR = EVALUATE_RAMP(UMF_MAG/60._EB,SF%I_RAMP_LS_WIND)
+               ELSE
+                  WIND_FACTOR = SF%C_ROTH * ((3.281_EB*UMF_MAG)**SF%B_ROTH) * SF%BETA_ROTH ! Bova et al., Eq. A1
+               ENDIF
 
-         ! Magnitude of wind speed at midflame height must be in units of m/s here
+               IF (UMF_MAG > TWENTY_EPSILON_EB) THEN
+                  PHI_W_X = WIND_FACTOR*UMF_X/UMF_MAG
+                  PHI_W_Y = WIND_FACTOR*UMF_Y/UMF_MAG
+               ELSE
+                  PHI_W_X = 0._EB
+                  PHI_W_Y = 0._EB
+               ENDIF
 
-         UMF_DUM = UMF(I,J)/60.0_EB
+               ! Include Rothermel slope factor.
+               PHI_S = SQRT(PHI_S_X(I,J)+PHI_S_Y(I,J))
+               IF (PHI_S > 0._EB) THEN
+                  PHX = PHI_W_X + PHI_S_X(I,J)
+                  PHY = PHI_W_Y + PHI_S_Y(I,J)
+                  ! Total phi (phi_w + phi_s) for use in head ROS and orientation.
+                  MAG_PHI = SQRT(PHX**2 + PHY**2)
+                  ! Theta_elps is angle of direction (0 to 2pi) of highest spread rate.
+                  ! 0<=theta_elps<=2pi as measured clockwise from Y-axis.
+                  THETA_ELPS_TMP = ATAN2(PHY,PHX)
 
-         ! Length to breadth ratio of ellipse based on effective UMF (Bova et al., Eq. A6)
+                  ! "Effective midflame windspeed" used in length-to-breadth ratio calculation
+                  ! is the wind + slope effect obtained by solving Phi_w equations for UMF.
+                  ! 8/8/13: Changed from using phi_ws to phi_s to match Farsite. Instead of
+                  ! adding phi_w and phi_s before calculating effective wind speed, phi_s is
+                  ! converted to an effective windspeed and added to UMF from the wind.
+                  ! Effective U has units of m/min in Wilson formula.
+                  ! 0.3048 ~= 1/3.281
+                  UMF_TMP = 0.3048_EB/PHI_S*(SF%BETA_ROTH*PHI_S/SF%C_ROTH)**(1._EB/SF%B_ROTH)
+                  UMF_X = UMF_X + UMF_TMP*PHI_S_X(I,J)
+                  UMF_Y = UMF_Y + UMF_TMP*PHI_S_Y(I,J)
+               ELSE
+                  MAG_PHI = SQRT(PHI_W_X**2 + PHI_W_Y**2)
+                  THETA_ELPS_TMP = ATAN2(PHI_W_Y,PHI_W_X)
+               ENDIF
 
-         LB = 0.936_EB * EXP(0.2566_EB * UMF_DUM) + 0.461_EB * EXP(-0.1548_EB * UMF_DUM) - 0.397_EB
+               ! The following two lines convert ATAN2 output to compass system (0 to 2 pi CW from +Y-axis)
+               UMF_MAG = SQRT(UMF_X**2 + UMF_Y**2)
+               THETA_ELPS_TMP = PIO2 - THETA_ELPS_TMP
+               IF (THETA_ELPS_TMP < 0._EB) THETA_ELPS_TMP = 2._EB*PI + THETA_ELPS_TMP
 
-         ! User adjustment
+               ROS_TMP = SF%VEG_LSET_ROS_00*(1._EB + MAG_PHI) ! Bova et al., Eq. A3
+               COS_THETA = COS(THETA_ELPS_TMP)
+               SIN_THETA = SIN(THETA_ELPS_TMP)
+               UMF_DUM = UMF_MAG/60._EB
 
-         LB = LB*LEVEL_SET_ELLIPSE_FACTOR
+               ! Length to breadth ratio of ellipse based on effective UMF (Bova et al., Eq. A6)
 
-         ! Constraint LB max = 8 from Finney 2004
+               LB = 0.936_EB * EXP(0.2566_EB * UMF_DUM) + 0.461_EB * EXP(-0.1548_EB * UMF_DUM) - 0.397_EB
 
-         LB = MAX(1.0_EB,MIN(LB,8.0_EB))  ! (Bova et al., Eq. A7)
+               ! User adjustment
 
-         ! Head to back ratio based on LB
+               LB = LB*LEVEL_SET_ELLIPSE_FACTOR
 
-         LBD = SQRT(LB**2 - 1.0_EB)
-         HB = (LB + LBD) / (LB - LBD)
+               ! Constraint LB max = 8 from Finney 2004
 
-         ! A_ELPS and B_ELPS notation is consistent with Farsite and Richards
+               LB = MAX(1.0_EB,MIN(LB,8.0_EB))  ! (Bova et al., Eq. A7)
 
-         B_ELPS =  0.5_EB * (ROS_TMP + ROS_TMP/HB)
-         B_ELPS2 = B_ELPS**2
-         A_ELPS =  B_ELPS / LB
-         A_ELPS2=  A_ELPS**2
-         C_ELPS =  B_ELPS - (ROS_TMP/HB)
+               ! Head to back ratio based on LB
 
-         ! Denominator used in spread rate equation from Richards, Intnl. J. Num. Methods Eng. 1990
-         ! and in LS vs Farsite paper, Bova et al., Intnl. J. Wildland Fire, 25(2):229-241, 2015
+               LBD = SQRT(LB**2 - 1.0_EB)
+               HB = (LB + LBD) / (LB - LBD)
 
-         AROS  = XSF*COS_THETA - YSF*SIN_THETA
-         BROS  = XSF*SIN_THETA + YSF*COS_THETA
-         DENOM = A_ELPS2*BROS**2 + B_ELPS2*AROS**2
+               ! A_ELPS and B_ELPS notation is consistent with Farsite and Richards
 
-         IF (DENOM > 0._EB) THEN
-            DENOM = 1._EB / SQRT(DENOM)
-         ELSE
-            DENOM = 0._EB
-         ENDIF
+               B_ELPS =  0.5_EB * (ROS_TMP + ROS_TMP/HB)
+               B_ELPS2 = B_ELPS**2
+               A_ELPS =  B_ELPS / LB
+               A_ELPS2=  A_ELPS**2
+               C_ELPS =  B_ELPS - (ROS_TMP/HB)
 
-         ! This is with A_ELPS2 and B_ELPS2 notation consistent with Finney and Richards and in Bova et al. 2015 IJWF 2015
+               ! Denominator used in spread rate equation from Richards, Intnl. J. Num. Methods Eng. 1990
+               ! and in LS vs Farsite paper, Bova et al., Intnl. J. Wildland Fire, 25(2):229-241, 2015
 
-         SR_X_LS(I,J) = DENOM * ( A_ELPS2*COS_THETA*BROS - B_ELPS2*SIN_THETA*AROS) + C_ELPS*SIN_THETA  ! Bova et al., Eq. A8
-         SR_Y_LS(I,J) = DENOM * (-A_ELPS2*SIN_THETA*BROS - B_ELPS2*COS_THETA*AROS) + C_ELPS*COS_THETA  ! Bova et al., Eq. A9
+               AROS  = XSF*COS_THETA - YSF*SIN_THETA
+               BROS  = XSF*SIN_THETA + YSF*COS_THETA
+               DENOM = A_ELPS2*BROS**2 + B_ELPS2*AROS**2
 
-         ! Project spread rates from slope to horizontal plane
+               IF (DENOM > 0._EB) THEN
+                  DENOM = 1._EB / SQRT(DENOM)
+               ELSE
+                  DENOM = 0._EB
+               ENDIF
 
-         IF (ABS(DZTDX(I,J)) > 0._EB) SR_X_LS(I,J) = SR_X_LS(I,J) * ABS(COS(ATAN(DZTDX(I,J))))
-         IF (ABS(DZTDY(I,J)) > 0._EB) SR_Y_LS(I,J) = SR_Y_LS(I,J) * ABS(COS(ATAN(DZTDY(I,J))))
+               ! This is with A_ELPS2 and B_ELPS2 notation consistent with Finney and Richards and in Bova et al. 2015 IJWF 2015
 
+               SR_X_LS(I,J) = DENOM * ( A_ELPS2*COS_THETA*BROS - B_ELPS2*SIN_THETA*AROS) + C_ELPS*SIN_THETA ! Bova et al., Eq. A8
+               SR_Y_LS(I,J) = DENOM * (-A_ELPS2*SIN_THETA*BROS - B_ELPS2*COS_THETA*AROS) + C_ELPS*COS_THETA ! Bova et al., Eq. A9
+
+               ! Project spread rates from slope to horizontal plane
+
+               IF (ABS(DZTDX(I,J)) > 0._EB) SR_X_LS(I,J) = SR_X_LS(I,J) * ABS(COS(ATAN(DZTDX(I,J))))
+               IF (ABS(DZTDY(I,J)) > 0._EB) SR_Y_LS(I,J) = SR_Y_LS(I,J) * ABS(COS(ATAN(DZTDY(I,J))))
+
+            CASE (2,3)
+               ROS_00 = SF%VEG_LSET_ROS_00
+               RN = ROS_00
+
+               IF (ROS_00 > 0._EB .AND. MAG_F > TWENTY_EPSILON_EB) THEN
+                  SLOPE_COEFF = 5.275_EB * (SF%VEG_LSET_BETA**(-0.3_EB))
+                  PHI_W_PROJ = 0._EB
+                  PHI_S_PROJ = 0._EB
+                  U_VEC = (/U_LS(I,J),V_LS(I,J)/)
+                  SLOPE_VEC = (/DZTDX(I,J),DZTDY(I,J)/)
+
+                  IF (LEVEL_SET_PROJECTION_MODE==2) THEN
+                     UMF_N = MAX(0._EB,60._EB*DOT_PRODUCT(U_VEC,NORMAL_FIRELINE))
+                     IF (SF%I_RAMP_LS_WIND>0) THEN
+                        PHI_W_PROJ = EVALUATE_RAMP(UMF_N/60._EB,SF%I_RAMP_LS_WIND)
+                     ELSE
+                        PHI_W_PROJ = SF%C_ROTH * ((3.281_EB*UMF_N)**SF%B_ROTH) * SF%BETA_ROTH
+                     ENDIF
+
+                     SLOPE_N = MAX(0._EB,DOT_PRODUCT(SLOPE_VEC,NORMAL_FIRELINE))
+                     PHI_S_PROJ = SLOPE_COEFF*SLOPE_N**2
+                  ELSE
+                     UMF_MAG = 60._EB*SQRT(DOT_PRODUCT(U_VEC,U_VEC)) ! m/min
+                     IF (SF%I_RAMP_LS_WIND>0) THEN
+                        PHI_W_MAG = EVALUATE_RAMP(UMF_MAG/60._EB,SF%I_RAMP_LS_WIND)
+                     ELSE
+                        PHI_W_MAG = SF%C_ROTH * ((3.281_EB*UMF_MAG)**SF%B_ROTH) * SF%BETA_ROTH
+                     ENDIF
+
+                     IF (UMF_MAG > 60._EB*TWENTY_EPSILON_EB) THEN
+                        UHAT = 60._EB*U_VEC/UMF_MAG
+                        PHI_W_PROJ = PHI_W_MAG*MAX(0._EB,DOT_PRODUCT(UHAT,NORMAL_FIRELINE))
+                     ELSE
+                        PHI_W_PROJ = 0._EB
+                     ENDIF
+
+                     SLOPE_MAG = SQRT(DOT_PRODUCT(SLOPE_VEC,SLOPE_VEC))
+                     PHI_S_MAG = SLOPE_COEFF*SLOPE_MAG**2
+                     IF (SLOPE_MAG > TWENTY_EPSILON_EB) THEN
+                        SHAT = SLOPE_VEC/SLOPE_MAG
+                        PHI_S_PROJ = PHI_S_MAG*MAX(0._EB,DOT_PRODUCT(SHAT,NORMAL_FIRELINE))
+                     ELSE
+                        PHI_S_PROJ = 0._EB
+                     ENDIF
+                  ENDIF
+
+                  RN = ROS_00*(1._EB + PHI_W_PROJ + PHI_S_PROJ)
+               ENDIF
+
+               SR_X_LS(I,J) = RN*NORMAL_FIRELINE(1)
+               SR_Y_LS(I,J) = RN*NORMAL_FIRELINE(2)
+         END SELECT
       ENDIF
 
    ENDDO

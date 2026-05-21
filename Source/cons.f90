@@ -610,9 +610,9 @@ REAL(EB), ALLOCATABLE, DIMENSION(:) :: DSUM,USUM,PSUM
 ! Level Set vegetation fire spread
 
 INTEGER :: LEVEL_SET_MODE=0               !< Indicator of the type of level set calculation to be done
+INTEGER :: LEVEL_SET_PROJECTION_MODE=1    !< Level set spread projection model: 1=Richards, 2=WRF-like pre-factor, 3=WRF-like post-factor
 LOGICAL :: LEVEL_SET_COUPLED_FIRE=.TRUE.  !< Indicator for fire and wind level set coupling
 LOGICAL :: LEVEL_SET_COUPLED_WIND=.TRUE.  !< Indicator for fire and wind level set coupling
-LOGICAL :: LEVEL_SET_ELLIPSE=.TRUE.       !< Placeholder for future level set spread formulations
 REAL    :: LEVEL_SET_ELLIPSE_FACTOR = 1._EB !< Modifier for tuning length-breadth ratio of level set ellipse model
 
 ! Parameters for Terrain and Wind simulation needs
