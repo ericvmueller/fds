@@ -11956,10 +11956,10 @@ USE CONTROL_VARIABLES, ONLY : CONTROL
 USE MISC_FUNCTIONS, ONLY: PROCESS_MESH_NEIGHBORHOOD
 
 INTEGER :: N,N_TOTAL,NM,NNN,IOR,I1,I2,J1,J2,K1,K2,RGB(3),N_EDDY,II,JJ,KK,OBST_INDEX,N_EXPLICIT,N_IMPLICIT_VENTS,I_MODE,&
-           N_ORIGINAL_VENTS,IC0,IC1,IC
+           N_ORIGINAL_VENTS,IC0,IC1,IC,GAMMA2_DFSEM
 REAL(EB) :: SPREAD_RATE,TRANSPARENCY,XYZ(3),TMP_EXTERIOR,DYNAMIC_PRESSURE,XB_USER(6),XB_MESH(6), &
             REYNOLDS_STRESS(3,3),L_EDDY,VEL_RMS,L_EDDY_IJ(3,3),UVW(3),RADIUS, &
-            SIGMA_DFSEM,EPSILON_DFSEM,C2_DFSEM
+            SIGMA_DFSEM
 CHARACTER(LABEL_LENGTH) :: ID,DEVC_ID,CTRL_ID,SURF_ID,PRESSURE_RAMP,TMP_EXTERIOR_RAMP,MULT_ID,OBST_ID
 CHARACTER(25) :: COLOR
 TYPE(MULTIPLIER_TYPE), POINTER :: MR
@@ -11970,7 +11970,7 @@ TYPE IMPLICIT_VENT_TYPE
    CHARACTER(LABEL_LENGTH) :: MB='null',SURF_ID='null',ID='null'
 END TYPE
 TYPE(IMPLICIT_VENT_TYPE), ALLOCATABLE, DIMENSION(:) :: IMPLICIT_VENT
-NAMELIST /VENT/ AREA_ADJUST,C2_DFSEM,COLOR,CTRL_ID,DB,DEVC_ID,DYNAMIC_PRESSURE,EPSILON_DFSEM,FYI,GEOM,ID,IOR, &
+NAMELIST /VENT/ AREA_ADJUST,COLOR,CTRL_ID,DB,DEVC_ID,DYNAMIC_PRESSURE,FYI,GAMMA2_DFSEM,GEOM,ID,IOR, &
                 L_EDDY,L_EDDY_IJ,MB,MULT_ID,N_EDDY,OBST_ID,OUTLINE,PBX,PBY,PBZ,PRESSURE_RAMP,RADIUS,REYNOLDS_STRESS, &
                 SIGMA_DFSEM, &
                 RGB,SPREAD_RATE,SURF_ID,TEXTURE_ORIGIN,TMP_EXTERIOR,TMP_EXTERIOR_RAMP,TRANSPARENCY, &
@@ -12439,34 +12439,28 @@ MESH_LOOP_1: DO NM=1,NMESHES
                ENDIF
                ! DFSEM (Poletto et al. 2013) enabled when SIGMA_DFSEM>0.
                ! SIGMA_DFSEM is interpreted in principal-stress coordinates:
-               ! sigma_1 (dominant stress direction), with sigma_2=sigma_3=sigma_1/epsilon.
+               ! sigma_1 (dominant stress direction), with sigma_2=sigma_3=sigma_1/gamma,
+               ! where gamma = sqrt(GAMMA2_DFSEM).
                VT%DFSEM = SIGMA_DFSEM>TWENTY_EPSILON_EB
                IF (VT%DFSEM) THEN
-                  IF (EPSILON_DFSEM<=TWO_EPSILON_EB) THEN
-                     WRITE(MESSAGE,'(3A)') 'ERROR: VENT ',TRIM(ID),' EPSILON_DFSEM must be > 0.'
+                  ! C2 from Poletto et al. 2013 Table 1, indexed by gamma^2.
+                  IF (GAMMA2_DFSEM<1 .OR. GAMMA2_DFSEM>8) THEN
+                     WRITE(MESSAGE,'(3A)') 'ERROR: VENT ',TRIM(ID), &
+                        ' GAMMA2_DFSEM must be an integer from 1 to 8.'
                      CALL SHUTDOWN(MESSAGE,PROCESS_0_ONLY=.FALSE.) ; RETURN
                   ENDIF
-                  VT%SIGMA_DFSEM = SIGMA_DFSEM/EPSILON_DFSEM
+                  SELECT CASE(GAMMA2_DFSEM)
+                     CASE(1); VT%C2_DFSEM = 2.0_EB
+                     CASE(2); VT%C2_DFSEM = 1.875_EB
+                     CASE(3); VT%C2_DFSEM = 1.737_EB
+                     CASE(4); VT%C2_DFSEM = 1.75_EB
+                     CASE(5); VT%C2_DFSEM = 0.91_EB
+                     CASE(6); VT%C2_DFSEM = 0.825_EB
+                     CASE(7); VT%C2_DFSEM = 0.806_EB
+                     CASE(8); VT%C2_DFSEM = 1.5_EB
+                  END SELECT
+                  VT%SIGMA_DFSEM = SIGMA_DFSEM/SQRT(REAL(GAMMA2_DFSEM,EB))
                   VT%SIGMA_DFSEM(1) = SIGMA_DFSEM
-                  IF (C2_DFSEM>0._EB) THEN
-                     VT%C2_DFSEM = C2_DFSEM ! user override
-                  ELSE
-                     ! Auto C2 from Poletto et al. 2013 Table 1, indexed by epsilon^2.
-                     SELECT CASE(NINT(EPSILON_DFSEM*EPSILON_DFSEM))
-                        CASE(1); VT%C2_DFSEM = 2.0_EB
-                        CASE(2); VT%C2_DFSEM = 1.875_EB
-                        CASE(3); VT%C2_DFSEM = 1.737_EB
-                        CASE(4); VT%C2_DFSEM = 1.75_EB
-                        CASE(5); VT%C2_DFSEM = 0.91_EB
-                        CASE(6); VT%C2_DFSEM = 0.825_EB
-                        CASE(7); VT%C2_DFSEM = 0.806_EB
-                        CASE(8); VT%C2_DFSEM = 1.5_EB
-                        CASE DEFAULT
-                           WRITE(MESSAGE,'(3A)') 'ERROR: VENT ',TRIM(ID), &
-                              ' EPSILON_DFSEM not in Table 1 range (sqrt(1..8)); specify C2_DFSEM explicitly.'
-                           CALL SHUTDOWN(MESSAGE,PROCESS_0_ONLY=.FALSE.) ; RETURN
-                     END SELECT
-                  ENDIF
                ENDIF
 
                ! Check SEM parameters
@@ -12736,8 +12730,7 @@ MB                = 'null'
 MULT_ID           = 'null'
 N_EDDY            = 0
 SIGMA_DFSEM       = 0._EB
-EPSILON_DFSEM     = 1._EB
-C2_DFSEM          = -1._EB ! <0 means auto-look up from Table 1 of Poletto et al. (2013)
+GAMMA2_DFSEM      = 1
 OBST_ID           = 'null'
 OUTLINE           = .FALSE.
 PBX               = -1.E6_EB
