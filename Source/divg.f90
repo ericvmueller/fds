@@ -1379,8 +1379,9 @@ PREDICT_NORMALS: IF (PREDICTOR) THEN
          VENT_IF: IF (WC%VENT_INDEX>0) THEN
             VT=>VENTS(WC%VENT_INDEX)
             IF (VT%N_EDDY>0) THEN ! Synthetic Eddy Method
-               IF (SF%PROFILE/=0 .AND. ABS(SF%VEL)>TWENTY_EPSILON_EB) THEN
-                  PROFILE_FACTOR = ABS(B1%U_NORMAL_0/SF%VEL)
+               ! RELATIVE_RMS: R=I^2; scale by local mean |U|. REYNOLDS_STRESS: absolute, no scale.
+               IF (VT%RELATIVE_RMS>0._EB) THEN
+                  PROFILE_FACTOR = ABS(B1%U_NORMAL_0)
                ELSE
                   PROFILE_FACTOR = 1._EB
                ENDIF

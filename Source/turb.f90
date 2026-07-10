@@ -1808,7 +1808,7 @@ INTEGER :: NV2
 TYPE(VENTS_TYPE), POINTER :: VT
 TYPE(VENTS_TYPE), POINTER :: VT2
 TYPE(SURFACE_TYPE), POINTER :: SF
-REAL(EB) :: XX,YY,ZZ,SHAPE_FACTOR,VOLUME_WEIGHTING_FACTOR(3),EDDY_VOLUME(3),PROFILE_FACTOR,RAMP_T,TSI,&
+REAL(EB) :: XX,YY,ZZ,SHAPE_FACTOR,VOLUME_WEIGHTING_FACTOR(3),EDDY_VOLUME(3),RAMP_T,TSI,&
             VEL_NORMAL,VEL_TANG_1,VEL_TANG_2,Z_WGT,SIGMA_X_MAX,SIGMA_Y_MAX,SIGMA_Z_MAX
 REAL(EB) :: U_ADD,V_ADD,W_ADD
 INTEGER :: IE,N_LOCAL_SEC
@@ -1857,8 +1857,8 @@ MESH_ADVECT_LOOP: DO NM=LOWER_MESH_INDEX,UPPER_MESH_INDEX
                   CYCLE EDDY_LOOP_1
                ENDIF
                
-               ! determine advection velocity based on eddy position
-               PROFILE_FACTOR = 1._EB
+               ! OPEN_WIND: local wind at eddy height. Otherwise use bulk SURF velocity
+               ! (no VELO_PROF_Z factor) so eddy density stays uniform across the plane.
                IF ( VT%BOUNDARY_TYPE==OPEN_BOUNDARY .AND. OPEN_WIND_BOUNDARY ) THEN
                   ZZ=CELLSK(MIN(CELLSK_HI,MAX(CELLSK_LO,FLOOR((VT%Z_EDDY(NE)-ZS)*RDZINT))))
                   KK=FLOOR(ZZ+1._EB)
@@ -1867,13 +1867,11 @@ MESH_ADVECT_LOOP: DO NM=LOWER_MESH_INDEX,UPPER_MESH_INDEX
                   VEL_NORMAL = -(U_WIND(KK)*(1.0-Z_WGT)+U_WIND(KK+1)*Z_WGT)
                   VEL_TANG_1 = (V_WIND(KK)*(1.0-Z_WGT)+V_WIND(KK+1)*Z_WGT)
                   VEL_TANG_2 = (W_WIND(KK)*(1.0-Z_WGT)+W_WIND(KK+1)*Z_WGT)
-               ELSEIF (SF%RAMP(VELO_PROF_Z)%INDEX>0) THEN
-                  PROFILE_FACTOR = EVALUATE_RAMP(VT%Z_EDDY(NE),SF%RAMP(VELO_PROF_Z)%INDEX)
                ENDIF
 
-               VT%X_EDDY(NE) = VT%X_EDDY(NE) - DT*VEL_NORMAL*PROFILE_FACTOR*SIGN(1._EB,REAL(VT%IOR,EB))
-               VT%Y_EDDY(NE) = VT%Y_EDDY(NE) + DT*VEL_TANG_1*PROFILE_FACTOR
-               VT%Z_EDDY(NE) = VT%Z_EDDY(NE) + DT*VEL_TANG_2*PROFILE_FACTOR
+               VT%X_EDDY(NE) = VT%X_EDDY(NE) - DT*VEL_NORMAL*SIGN(1._EB,REAL(VT%IOR,EB))
+               VT%Y_EDDY(NE) = VT%Y_EDDY(NE) + DT*VEL_TANG_1
+               VT%Z_EDDY(NE) = VT%Z_EDDY(NE) + DT*VEL_TANG_2
                IERROR=0;      CALL EDDY_POSITION(NE,NV,NM,IERROR)
                IF (IERROR==1) THEN
                   CALL EDDY_AMPLITUDE(NE,NV,NM)
@@ -1887,8 +1885,6 @@ MESH_ADVECT_LOOP: DO NM=LOWER_MESH_INDEX,UPPER_MESH_INDEX
                   CYCLE EDDY_LOOP_2
                ENDIF
 
-               ! determine advection velocity based on eddy position
-               PROFILE_FACTOR = 1._EB
                IF ( VT%BOUNDARY_TYPE==OPEN_BOUNDARY .AND. OPEN_WIND_BOUNDARY ) THEN
                   ZZ=CELLSK(MIN(CELLSK_HI,MAX(CELLSK_LO,FLOOR((VT%Z_EDDY(NE)-ZS)*RDZINT))))
                   KK=FLOOR(ZZ+1._EB)
@@ -1897,13 +1893,11 @@ MESH_ADVECT_LOOP: DO NM=LOWER_MESH_INDEX,UPPER_MESH_INDEX
                   VEL_TANG_1 = (U_WIND(KK)*(1.0-Z_WGT)+U_WIND(KK+1)*Z_WGT)
                   VEL_NORMAL = -(V_WIND(KK)*(1.0-Z_WGT)+V_WIND(KK+1)*Z_WGT)
                   VEL_TANG_2 = (W_WIND(KK)*(1.0-Z_WGT)+W_WIND(KK+1)*Z_WGT)
-               ELSEIF (SF%RAMP(VELO_PROF_Z)%INDEX>0) THEN 
-                  PROFILE_FACTOR = EVALUATE_RAMP(VT%Z_EDDY(NE),SF%RAMP(VELO_PROF_Z)%INDEX)
                ENDIF
 
-               VT%X_EDDY(NE) = VT%X_EDDY(NE) + DT*VEL_TANG_1*PROFILE_FACTOR
-               VT%Y_EDDY(NE) = VT%Y_EDDY(NE) - DT*VEL_NORMAL*PROFILE_FACTOR*SIGN(1._EB,REAL(VT%IOR,EB))
-               VT%Z_EDDY(NE) = VT%Z_EDDY(NE) + DT*VEL_TANG_2*PROFILE_FACTOR
+               VT%X_EDDY(NE) = VT%X_EDDY(NE) + DT*VEL_TANG_1
+               VT%Y_EDDY(NE) = VT%Y_EDDY(NE) - DT*VEL_NORMAL*SIGN(1._EB,REAL(VT%IOR,EB))
+               VT%Z_EDDY(NE) = VT%Z_EDDY(NE) + DT*VEL_TANG_2
                IERROR=0;      CALL EDDY_POSITION(NE,NV,NM,IERROR)
                IF (IERROR==1) THEN
                   CALL EDDY_AMPLITUDE(NE,NV,NM)
@@ -1917,8 +1911,6 @@ MESH_ADVECT_LOOP: DO NM=LOWER_MESH_INDEX,UPPER_MESH_INDEX
                   CYCLE EDDY_LOOP_3
                ENDIF
 
-               ! determine advection velocity based on eddy position
-               PROFILE_FACTOR = 1._EB
                IF ( VT%BOUNDARY_TYPE==OPEN_BOUNDARY .AND. OPEN_WIND_BOUNDARY ) THEN
                   ZZ=CELLSK(MIN(CELLSK_HI,MAX(CELLSK_LO,FLOOR((VT%Z_EDDY(NE)-ZS)*RDZINT))))
                   KK=FLOOR(ZZ+1._EB)
@@ -1927,13 +1919,11 @@ MESH_ADVECT_LOOP: DO NM=LOWER_MESH_INDEX,UPPER_MESH_INDEX
                   VEL_TANG_1 = (U_WIND(KK)*(1.0-Z_WGT)+U_WIND(KK+1)*Z_WGT)
                   VEL_TANG_2 = (V_WIND(KK)*(1.0-Z_WGT)+V_WIND(KK+1)*Z_WGT)
                   VEL_NORMAL = -(W_WIND(KK)*(1.0-Z_WGT)+W_WIND(KK+1)*Z_WGT)
-               ELSEIF (SF%RAMP(VELO_PROF_Z)%INDEX>0) THEN
-                  PROFILE_FACTOR = EVALUATE_RAMP(VT%Z_EDDY(NE),SF%RAMP(VELO_PROF_Z)%INDEX)
                ENDIF
-               
-               VT%X_EDDY(NE) = VT%X_EDDY(NE) + DT*VEL_TANG_1*PROFILE_FACTOR
-               VT%Y_EDDY(NE) = VT%Y_EDDY(NE) + DT*VEL_TANG_2*PROFILE_FACTOR
-               VT%Z_EDDY(NE) = VT%Z_EDDY(NE) - DT*VEL_NORMAL*PROFILE_FACTOR*SIGN(1._EB,REAL(VT%IOR,EB))
+
+               VT%X_EDDY(NE) = VT%X_EDDY(NE) + DT*VEL_TANG_1
+               VT%Y_EDDY(NE) = VT%Y_EDDY(NE) + DT*VEL_TANG_2
+               VT%Z_EDDY(NE) = VT%Z_EDDY(NE) - DT*VEL_NORMAL*SIGN(1._EB,REAL(VT%IOR,EB))
                IERROR=0;      CALL EDDY_POSITION(NE,NV,NM,IERROR)
                IF (IERROR==1) THEN
                   CALL EDDY_AMPLITUDE(NE,NV,NM)

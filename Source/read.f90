@@ -11958,7 +11958,7 @@ USE MISC_FUNCTIONS, ONLY: PROCESS_MESH_NEIGHBORHOOD
 INTEGER :: N,N_TOTAL,NM,NNN,IOR,I1,I2,J1,J2,K1,K2,RGB(3),N_EDDY,II,JJ,KK,OBST_INDEX,N_EXPLICIT,N_IMPLICIT_VENTS,I_MODE,&
            N_ORIGINAL_VENTS,IC0,IC1,IC,GAMMA2_DFSEM
 REAL(EB) :: SPREAD_RATE,TRANSPARENCY,XYZ(3),TMP_EXTERIOR,DYNAMIC_PRESSURE,XB_USER(6),XB_MESH(6), &
-            REYNOLDS_STRESS(3,3),L_EDDY,VEL_RMS,L_EDDY_IJ(3,3),UVW(3),RADIUS, &
+            REYNOLDS_STRESS(3,3),L_EDDY,RELATIVE_RMS,L_EDDY_IJ(3,3),UVW(3),RADIUS, &
             SIGMA_DFSEM
 CHARACTER(LABEL_LENGTH) :: ID,DEVC_ID,CTRL_ID,SURF_ID,PRESSURE_RAMP,TMP_EXTERIOR_RAMP,MULT_ID,OBST_ID
 CHARACTER(25) :: COLOR
@@ -11972,9 +11972,9 @@ END TYPE
 TYPE(IMPLICIT_VENT_TYPE), ALLOCATABLE, DIMENSION(:) :: IMPLICIT_VENT
 NAMELIST /VENT/ AREA_ADJUST,COLOR,CTRL_ID,DB,DEVC_ID,DYNAMIC_PRESSURE,FYI,GAMMA2_DFSEM,GEOM,ID,IOR, &
                 L_EDDY,L_EDDY_IJ,MB,MULT_ID,N_EDDY,OBST_ID,OUTLINE,PBX,PBY,PBZ,PRESSURE_RAMP,RADIUS,REYNOLDS_STRESS, &
-                SIGMA_DFSEM, &
+                RELATIVE_RMS,SIGMA_DFSEM, &
                 RGB,SPREAD_RATE,SURF_ID,TEXTURE_ORIGIN,TMP_EXTERIOR,TMP_EXTERIOR_RAMP,TRANSPARENCY, &
-                UVW,VEL_RMS,XB,XYZ
+                UVW,XB,XYZ
 
 ! For a given MPI process, only read and process VENTs in the MESHes it controls or the MESH's immediate neighbors
 
@@ -12428,12 +12428,15 @@ MESH_LOOP_1: DO NM=1,NMESHES
                   VT%SIGMA_IJ = L_EDDY_IJ ! Modified SEM (Jarrin, Ch. 7)
                   VT%SIGMA_IJ = MAX(VT%SIGMA_IJ,1.E-10_EB)
                ENDIF
-               IF (VEL_RMS>0._EB) THEN
-                  VT%R_IJ=0._EB
-                  VT%R_IJ(1,1)=VEL_RMS**2
-                  VT%R_IJ(2,2)=VEL_RMS**2
-                  VT%R_IJ(3,3)=VEL_RMS**2
+               IF (RELATIVE_RMS>0._EB) THEN
+                  ! Dimensionless intensity: SEM amplitudes use R=I^2; BCs multiply by local |U|.
+                  VT%RELATIVE_RMS = RELATIVE_RMS
+                  VT%R_IJ = 0._EB
+                  VT%R_IJ(1,1) = RELATIVE_RMS**2
+                  VT%R_IJ(2,2) = RELATIVE_RMS**2
+                  VT%R_IJ(3,3) = RELATIVE_RMS**2
                ELSE
+                  VT%RELATIVE_RMS = 0._EB
                   VT%R_IJ = REYNOLDS_STRESS
                   VT%R_IJ = MAX(VT%R_IJ,1.E-10_EB)
                ENDIF
@@ -12471,8 +12474,9 @@ MESH_LOOP_1: DO NM=1,NMESHES
                      WRITE(MESSAGE,'(3A)') 'ERROR(815): VENT ',TRIM(ID),' L_EDDY = 0 in Synthetic Eddy Method.'
                      CALL SHUTDOWN(MESSAGE,PROCESS_0_ONLY=.FALSE.) ; RETURN
                   ENDIF
-                  IF (ALL(ABS(VT%R_IJ)<TWENTY_EPSILON_EB)) THEN
-                     WRITE(MESSAGE,'(3A)') 'ERROR(816): VENT ',TRIM(ID),' VEL_RMS = 0 in Synthetic Eddy Method.'
+                  IF (RELATIVE_RMS<=0._EB .AND. ALL(ABS(REYNOLDS_STRESS)<TWENTY_EPSILON_EB)) THEN
+                     WRITE(MESSAGE,'(3A)') 'ERROR(816): VENT ',TRIM(ID),&
+                        ' RELATIVE_RMS or REYNOLDS_STRESS required for Synthetic Eddy Method.'
                      CALL SHUTDOWN(MESSAGE,PROCESS_0_ONLY=.FALSE.) ; RETURN
                   ENDIF
                   IF (TRIM(SURF_ID)=='HVAC') THEN
@@ -12747,7 +12751,7 @@ TMP_EXTERIOR      = -1000.
 TMP_EXTERIOR_RAMP = 'null'
 TRANSPARENCY      = 1._EB
 UVW               = -1.E12_EB
-VEL_RMS           = 0._EB
+RELATIVE_RMS      = 0._EB
 XYZ               = -1.E6_EB
 XB                = -1.E6_EB
 
