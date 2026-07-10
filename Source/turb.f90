@@ -1632,9 +1632,9 @@ SUBROUTINE SYNTHETIC_EDDY_SETUP(NM)
 
 INTEGER, INTENT(IN) :: NM
 TYPE(VENTS_TYPE), POINTER :: VT
-INTEGER :: NE,NV,NT,IERROR
+INTEGER :: NE,NV,NT,IERROR,J
 REAL(EB), POINTER, DIMENSION(:,:) :: A_IJ,R_IJ
-REAL(EB) :: SIGMA_BOX(3),SIGMA_MAX
+REAL(EB) :: SIGMA_BOX(3),SIGMA_MAX,LAMBDA(3),SIGMA2(3),SLOS2
 
 IF (N_MPI_PROCESSES>1) THEN
    IF (.NOT.ALLOCATED(SEM_SPLIT_VENT)) ALLOCATE(SEM_SPLIT_VENT(N_VENT_TOTAL),SOURCE=.FALSE.)
@@ -1654,6 +1654,21 @@ VENT_LOOP: DO NV=1,MESHES(NM)%N_VENT
    ENDIF
    IF (VT%DFSEM) THEN
       CALL DFSEM_SET_PRINCIPAL_FRAME(VT)
+      ! Poletto realizability: X_VAL_j = sum_k λ_k/σ_k^2 - 2 λ_j/σ_j^2 must be > 0
+      IF (ALL(VT%SIGMA_DFSEM>TWO_EPSILON_EB)) THEN
+         LAMBDA(1) = VT%R_IJ(1,1); LAMBDA(2) = VT%R_IJ(2,2); LAMBDA(3) = VT%R_IJ(3,3)
+         SIGMA2 = VT%SIGMA_DFSEM**2
+         SLOS2 = SUM(LAMBDA/SIGMA2)
+         DO J=1,3
+            IF (SLOS2 - 2._EB*LAMBDA(J)/SIGMA2(J) <= TWO_EPSILON_EB) THEN
+               WRITE(LU_ERR,'(A,A,A,I0,A)') &
+                  'WARNING: VENT ',TRIM(VT%ID), &
+                  ' DFSEM cannot realize principal stress component ',J, &
+                  '; alpha set to 0. Increase GAMMA2_DFSEM or reduce stress anisotropy.'
+               EXIT
+            ENDIF
+         ENDDO
+      ENDIF
       SIGMA_MAX = MAXVAL(VT%SIGMA_DFSEM)
       SIGMA_BOX = SIGMA_MAX
    ELSE
