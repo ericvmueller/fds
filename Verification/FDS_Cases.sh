@@ -129,6 +129,7 @@ $QFDS -d Complex_Geometry shunn3_128_cc_exp_gdv.fds
 $QFDS -d Complex_Geometry shunn3_256_cc_exp_gdv.fds
 $QFDS -o 2 -d Complex_Geometry shunn3_320_cc_exp_gdv.fds
 $QFDS -d Complex_Geometry t34_scaling.fds
+$QFDS -p 24 -d Complex_Geometry obst_geom_sprk.fds
 
 $QFDS -d Complex_Geometry geom_poiseuille_N10a_theta0_stm.fds
 $QFDS -d Complex_Geometry geom_poiseuille_N20a_theta0_stm.fds
@@ -227,7 +228,7 @@ $QFDS -p 4 -d Fires box_burn_away10.fds
 $QFDS -p 4 -d Fires box_burn_away11.fds
 $QFDS -d Fires box_burn_away_2D.fds
 $QFDS -d Fires box_burn_away_2D_residue.fds
-$QFDS -p 4 -d Fires couch.fds
+$QFDS -p 8 -d Fires couch.fds
 $QFDS -d Fires fire_const_gamma.fds
 $QFDS -d Fires spray_burner.fds
 $QFDS -d Fires HoC_Ideal.fds
@@ -323,6 +324,7 @@ $QFDS -d Heat_Transfer ht3d_slab.fds
 $QFDS -d Heat_Transfer ht3d_sphere_24.fds
 $QFDS -p 4 -d Heat_Transfer ht3d_sphere_48.fds
 $QFDS -p 64 -d Heat_Transfer ht3d_sphere_96.fds
+$QFDS -d Heat_Transfer internal_heating.fds
 $QFDS -d Heat_Transfer back_wall.fds
 $QFDS -p 4 -d Heat_Transfer back_wall_test.fds
 $QFDS -p 3 -d Heat_Transfer back_wall_test_2.fds
@@ -341,6 +343,7 @@ $QFDS -d HVAC ashrae7_quadratic.fds
 $QFDS -d HVAC ashrae7_table.fds
 $QFDS -d HVAC door_crack.fds
 $QFDS -d HVAC fan_test.fds
+$QFDS -d HVAC fan_test_2.fds
 $QFDS -d HVAC qfan_test.fds
 $QFDS -d HVAC qfan_multi.fds
 $QFDS -d HVAC HVAC_aircoil.fds
@@ -452,7 +455,7 @@ $QFDS -p 8 -d Pressure_Solver pressure_iteration2d_uglmat.fds
 $QFDS -p 8 -d Pressure_Solver pressure_iteration3d_default.fds
 $QFDS -p 8 -d Pressure_Solver pressure_iteration3d_uglmat.fds
 $QFDS -p 16 -d Pressure_Solver random_obstructions_fft.fds
-$QFDS -p 4 -d Pressure_Solver stairwell.fds
+$QFDS -p 10 -d Pressure_Solver stairwell.fds
 $QFDS -p 2 -d Pressure_Solver ulmat_2zone.fds
 $QFDS -p 4 -d Pressure_Solver obst_activation_default.fds
 $QFDS -p 4 -d Pressure_Solver obst_activation_ulmat.fds
@@ -579,7 +582,7 @@ $QFDS -d Radiation radiation_box__20__100.fds
 $QFDS -d Radiation radiation_box__20_2000.fds
 $QFDS -d Radiation radiation_box__20__300.fds
 $QFDS -d Radiation radiation_box__20___50.fds
-$QFDS -p 3 -d Radiation radiation_gas_panel.fds
+$QFDS -p 6 -d Radiation radiation_gas_panel.fds
 $QFDS -d Radiation radiation_plane_layer_1_1.fds
 $QFDS -d Radiation radiation_plane_layer_1_2.fds
 $QFDS -d Radiation radiation_plane_layer_1_3.fds
