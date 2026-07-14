@@ -2538,7 +2538,8 @@ CFACE_LOOP_1 : DO ICF=1,N_EXTERNAL_CFACE_CELLS+N_INTWALL_CFACE_CELLS+N_INTERNAL_
          ! Wind inflow boundary conditions
 
          H0 = 0.5_EB*(U0**2+V0**2+W0**2)
-         IF (OPEN_WIND_BOUNDARY) &
+         ! Upper z (IOR=-3) always uses regular OPEN; never OPEN with wind
+         IF (OPEN_WIND_BOUNDARY .AND. IOR/=-3) &
          H0 = 0.5_EB*((U_WIND(K)+VEL_EDDY)**2 + (V_WIND(K)+VEL_EDDY)**2 + (W_WIND(K)+VEL_EDDY)**2)
 
          CFA_B1 => BOUNDARY_PROP1(CFA%B1_INDEX)

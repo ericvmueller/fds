@@ -1710,7 +1710,8 @@ VENT_LOOP: DO NV=1,N_VENT
    VT%W_EDDY = 0._EB
    SF => SURFACE(VT%SURF_INDEX)
 
-   IF ( .NOT. (VT%BOUNDARY_TYPE==OPEN_BOUNDARY .AND. OPEN_WIND_BOUNDARY)) THEN
+   ! Upper z (IOR=-3) always uses regular OPEN; never OPEN with wind
+   IF ( .NOT. (VT%BOUNDARY_TYPE==OPEN_BOUNDARY .AND. OPEN_WIND_BOUNDARY .AND. VT%IOR/=-3)) THEN
       IF (ABS(SF%T_IGN-T_BEGIN)<=SPACING(SF%T_IGN) .AND. SF%RAMP(TIME_VELO)%INDEX>=1) THEN
          TSI = T
       ELSE
@@ -1815,8 +1816,9 @@ VENT_LOOP: DO NV=1,N_VENT
          EDDY_LOOP_3: DO NE=1,VT%N_EDDY
 
             ! determine advection velocity based on eddy position
+            ! Upper z (IOR=-3) always uses regular OPEN; never OPEN with wind
             PROFILE_FACTOR = 1._EB
-            IF ( VT%BOUNDARY_TYPE==OPEN_BOUNDARY .AND. OPEN_WIND_BOUNDARY ) THEN
+            IF ( VT%BOUNDARY_TYPE==OPEN_BOUNDARY .AND. OPEN_WIND_BOUNDARY .AND. VT%IOR/=-3 ) THEN
                ZZ=CELLSK(MIN(CELLSK_HI,MAX(CELLSK_LO,FLOOR((VT%Z_EDDY(NE)-ZS)*RDZINT))))
                KK=FLOOR(ZZ+1._EB)
                Z_WGT = ZZ+0.5_EB-FLOOR(ZZ+0.5_EB)
