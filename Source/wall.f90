@@ -3512,13 +3512,15 @@ MATERIAL_LOOP: DO N=1,N_MATS  ! Loop over all materials in the cell (alpha subsc
                      LENGTH_SCALE = LENGTH_SCALE/2._EB
                END SELECT
             ENDIF
-            ! Adjust length scale by volume fraction of MATL in cell
-            X_M_SUM = 0._EB
-            MATERIAL_LOOP_3: DO NN=1,N_MATS
-               IF (RHO_S(NN) < TWO_EPSILON_EB) CYCLE MATERIAL_LOOP_3
-               X_M_SUM = X_M_SUM + RHO_S(NN)/MATERIAL(MATL_INDEX(NN))%RHO_S
-            ENDDO MATERIAL_LOOP_3         
-            LENGTH_SCALE = MAX(TWO_EPSILON_EB,(ML%RHO_S*X_M_SUM)/RHO_S(N)*LENGTH_SCALE)
+            ! Optional: scale length scale (1/sigma) by volume fraction of this MATL among solid components
+            IF (ML%SURFACE_OXIDATION_VF_SCALING) THEN
+               X_M_SUM = 0._EB
+               MATERIAL_LOOP_3: DO NN=1,N_MATS
+                  IF (RHO_S(NN) < TWO_EPSILON_EB) CYCLE MATERIAL_LOOP_3
+                  X_M_SUM = X_M_SUM + RHO_S(NN)/MATERIAL(MATL_INDEX(NN))%RHO_S
+               ENDDO MATERIAL_LOOP_3
+               LENGTH_SCALE = MAX(TWO_EPSILON_EB,(ML%RHO_S*X_M_SUM)/RHO_S(N)*LENGTH_SCALE)
+            ENDIF
 
             REACTION_RATE = Y_O2_S/LENGTH_SCALE*REACTION_RATE
             REACTION_RATE = MIN(REACTION_RATE,ML%MAX_REACTION_RATE(J))  ! User-specified limit

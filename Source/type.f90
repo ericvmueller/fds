@@ -827,6 +827,7 @@ TYPE MATERIAL_TYPE
    LOGICAL :: ALLOW_SHRINKING                           !< The material can shrink as a result of reactions
    LOGICAL :: ALLOW_SWELLING                            !< The material can swell as a result of reactions
    LOGICAL :: ADJUST_H = .TRUE.                         !< Flag indicating whether the enthalpy needs to be adjusted
+   LOGICAL :: SURFACE_OXIDATION_VF_SCALING=.FALSE.      !< Scale SURFACE_OXIDATION_MODEL rate by material volume fraction
    CHARACTER(LABEL_LENGTH), DIMENSION(MAX_MATERIALS,MAX_REACTIONS) :: RESIDUE_MATL_NAME !< MATL_IDs of solid residues
    CHARACTER(LABEL_LENGTH), DIMENSION(MAX_SPECIES,MAX_REACTIONS) :: SPEC_ID !< SPEC_IDs of pyrolyzing gas species
    CHARACTER(MESSAGE_LENGTH) :: FYI='null'
