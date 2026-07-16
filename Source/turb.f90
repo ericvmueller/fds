@@ -19,9 +19,8 @@ PUBLIC :: INIT_TURB_ARRAYS, VARDEN_DYNSMAG, &
           NS_ANALYTICAL_SOLUTION, NS_U_EXACT, NS_V_EXACT, NS_H_EXACT, SANDIA_DAT, SPECTRAL_OUTPUT, SANDIA_OUT, &
           FILL_EDGES, WALE_VISCOSITY, TAU_WALL_IJ, TEST_FILTER_LOCAL, K_SGS_POPE
 
-          ! SEM communicator cache:
-! - Built once in SYNTHETIC_EDDY_SETUP.
-! - Communicators are keyed by VT%TOTAL_INDEX so only sibling vent sections are mixed.
+! SEM communicator cache for OPEN+WIND mean advection velocity on split vents.
+! Built once in SYNTHETIC_EDDY_SETUP_FINALIZE; keyed by VT%TOTAL_INDEX.
 TYPE(MPI_COMM), ALLOCATABLE, SAVE :: SEM_COMM_BY_TOTAL(:)
 LOGICAL, ALLOCATABLE, SAVE :: SEM_SPLIT_VENT(:), SEM_RANK_HAS_VENT(:)
 LOGICAL, SAVE :: SEM_COMMS_INITIALIZED = .FALSE.
@@ -1757,62 +1756,21 @@ SEM_COMMS_INITIALIZED = .TRUE.
 END SUBROUTINE SYNTHETIC_EDDY_SETUP_FINALIZE
 
 
-LOGICAL FUNCTION EDDY_OWNED_BY_SECTION(VT,NE) RESULT(OWNED)
-
-TYPE(VENTS_TYPE), INTENT(IN) :: VT
-INTEGER, INTENT(IN) :: NE
-REAL(EB) :: P1,P2,LO1,HI1,MAX1,LO2,HI2,MAX2
-LOGICAL :: IN1,IN2
-
-SELECT CASE(ABS(VT%IOR))
-   CASE(1)
-      P1 = VT%Y_EDDY(NE); LO1 = VT%Y1; HI1 = VT%Y2; MAX1 = VT%Y2_ORIG
-      P2 = VT%Z_EDDY(NE); LO2 = VT%Z1; HI2 = VT%Z2; MAX2 = VT%Z2_ORIG
-   CASE(2)
-      P1 = VT%X_EDDY(NE); LO1 = VT%X1; HI1 = VT%X2; MAX1 = VT%X2_ORIG
-      P2 = VT%Z_EDDY(NE); LO2 = VT%Z1; HI2 = VT%Z2; MAX2 = VT%Z2_ORIG
-   CASE(3)
-      P1 = VT%X_EDDY(NE); LO1 = VT%X1; HI1 = VT%X2; MAX1 = VT%X2_ORIG
-      P2 = VT%Y_EDDY(NE); LO2 = VT%Y1; HI2 = VT%Y2; MAX2 = VT%Y2_ORIG
-   CASE DEFAULT
-      OWNED = .FALSE.
-      RETURN
-END SELECT
-
-! Half-open section bounds; inclusive only on the global outer face (HI==*_ORIG max).
-
-IN1 = .FALSE.
-IF (P1>=LO1) THEN
-   IF (P1<HI1) IN1 = .TRUE.
-   IF (HI1==MAX1 .AND. P1<=HI1) IN1 = .TRUE.
-ENDIF
-
-IN2 = .FALSE.
-IF (P2>=LO2) THEN
-   IF (P2<HI2) IN2 = .TRUE.
-   IF (HI2==MAX2 .AND. P2<=HI2) IN2 = .TRUE.
-ENDIF
-
-OWNED = IN1 .AND. IN2
-
-END FUNCTION EDDY_OWNED_BY_SECTION
-
-
 SUBROUTINE SYNTHETIC_TURBULENCE(DT,T)
 
 USE MATH_FUNCTIONS, ONLY: EVALUATE_RAMP
 
 REAL(EB), INTENT(IN) :: DT,T
-INTEGER :: NE,NV,NT,N_EDDY,II,JJ,KK,IERROR,IERR,NM
-INTEGER :: IN,IA,IC,IE,N_LOCAL_SEC,IOR_NT
+INTEGER :: NE,NV,NT,II,JJ,KK,IERROR,IERR,NM
+INTEGER :: IN,IA,IC,IOR_NT
 TYPE(VENTS_TYPE), POINTER :: VT
 TYPE(SURFACE_TYPE), POINTER :: SF
 REAL(EB) :: XX,YY,ZZ,SHAPE_FACTOR,VOLUME_WEIGHTING_FACTOR(3),EDDY_VOLUME(3),RAMP_T,TSI,&
             SIGMA_X_MAX,SIGMA_Y_MAX,SIGMA_Z_MAX,WIND_BUF(4),ADV_VEL(3),SGN
 REAL(EB) :: U_ADD,V_ADD,W_ADD
-REAL(EB), ALLOCATABLE :: EDDY_BUFFER(:),VENT_VEL(:,:)
+REAL(EB), ALLOCATABLE :: VENT_VEL(:,:)
 TYPE(MPI_COMM) :: COMM_SEM
-LOGICAL :: NEED_NT_COMBINE,IN_SEM_MPI,OPEN_WIND_NT
+LOGICAL :: IN_SEM_MPI,OPEN_WIND_NT
 INTEGER, PARAMETER :: SHAPE_CODE=1 ! 1=tent, 2=tophat
 
 ! Reference:
@@ -1825,6 +1783,7 @@ INTEGER, PARAMETER :: SHAPE_CODE=1 ! 1=tent, 2=tophat
 ! Vent-frame advection per TOTAL_INDEX: VENT_VEL(1:3,:)=(VEL_NORMAL,VEL_TANG_1,VEL_TANG_2).
 ! OPEN+WIND: DZ-weighted mean of U_WIND/V_WIND/W_WIND over the full vent (MPI reduce if split).
 ! Fixed vents: bulk SURF VEL (no profile) so eddy density stays uniform across the plane.
+! Every section of a TOTAL_INDEX advects the full eddy set with this shared velocity; no eddy-state exchange.
 ALLOCATE(VENT_VEL(3,N_VENT_TOTAL),SOURCE=0._EB)
 VENT_ADV_VEL_LOOP: DO NT=1,N_VENT_TOTAL
    WIND_BUF = 0._EB
@@ -1877,7 +1836,7 @@ VENT_ADV_VEL_LOOP: DO NT=1,N_VENT_TOTAL
    END SELECT
 ENDDO VENT_ADV_VEL_LOOP
 
-! Pass 1: advect only locally owned eddies; non-owned entries are zeroed.
+! Pass 1: advect and reseed the full eddy set on every local vent section.
 MESH_ADVECT_LOOP: DO NM=LOWER_MESH_INDEX,UPPER_MESH_INDEX
    CALL POINT_TO_MESH(NM)
    VENT_ADVECT_LOOP: DO NV=1,N_VENT
@@ -1900,11 +1859,6 @@ MESH_ADVECT_LOOP: DO NM=LOWER_MESH_INDEX,UPPER_MESH_INDEX
       ENDDO
 
       EDDY_LOOP: DO NE=1,VT%N_EDDY
-         IF (.NOT. EDDY_OWNED_BY_SECTION(VT,NE)) THEN
-            VT%X_EDDY(NE)  = 0._EB; VT%Y_EDDY(NE)  = 0._EB; VT%Z_EDDY(NE)  = 0._EB
-            VT%CU_EDDY(NE) = 0._EB; VT%CV_EDDY(NE) = 0._EB; VT%CW_EDDY(NE) = 0._EB
-            CYCLE EDDY_LOOP
-         ENDIF
          VT%X_EDDY(NE) = VT%X_EDDY(NE) + DT*ADV_VEL(1)
          VT%Y_EDDY(NE) = VT%Y_EDDY(NE) + DT*ADV_VEL(2)
          VT%Z_EDDY(NE) = VT%Z_EDDY(NE) + DT*ADV_VEL(3)
@@ -1917,87 +1871,7 @@ ENDDO MESH_ADVECT_LOOP
 
 DEALLOCATE(VENT_VEL)
 
-! Pass 2: combine eddy state across local vent sections with the same TOTAL_INDEX, then across ranks.
-VENT_COMBINE_LOOP: DO NT=1,N_VENT_TOTAL
-
-      N_LOCAL_SEC = 0
-      N_EDDY = 0
-      DO NM=LOWER_MESH_INDEX,UPPER_MESH_INDEX
-         CALL POINT_TO_MESH(NM)
-         DO NV=1,N_VENT
-            VT => VENTS(NV)
-            IF (VT%N_EDDY>0 .AND. VT%TOTAL_INDEX==NT) THEN
-               N_LOCAL_SEC = N_LOCAL_SEC + 1
-               N_EDDY = VT%N_EDDY
-            ENDIF
-         ENDDO
-      ENDDO
-      IN_SEM_MPI = .FALSE.
-      IF (N_MPI_PROCESSES>1 .AND. SEM_COMMS_INITIALIZED) THEN
-         IF (ALLOCATED(SEM_SPLIT_VENT) .AND. ALLOCATED(SEM_RANK_HAS_VENT)) THEN
-            IN_SEM_MPI = SEM_SPLIT_VENT(NT) .AND. SEM_RANK_HAS_VENT(NT)
-         ENDIF
-      ENDIF
-      NEED_NT_COMBINE = N_LOCAL_SEC>1 .OR. IN_SEM_MPI
-      IF (.NOT. NEED_NT_COMBINE) CYCLE VENT_COMBINE_LOOP
-
-      ! Comm members must agree on N_EDDY before any collective and must not CYCLE early.
-      IF (IN_SEM_MPI) THEN
-         COMM_SEM = SEM_COMM_BY_TOTAL(NT)
-         CALL MPI_ALLREDUCE(MPI_IN_PLACE,N_EDDY,1,MPI_INTEGER,MPI_MAX,COMM_SEM,IERR)
-      ENDIF
-      IF (N_EDDY==0) CYCLE VENT_COMBINE_LOOP
-
-      IF (ALLOCATED(EDDY_BUFFER)) DEALLOCATE(EDDY_BUFFER)
-      ALLOCATE(EDDY_BUFFER(6*N_EDDY))
-      EDDY_BUFFER = 0._EB
-
-      ! Pass 2a: sum nonzero sibling contributions (Pass 1 leaves at most one).
-      ! Do not gate on EDDY_OWNED_BY_SECTION: after advection/reseed the active section
-      ! may hold state outside its in-plane bounds; copy-back lets the next cycle pick owner.
-      DO NM=LOWER_MESH_INDEX,UPPER_MESH_INDEX
-         CALL POINT_TO_MESH(NM)
-         DO NV=1,N_VENT
-            VT => VENTS(NV)
-            IF (VT%N_EDDY==0 .OR. VT%TOTAL_INDEX/=NT) CYCLE
-            DO IE=1,N_EDDY
-               IF (ABS(VT%X_EDDY(IE))+ABS(VT%Y_EDDY(IE))+ABS(VT%Z_EDDY(IE))+ &
-                   ABS(VT%CU_EDDY(IE))+ABS(VT%CV_EDDY(IE))+ABS(VT%CW_EDDY(IE))>TWO_EPSILON_EB) THEN
-                  EDDY_BUFFER(IE) = EDDY_BUFFER(IE) + VT%X_EDDY(IE)
-                  EDDY_BUFFER(N_EDDY+IE) = EDDY_BUFFER(N_EDDY+IE) + VT%Y_EDDY(IE)
-                  EDDY_BUFFER(2*N_EDDY+IE) = EDDY_BUFFER(2*N_EDDY+IE) + VT%Z_EDDY(IE)
-                  EDDY_BUFFER(3*N_EDDY+IE) = EDDY_BUFFER(3*N_EDDY+IE) + VT%CU_EDDY(IE)
-                  EDDY_BUFFER(4*N_EDDY+IE) = EDDY_BUFFER(4*N_EDDY+IE) + VT%CV_EDDY(IE)
-                  EDDY_BUFFER(5*N_EDDY+IE) = EDDY_BUFFER(5*N_EDDY+IE) + VT%CW_EDDY(IE)
-               ENDIF
-            ENDDO
-         ENDDO
-      ENDDO
-
-      ! If split across ranks, combine rank-local totals on the cached communicator.
-      IF (IN_SEM_MPI) THEN
-         CALL MPI_ALLREDUCE(MPI_IN_PLACE,EDDY_BUFFER(1),6*N_EDDY,MPI_DOUBLE_PRECISION,MPI_SUM,COMM_SEM,IERR)
-      ENDIF
-
-      ! Copy the merged eddy state back to every local sibling section.
-      DO NM=LOWER_MESH_INDEX,UPPER_MESH_INDEX
-         CALL POINT_TO_MESH(NM)
-         DO NV=1,N_VENT
-            VT => VENTS(NV)
-            IF (VT%N_EDDY==0 .OR. VT%TOTAL_INDEX/=NT) CYCLE
-            VT%X_EDDY(1:N_EDDY)  = EDDY_BUFFER(1:N_EDDY)
-            VT%Y_EDDY(1:N_EDDY)  = EDDY_BUFFER(N_EDDY+1:2*N_EDDY)
-            VT%Z_EDDY(1:N_EDDY)  = EDDY_BUFFER(2*N_EDDY+1:3*N_EDDY)
-            VT%CU_EDDY(1:N_EDDY) = EDDY_BUFFER(3*N_EDDY+1:4*N_EDDY)
-            VT%CV_EDDY(1:N_EDDY) = EDDY_BUFFER(4*N_EDDY+1:5*N_EDDY)
-            VT%CW_EDDY(1:N_EDDY) = EDDY_BUFFER(5*N_EDDY+1:6*N_EDDY)
-         ENDDO
-      ENDDO
-
-      DEALLOCATE(EDDY_BUFFER)
-   ENDDO VENT_COMBINE_LOOP
-
-! Pass 3: apply eddy contributions to the local vent section.
+! Pass 2: apply eddy contributions to the local vent section.
 MESH_APPLY_LOOP: DO NM=LOWER_MESH_INDEX,UPPER_MESH_INDEX
    CALL POINT_TO_MESH(NM)
    VENT_APPLY_LOOP: DO NV=1,N_VENT
@@ -2222,7 +2096,7 @@ IF (VT%DFSEM) THEN
    ! DFSEM intensities (Poletto et al. 2013, Eq. 13):
    ! <alpha_beta^2> = (sum_j lambda_j/sigma_j^2 - 2 lambda_beta/sigma_beta^2) / (2 C2)
    ! Quantities are in principal-stress coordinates (lambda sorted descending in R_IJ diagonal).
-   ! alpha is stored in CU/CV/CW in principal coordinates so MPI combine remains unchanged.
+   ! alpha is stored in CU/CV/CW in principal coordinates.
    LAMBDA(1) = VT%R_IJ(1,1); LAMBDA(2) = VT%R_IJ(2,2); LAMBDA(3) = VT%R_IJ(3,3)
    SIGMA2 = VT%SIGMA_DFSEM**2
    SLOS2 = SUM(LAMBDA/SIGMA2)
