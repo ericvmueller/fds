@@ -2704,6 +2704,121 @@ WW = W0
 END SUBROUTINE GET_WIND_AT_HEIGHT
 
 
+!> \brief Multiplicative SURF normal-velocity profile factor at (X,Y,Z)
+!> \param SF Surface type
+!> \param VT Vent type (geometry / ORIG bounds)
+!> \param IOR Surface orientation
+!> \param X x-coordinate (m)
+!> \param Y y-coordinate (m)
+!> \param Z z-coordinate (m)
+!> \details Returns the factor such that U_n = U_base * factor. Used by wall init and DFSEM.
+
+REAL(EB) FUNCTION SURFACE_VELOCITY_PROFILE_FACTOR(SF,VT,IOR,X,Y,Z)
+
+USE MATH_FUNCTIONS, ONLY: EVALUATE_RAMP
+TYPE(SURFACE_TYPE), INTENT(IN) :: SF
+TYPE(VENTS_TYPE), INTENT(IN) :: VT
+INTEGER, INTENT(IN) :: IOR
+REAL(EB), INTENT(IN) :: X,Y,Z
+REAL(EB) :: PX,PY,PZ,RR,DELTA,R1
+
+SURFACE_VELOCITY_PROFILE_FACTOR = 1._EB
+
+SELECT CASE(SF%PROFILE)
+
+   CASE(PARABOLIC_PROFILE)
+      SELECT CASE(ABS(IOR))
+         CASE(1)
+            IF (VT%RADIUS>0._EB) THEN
+               RR = (Y-VT%Y0)**2 + (Z-VT%Z0)**2
+               SURFACE_VELOCITY_PROFILE_FACTOR = (VT%RADIUS**2-RR)/VT%RADIUS**2
+            ELSE
+               PY = 4._EB*(Y-VT%Y1_ORIG)*(VT%Y2_ORIG-Y)/(VT%Y2_ORIG-VT%Y1_ORIG)**2
+               PZ = 4._EB*(Z-VT%Z1_ORIG)*(VT%Z2_ORIG-Z)/(VT%Z2_ORIG-VT%Z1_ORIG)**2
+               SURFACE_VELOCITY_PROFILE_FACTOR = PY*PZ
+            ENDIF
+         CASE(2)
+            IF (VT%RADIUS>0._EB) THEN
+               RR = (X-VT%X0)**2 + (Z-VT%Z0)**2
+               SURFACE_VELOCITY_PROFILE_FACTOR = (VT%RADIUS**2-RR)/VT%RADIUS**2
+            ELSE
+               PX = 4._EB*(X-VT%X1_ORIG)*(VT%X2_ORIG-X)/(VT%X2_ORIG-VT%X1_ORIG)**2
+               PZ = 4._EB*(Z-VT%Z1_ORIG)*(VT%Z2_ORIG-Z)/(VT%Z2_ORIG-VT%Z1_ORIG)**2
+               SURFACE_VELOCITY_PROFILE_FACTOR = PX*PZ
+            ENDIF
+         CASE(3)
+            IF (VT%RADIUS>0._EB) THEN
+               RR = (X-VT%X0)**2 + (Y-VT%Y0)**2
+               SURFACE_VELOCITY_PROFILE_FACTOR = (VT%RADIUS**2-RR)/VT%RADIUS**2
+            ELSE
+               PX = 4._EB*(X-VT%X1_ORIG)*(VT%X2_ORIG-X)/(VT%X2_ORIG-VT%X1_ORIG)**2
+               PY = 4._EB*(Y-VT%Y1_ORIG)*(VT%Y2_ORIG-Y)/(VT%Y2_ORIG-VT%Y1_ORIG)**2
+               IF (CYLINDRICAL) THEN
+                  SURFACE_VELOCITY_PROFILE_FACTOR = PX
+               ELSE
+                  SURFACE_VELOCITY_PROFILE_FACTOR = PX*PY
+               ENDIF
+            ENDIF
+      END SELECT
+      IF (ABS(SF%VOLUME_FLOW)>=TWENTY_EPSILON_EB) THEN
+         IF (VT%RADIUS>0._EB) THEN
+            SURFACE_VELOCITY_PROFILE_FACTOR = SURFACE_VELOCITY_PROFILE_FACTOR*2._EB
+         ELSE
+            SURFACE_VELOCITY_PROFILE_FACTOR = SURFACE_VELOCITY_PROFILE_FACTOR*9._EB/4._EB
+         ENDIF
+      ENDIF
+
+   CASE(BOUNDARY_LAYER_PROFILE)
+      ! Currently only set up for circular vents
+      SELECT CASE(ABS(IOR))
+         CASE(1)
+            IF (VT%RADIUS>0._EB) THEN
+               DELTA = VT%RADIUS - SQRT( VT%RADIUS**2*(2._EB*ABS(SF%VEL_BULK/SF%VEL)-1._EB) )
+               R1 = VT%RADIUS - DELTA
+               RR = SQRT( (Y-VT%Y0)**2 + (Z-VT%Z0)**2 )
+               IF (RR>R1 .AND. RR<=VT%RADIUS .AND. DELTA>TWENTY_EPSILON_EB) &
+                  SURFACE_VELOCITY_PROFILE_FACTOR = 1._EB - ((RR-R1)/DELTA)**2
+            ENDIF
+         CASE(2)
+            IF (VT%RADIUS>0._EB) THEN
+               DELTA = VT%RADIUS - SQRT( VT%RADIUS**2*(2._EB*ABS(SF%VEL_BULK/SF%VEL)-1._EB) )
+               R1 = VT%RADIUS - DELTA
+               RR = SQRT( (X-VT%X0)**2 + (Z-VT%Z0)**2 )
+               IF (RR>R1 .AND. RR<=VT%RADIUS .AND. DELTA>TWENTY_EPSILON_EB) &
+                  SURFACE_VELOCITY_PROFILE_FACTOR = 1._EB - ((RR-R1)/DELTA)**2
+            ENDIF
+         CASE(3)
+            IF (VT%RADIUS>0._EB) THEN
+               DELTA = VT%RADIUS - SQRT( VT%RADIUS**2*(2._EB*ABS(SF%VEL_BULK/SF%VEL)-1._EB) )
+               R1 = VT%RADIUS - DELTA
+               RR = SQRT( (X-VT%X0)**2 + (Y-VT%Y0)**2 )
+               IF (RR>R1 .AND. RR<=VT%RADIUS .AND. DELTA>TWENTY_EPSILON_EB) &
+                  SURFACE_VELOCITY_PROFILE_FACTOR = 1._EB - ((RR-R1)/DELTA)**2
+            ENDIF
+      END SELECT
+
+   CASE(ATMOSPHERIC_PROFILE)
+      IF (Z>GROUND_LEVEL .AND. SF%Z0>TWO_EPSILON_EB) &
+         SURFACE_VELOCITY_PROFILE_FACTOR = ((Z-GROUND_LEVEL)/SF%Z0)**SF%PLE
+
+   CASE(RAMP_PROFILE)
+      SELECT CASE(ABS(IOR))
+         CASE(1)
+            SURFACE_VELOCITY_PROFILE_FACTOR = EVALUATE_RAMP(Y,SF%RAMP(VELO_PROF_Y)%INDEX,TAU=1._EB) * &
+                                              EVALUATE_RAMP(Z,SF%RAMP(VELO_PROF_Z)%INDEX,TAU=1._EB)
+         CASE(2)
+            SURFACE_VELOCITY_PROFILE_FACTOR = EVALUATE_RAMP(X,SF%RAMP(VELO_PROF_X)%INDEX,TAU=1._EB) * &
+                                              EVALUATE_RAMP(Z,SF%RAMP(VELO_PROF_Z)%INDEX,TAU=1._EB)
+         CASE(3)
+            SURFACE_VELOCITY_PROFILE_FACTOR = EVALUATE_RAMP(X,SF%RAMP(VELO_PROF_X)%INDEX,TAU=1._EB) * &
+                                              EVALUATE_RAMP(Y,SF%RAMP(VELO_PROF_Y)%INDEX,TAU=1._EB)
+      END SELECT
+
+END SELECT
+
+END FUNCTION SURFACE_VELOCITY_PROFILE_FACTOR
+
+
 !> \brief Compute the components of the prevailing wind
 !> \param T Current time (s)
 !> \param NM Current mesh
