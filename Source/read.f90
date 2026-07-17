@@ -12428,7 +12428,8 @@ MESH_LOOP_1: DO NM=1,NMESHES
                      CALL SHUTDOWN(MESSAGE,PROCESS_0_ONLY=.FALSE.) ; RETURN
                   ENDIF
                   IF (RELATIVE_RMS>0._EB) THEN
-                     ! Dimensionless intensity: amplitudes use R=I^2; BCs multiply by local |U|.
+                     ! Dimensionless intensity I: R_IJ = I^2; eddy amplitudes later use R(z)=I^2 U(z)^2
+                     ! at the eddy center (keeps DFSEM divergence-free).
                      VT%RELATIVE_RMS = RELATIVE_RMS
                      VT%R_IJ = 0._EB
                      VT%R_IJ(1,1) = RELATIVE_RMS**2

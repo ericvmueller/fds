@@ -165,9 +165,6 @@ WALL_CELL_LOOP: DO IW=1,N_EXTERNAL_WALL_CELLS
                CASE(2); VEL_EDDY = VT%V_EDDY(I,K)
                CASE(3); VEL_EDDY = VT%W_EDDY(I,J)
             END SELECT
-            ! RELATIVE_RMS: R=I^2; scale by local wind speed
-            IF (VT%RELATIVE_RMS>0._EB) &
-               VEL_EDDY = VEL_EDDY*SQRT(U_WIND(K)**2+V_WIND(K)**2+W_WIND(K)**2)
          ENDIF
 
          ! Wind inflow boundary conditions
