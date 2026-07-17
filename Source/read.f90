@@ -11958,8 +11958,7 @@ USE MISC_FUNCTIONS, ONLY: PROCESS_MESH_NEIGHBORHOOD
 INTEGER :: N,N_TOTAL,NM,NNN,IOR,I1,I2,J1,J2,K1,K2,RGB(3),N_EDDY,II,JJ,KK,OBST_INDEX,N_EXPLICIT,N_IMPLICIT_VENTS,I_MODE,&
            N_ORIGINAL_VENTS,IC0,IC1,IC,GAMMA2_DFSEM
 REAL(EB) :: SPREAD_RATE,TRANSPARENCY,XYZ(3),TMP_EXTERIOR,DYNAMIC_PRESSURE,XB_USER(6),XB_MESH(6), &
-            REYNOLDS_STRESS(3,3),L_EDDY,RELATIVE_RMS,L_EDDY_IJ(3,3),UVW(3),RADIUS, &
-            SIGMA_DFSEM
+            REYNOLDS_STRESS(3,3),RELATIVE_RMS,UVW(3),RADIUS,SIGMA_DFSEM
 CHARACTER(LABEL_LENGTH) :: ID,DEVC_ID,CTRL_ID,SURF_ID,PRESSURE_RAMP,TMP_EXTERIOR_RAMP,MULT_ID,OBST_ID
 CHARACTER(25) :: COLOR
 TYPE(MULTIPLIER_TYPE), POINTER :: MR
@@ -11971,7 +11970,7 @@ TYPE IMPLICIT_VENT_TYPE
 END TYPE
 TYPE(IMPLICIT_VENT_TYPE), ALLOCATABLE, DIMENSION(:) :: IMPLICIT_VENT
 NAMELIST /VENT/ AREA_ADJUST,COLOR,CTRL_ID,DB,DEVC_ID,DYNAMIC_PRESSURE,FYI,GAMMA2_DFSEM,GEOM,ID,IOR, &
-                L_EDDY,L_EDDY_IJ,MB,MULT_ID,N_EDDY,OBST_ID,OUTLINE,PBX,PBY,PBZ,PRESSURE_RAMP,RADIUS,REYNOLDS_STRESS, &
+                MB,MULT_ID,N_EDDY,OBST_ID,OUTLINE,PBX,PBY,PBZ,PRESSURE_RAMP,RADIUS,REYNOLDS_STRESS, &
                 RELATIVE_RMS,SIGMA_DFSEM, &
                 RGB,SPREAD_RATE,SURF_ID,TEXTURE_ORIGIN,TMP_EXTERIOR,TMP_EXTERIOR_RAMP,TRANSPARENCY, &
                 UVW,XB,XYZ
@@ -12419,33 +12418,39 @@ MESH_LOOP_1: DO NM=1,NMESHES
                VT%DYNAMIC_PRESSURE = DYNAMIC_PRESSURE
                IF (PRESSURE_RAMP/='null') CALL GET_RAMP_INDEX(PRESSURE_RAMP,'TIME',VT%PRESSURE_RAMP_INDEX)
 
-               ! Synthetic Eddy Method
+               ! Divergence-Free Synthetic Eddy Method (DFSEM; Poletto et al. 2013)
 
                VT%N_EDDY = N_EDDY
-               IF (L_EDDY>TWENTY_EPSILON_EB) THEN
-                  VT%SIGMA_IJ = L_EDDY
-               ELSE
-                  VT%SIGMA_IJ = L_EDDY_IJ ! Modified SEM (Jarrin, Ch. 7)
-                  VT%SIGMA_IJ = MAX(VT%SIGMA_IJ,1.E-10_EB)
-               ENDIF
-               IF (RELATIVE_RMS>0._EB) THEN
-                  ! Dimensionless intensity: SEM amplitudes use R=I^2; BCs multiply by local |U|.
-                  VT%RELATIVE_RMS = RELATIVE_RMS
-                  VT%R_IJ = 0._EB
-                  VT%R_IJ(1,1) = RELATIVE_RMS**2
-                  VT%R_IJ(2,2) = RELATIVE_RMS**2
-                  VT%R_IJ(3,3) = RELATIVE_RMS**2
-               ELSE
-                  VT%RELATIVE_RMS = 0._EB
-                  VT%R_IJ = REYNOLDS_STRESS
-                  VT%R_IJ = MAX(VT%R_IJ,1.E-10_EB)
-               ENDIF
-               ! DFSEM (Poletto et al. 2013) enabled when SIGMA_DFSEM>0.
-               ! SIGMA_DFSEM is interpreted in principal-stress coordinates:
-               ! sigma_1 (dominant stress direction), with sigma_2=sigma_3=sigma_1/gamma,
-               ! where gamma = sqrt(GAMMA2_DFSEM).
-               VT%DFSEM = SIGMA_DFSEM>TWENTY_EPSILON_EB
-               IF (VT%DFSEM) THEN
+               IF (N_EDDY>0) THEN
+                  SYNTHETIC_EDDY_METHOD = .TRUE.
+                  IF (SIGMA_DFSEM<=TWENTY_EPSILON_EB) THEN
+                     WRITE(MESSAGE,'(3A)') 'ERROR(815): VENT ',TRIM(ID),' SIGMA_DFSEM = 0 in DFSEM.'
+                     CALL SHUTDOWN(MESSAGE,PROCESS_0_ONLY=.FALSE.) ; RETURN
+                  ENDIF
+                  IF (RELATIVE_RMS>0._EB) THEN
+                     ! Dimensionless intensity: amplitudes use R=I^2; BCs multiply by local |U|.
+                     VT%RELATIVE_RMS = RELATIVE_RMS
+                     VT%R_IJ = 0._EB
+                     VT%R_IJ(1,1) = RELATIVE_RMS**2
+                     VT%R_IJ(2,2) = RELATIVE_RMS**2
+                     VT%R_IJ(3,3) = RELATIVE_RMS**2
+                  ELSE
+                     VT%RELATIVE_RMS = 0._EB
+                     VT%R_IJ = REYNOLDS_STRESS
+                     VT%R_IJ = MAX(VT%R_IJ,1.E-10_EB)
+                     IF (ALL(ABS(REYNOLDS_STRESS)<TWENTY_EPSILON_EB)) THEN
+                        WRITE(MESSAGE,'(3A)') 'ERROR(816): VENT ',TRIM(ID),&
+                           ' RELATIVE_RMS or REYNOLDS_STRESS required for DFSEM.'
+                        CALL SHUTDOWN(MESSAGE,PROCESS_0_ONLY=.FALSE.) ; RETURN
+                     ENDIF
+                  ENDIF
+                  IF (TRIM(SURF_ID)=='HVAC') THEN
+                     WRITE(MESSAGE,'(3A)') 'ERROR(817): VENT ',TRIM(ID),' DFSEM not permitted with HVAC.'
+                     CALL SHUTDOWN(MESSAGE,PROCESS_0_ONLY=.FALSE.) ; RETURN
+                  ENDIF
+                  ! SIGMA_DFSEM is interpreted in principal-stress coordinates:
+                  ! sigma_1 (dominant stress direction), with sigma_2=sigma_3=sigma_1/gamma,
+                  ! where gamma = sqrt(GAMMA2_DFSEM).
                   ! C2 from Poletto et al. 2013 Table 1, indexed by gamma^2.
                   IF (GAMMA2_DFSEM<1 .OR. GAMMA2_DFSEM>8) THEN
                      WRITE(MESSAGE,'(3A)') 'ERROR: VENT ',TRIM(ID), &
@@ -12464,25 +12469,6 @@ MESH_LOOP_1: DO NM=1,NMESHES
                   END SELECT
                   VT%SIGMA_DFSEM = SIGMA_DFSEM/SQRT(REAL(GAMMA2_DFSEM,EB))
                   VT%SIGMA_DFSEM(1) = SIGMA_DFSEM
-               ENDIF
-
-               ! Check SEM parameters
-
-               IF (N_EDDY>0) THEN
-                  SYNTHETIC_EDDY_METHOD = .TRUE.
-                  IF (ANY(VT%SIGMA_IJ<TWENTY_EPSILON_EB)) THEN
-                     WRITE(MESSAGE,'(3A)') 'ERROR(815): VENT ',TRIM(ID),' L_EDDY = 0 in Synthetic Eddy Method.'
-                     CALL SHUTDOWN(MESSAGE,PROCESS_0_ONLY=.FALSE.) ; RETURN
-                  ENDIF
-                  IF (RELATIVE_RMS<=0._EB .AND. ALL(ABS(REYNOLDS_STRESS)<TWENTY_EPSILON_EB)) THEN
-                     WRITE(MESSAGE,'(3A)') 'ERROR(816): VENT ',TRIM(ID),&
-                        ' RELATIVE_RMS or REYNOLDS_STRESS required for Synthetic Eddy Method.'
-                     CALL SHUTDOWN(MESSAGE,PROCESS_0_ONLY=.FALSE.) ; RETURN
-                  ENDIF
-                  IF (TRIM(SURF_ID)=='HVAC') THEN
-                     WRITE(MESSAGE,'(3A)') 'ERROR(817): VENT ',TRIM(ID),' Synthetic Eddy Method not permitted with HVAC.'
-                     CALL SHUTDOWN(MESSAGE,PROCESS_0_ONLY=.FALSE.) ; RETURN
-                  ENDIF
                ENDIF
 
                ! Check if the VENT is attached to a specific OBST
@@ -12728,8 +12714,6 @@ DYNAMIC_PRESSURE  = 0._EB
 GEOM              = .FALSE.
 ID                = 'null'
 IOR               = 0
-L_EDDY            = 0._EB
-L_EDDY_IJ         = 0._EB
 MB                = 'null'
 MULT_ID           = 'null'
 N_EDDY            = 0
