@@ -11958,9 +11958,9 @@ USE CONTROL_VARIABLES, ONLY : CONTROL
 USE MISC_FUNCTIONS, ONLY: PROCESS_MESH_NEIGHBORHOOD
 
 INTEGER :: N,N_TOTAL,NM,NNN,IOR,I1,I2,J1,J2,K1,K2,RGB(3),N_EDDY,II,JJ,KK,OBST_INDEX,N_EXPLICIT,N_IMPLICIT_VENTS,I_MODE,&
-           N_ORIGINAL_VENTS,IC0,IC1,IC,GAMMA2_DFSEM
+           N_ORIGINAL_VENTS,IC0,IC1,IC,EDDY_GAMMA2
 REAL(EB) :: SPREAD_RATE,TRANSPARENCY,XYZ(3),TMP_EXTERIOR,DYNAMIC_PRESSURE,XB_USER(6),XB_MESH(6), &
-            REYNOLDS_STRESS(3,3),RELATIVE_RMS,UVW(3),RADIUS,SIGMA_DFSEM
+            REYNOLDS_STRESS(3,3),RELATIVE_RMS,UVW(3),RADIUS,L_EDDY
 CHARACTER(LABEL_LENGTH) :: ID,DEVC_ID,CTRL_ID,SURF_ID,PRESSURE_RAMP,TMP_EXTERIOR_RAMP,MULT_ID,OBST_ID
 CHARACTER(25) :: COLOR
 TYPE(MULTIPLIER_TYPE), POINTER :: MR
@@ -11971,9 +11971,9 @@ TYPE IMPLICIT_VENT_TYPE
    CHARACTER(LABEL_LENGTH) :: MB='null',SURF_ID='null',ID='null'
 END TYPE
 TYPE(IMPLICIT_VENT_TYPE), ALLOCATABLE, DIMENSION(:) :: IMPLICIT_VENT
-NAMELIST /VENT/ AREA_ADJUST,COLOR,CTRL_ID,DB,DEVC_ID,DYNAMIC_PRESSURE,FYI,GAMMA2_DFSEM,GEOM,ID,IOR, &
+NAMELIST /VENT/ AREA_ADJUST,COLOR,CTRL_ID,DB,DEVC_ID,DYNAMIC_PRESSURE,FYI,EDDY_GAMMA2,GEOM,ID,IOR, &
                 MB,MULT_ID,N_EDDY,OBST_ID,OUTLINE,PBX,PBY,PBZ,PRESSURE_RAMP,RADIUS,REYNOLDS_STRESS, &
-                RELATIVE_RMS,SIGMA_DFSEM, &
+                RELATIVE_RMS,L_EDDY, &
                 RGB,SPREAD_RATE,SURF_ID,TEXTURE_ORIGIN,TMP_EXTERIOR,TMP_EXTERIOR_RAMP,TRANSPARENCY, &
                 UVW,XB,XYZ
 
@@ -12425,8 +12425,8 @@ MESH_LOOP_1: DO NM=1,NMESHES
                VT%N_EDDY = N_EDDY
                IF (N_EDDY>0) THEN
                   SYNTHETIC_EDDY_METHOD = .TRUE.
-                  IF (SIGMA_DFSEM<=TWENTY_EPSILON_EB) THEN
-                     WRITE(MESSAGE,'(3A)') 'ERROR(815): VENT ',TRIM(ID),' SIGMA_DFSEM = 0 in DFSEM.'
+                  IF (L_EDDY<=TWENTY_EPSILON_EB) THEN
+                     WRITE(MESSAGE,'(3A)') 'ERROR(815): VENT ',TRIM(ID),' L_EDDY = 0 in DFSEM.'
                      CALL SHUTDOWN(MESSAGE,PROCESS_0_ONLY=.FALSE.) ; RETURN
                   ENDIF
                   IF (RELATIVE_RMS>0._EB) THEN
@@ -12451,27 +12451,27 @@ MESH_LOOP_1: DO NM=1,NMESHES
                      WRITE(MESSAGE,'(3A)') 'ERROR(817): VENT ',TRIM(ID),' DFSEM not permitted with HVAC.'
                      CALL SHUTDOWN(MESSAGE,PROCESS_0_ONLY=.FALSE.) ; RETURN
                   ENDIF
-                  ! SIGMA_DFSEM is interpreted in principal-stress coordinates:
-                  ! sigma_1 (dominant stress direction), with sigma_2=sigma_3=sigma_1/gamma,
-                  ! where gamma = sqrt(GAMMA2_DFSEM).
+                  ! L_EDDY is interpreted in principal-stress coordinates:
+                  ! sigma_1 = L_EDDY (dominant stress direction), with sigma_2=sigma_3=sigma_1/gamma,
+                  ! gamma = sqrt(EDDY_GAMMA2).
                   ! C2 from Poletto et al. 2013 Table 1, indexed by gamma^2.
-                  IF (GAMMA2_DFSEM<1 .OR. GAMMA2_DFSEM>8) THEN
+                  IF (EDDY_GAMMA2<1 .OR. EDDY_GAMMA2>8) THEN
                      WRITE(MESSAGE,'(3A)') 'ERROR: VENT ',TRIM(ID), &
-                        ' GAMMA2_DFSEM must be an integer from 1 to 8.'
+                        ' EDDY_GAMMA2 must be an integer from 1 to 8.'
                      CALL SHUTDOWN(MESSAGE,PROCESS_0_ONLY=.FALSE.) ; RETURN
                   ENDIF
-                  SELECT CASE(GAMMA2_DFSEM)
-                     CASE(1); VT%C2_DFSEM = 2.0_EB
-                     CASE(2); VT%C2_DFSEM = 1.875_EB
-                     CASE(3); VT%C2_DFSEM = 1.737_EB
-                     CASE(4); VT%C2_DFSEM = 1.75_EB
-                     CASE(5); VT%C2_DFSEM = 0.91_EB
-                     CASE(6); VT%C2_DFSEM = 0.825_EB
-                     CASE(7); VT%C2_DFSEM = 0.806_EB
-                     CASE(8); VT%C2_DFSEM = 1.5_EB
+                  SELECT CASE(EDDY_GAMMA2)
+                     CASE(1); VT%EDDY_C2 = 2.0_EB
+                     CASE(2); VT%EDDY_C2 = 1.875_EB
+                     CASE(3); VT%EDDY_C2 = 1.737_EB
+                     CASE(4); VT%EDDY_C2 = 1.75_EB
+                     CASE(5); VT%EDDY_C2 = 0.91_EB
+                     CASE(6); VT%EDDY_C2 = 0.825_EB
+                     CASE(7); VT%EDDY_C2 = 0.806_EB
+                     CASE(8); VT%EDDY_C2 = 1.5_EB
                   END SELECT
-                  VT%SIGMA_DFSEM = SIGMA_DFSEM/SQRT(REAL(GAMMA2_DFSEM,EB))
-                  VT%SIGMA_DFSEM(1) = SIGMA_DFSEM
+                  VT%L_EDDY = L_EDDY/SQRT(REAL(EDDY_GAMMA2,EB))
+                  VT%L_EDDY(1) = L_EDDY
                ENDIF
 
                ! Check if the VENT is attached to a specific OBST
@@ -12720,8 +12720,8 @@ IOR               = 0
 MB                = 'null'
 MULT_ID           = 'null'
 N_EDDY            = 0
-SIGMA_DFSEM       = 0._EB
-GAMMA2_DFSEM      = 1
+L_EDDY       = 0._EB
+EDDY_GAMMA2      = 1
 OBST_ID           = 'null'
 OUTLINE           = .FALSE.
 PBX               = -1.E6_EB
