@@ -617,6 +617,7 @@ INTEGER :: LEVEL_SET_PROJECTION_MODE=1    !< Level set spread projection model: 
 LOGICAL :: LEVEL_SET_COUPLED_FIRE=.TRUE.  !< Indicator for fire and wind level set coupling
 LOGICAL :: LEVEL_SET_COUPLED_WIND=.TRUE.  !< Indicator for fire and wind level set coupling
 REAL    :: LEVEL_SET_ELLIPSE_FACTOR = 1._EB !< Modifier for tuning length-breadth ratio of level set ellipse model
+REAL(EB) :: LEVEL_SET_TAU_ACCEL = -1._EB  !< Time constant for ROS acceleration lag (s); <=0 disables
 
 ! Parameters for Terrain and Wind simulation needs
 

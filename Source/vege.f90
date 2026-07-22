@@ -218,6 +218,10 @@ ALLOCATE(M%PHI_S_Y(IBAR,JBAR))  ; CALL ChkMemErr('VEGE:LEVEL SET','PHI_S_Y',IZER
 ALLOCATE(M%SR_X_LS(IBAR,JBAR)) ; CALL ChkMemErr('VEGE:LEVEL SET','SR_X_LS',IZERO) ; SR_X_LS => M%SR_X_LS
 ALLOCATE(M%SR_Y_LS(IBAR,JBAR)) ; CALL ChkMemErr('VEGE:LEVEL SET','SR_Y_LS',IZERO) ; SR_Y_LS => M%SR_Y_LS
 
+! Effective (time-lagged) head ROS; starts at 0 and relaxes toward equilibrium when LEVEL_SET_TAU_ACCEL>0
+
+ALLOCATE(M%ROS_EFF(IBAR,JBAR)) ; CALL ChkMemErr('VEGE:LEVEL SET','ROS_EFF',IZERO) ; ROS_EFF => M%ROS_EFF ; ROS_EFF = 0._EB
+
 ! Compute components of terrain slope gradient and magnitude of gradient
 
 GRADIENT_ILOOP: DO I = 1,IBAR
@@ -417,7 +421,7 @@ ENDDO
 
 ! Runge-Kutta Scheme
 
-CALL LEVEL_SET_SPREAD_RATE
+CALL LEVEL_SET_SPREAD_RATE(DT)
 CALL LEVEL_SET_ADVECT_FLUX
 
 IF (PREDICTOR) THEN
@@ -671,14 +675,17 @@ END SUBROUTINE GET_BOUNDARY_VALUES
 
 
 !> \brief Compute components of spread rate vector
+!>
+!> \param DT Time step (s)
 
-SUBROUTINE LEVEL_SET_SPREAD_RATE
+SUBROUTINE LEVEL_SET_SPREAD_RATE(DT)
 
 USE MATH_FUNCTIONS, ONLY: EVALUATE_RAMP
 INTEGER :: I,J,IM1,IP1,JM1,JP1
+REAL(EB), INTENT(IN) :: DT
 REAL(EB) :: DPHIDX,DPHIDY,F_EAST,F_WEST,F_NORTH,F_SOUTH,MAG_F
 REAL(EB) :: COS_THETA,SIN_THETA,XSF,YSF,UMF_DUM
-REAL(EB) :: AROS,A_ELPS,A_ELPS2,BROS,B_ELPS2,B_ELPS,C_ELPS,DENOM,ROS_TMP,LB,LBD,HB
+REAL(EB) :: AROS,A_ELPS,A_ELPS2,BROS,B_ELPS2,B_ELPS,C_ELPS,DENOM,ROS_TMP,ROS_EQ,LB,LBD,HB
 REAL(EB) :: ROS_00,RN,UMF_MAG,UMF_N,SLOPE_MAG,SLOPE_N
 REAL(EB) :: PHI_W_MAG,PHI_W_PROJ,PHI_S_MAG,PHI_S_PROJ,SLOPE_COEFF
 REAL(EB) :: UMF_X,UMF_Y,WIND_FACTOR,PHI_W_X,PHI_W_Y,PHI_S,PHX,PHY,MAG_PHI,THETA_ELPS_TMP,UMF_TMP
@@ -728,8 +735,10 @@ FLUX_ILOOP: DO J=1,JBAR
 
       ! ROS does not change with wind or slope
       IF (SF%VEG_LSET_ROS_FIXED) THEN
-         SR_X_LS(I,J) = SF%VEG_LSET_ROS_00*NORMAL_FIRELINE(1) !spread rate components
-         SR_Y_LS(I,J) = SF%VEG_LSET_ROS_00*NORMAL_FIRELINE(2)
+         ROS_EQ = SF%VEG_LSET_ROS_00
+         CALL APPLY_ROS_ACCEL(ROS_EQ,ROS_TMP)
+         SR_X_LS(I,J) = ROS_TMP*NORMAL_FIRELINE(1) !spread rate components
+         SR_Y_LS(I,J) = ROS_TMP*NORMAL_FIRELINE(2)
       ELSE
          SELECT CASE (LEVEL_SET_PROJECTION_MODE)
             CASE (1)
@@ -786,7 +795,8 @@ FLUX_ILOOP: DO J=1,JBAR
                THETA_ELPS_TMP = PIO2 - THETA_ELPS_TMP
                IF (THETA_ELPS_TMP < 0._EB) THETA_ELPS_TMP = 2._EB*PI + THETA_ELPS_TMP
 
-               ROS_TMP = SF%VEG_LSET_ROS_00*(1._EB + MAG_PHI) ! Bova et al., Eq. A3
+               ROS_EQ = SF%VEG_LSET_ROS_00*(1._EB + MAG_PHI) ! Bova et al., Eq. A3
+               CALL APPLY_ROS_ACCEL(ROS_EQ,ROS_TMP)
                COS_THETA = COS(THETA_ELPS_TMP)
                SIN_THETA = SIN(THETA_ELPS_TMP)
                UMF_DUM = UMF_MAG/60._EB
@@ -841,7 +851,7 @@ FLUX_ILOOP: DO J=1,JBAR
 
             CASE (2,3)
                ROS_00 = SF%VEG_LSET_ROS_00
-               RN = ROS_00
+               ROS_EQ = ROS_00
 
                IF (ROS_00 > 0._EB .AND. MAG_F > TWENTY_EPSILON_EB) THEN
                   SLOPE_COEFF = 5.275_EB * (SF%VEG_LSET_BETA**(-0.3_EB))
@@ -885,9 +895,10 @@ FLUX_ILOOP: DO J=1,JBAR
                      ENDIF
                   ENDIF
 
-                  RN = ROS_00*(1._EB + PHI_W_PROJ + PHI_S_PROJ)
+                  ROS_EQ = ROS_00*(1._EB + PHI_W_PROJ + PHI_S_PROJ)
                ENDIF
 
+               CALL APPLY_ROS_ACCEL(ROS_EQ,RN)
                SR_X_LS(I,J) = RN*NORMAL_FIRELINE(1)
                SR_Y_LS(I,J) = RN*NORMAL_FIRELINE(2)
          END SELECT
@@ -896,6 +907,27 @@ FLUX_ILOOP: DO J=1,JBAR
    ENDDO
 
 ENDDO FLUX_ILOOP
+
+CONTAINS
+
+!> \brief Freeze lagged head ROS for both RK stages; advance memory on corrector only
+!>
+!> \param ROS_EQ Current equilibrium head ROS (m/s)
+!> \param ROS_USE ROS used to build the spread vector (m/s)
+
+SUBROUTINE APPLY_ROS_ACCEL(ROS_EQ,ROS_USE)
+
+REAL(EB), INTENT(IN) :: ROS_EQ
+REAL(EB), INTENT(OUT) :: ROS_USE
+
+IF (LEVEL_SET_TAU_ACCEL > 0._EB) THEN
+   ROS_USE = ROS_EFF(I,J)
+   IF (.NOT.PREDICTOR) ROS_EFF(I,J) = ROS_EQ + (ROS_EFF(I,J) - ROS_EQ)*EXP(-DT/LEVEL_SET_TAU_ACCEL)
+ELSE
+   ROS_USE = ROS_EQ
+ENDIF
+
+END SUBROUTINE APPLY_ROS_ACCEL
 
 END SUBROUTINE LEVEL_SET_SPREAD_RATE
 
