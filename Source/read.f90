@@ -12435,7 +12435,7 @@ MESH_LOOP_1: DO NM=1,NMESHES
                IF (N_EDDY>0) THEN
                   SYNTHETIC_EDDY_METHOD = .TRUE.
                   IF (L_EDDY<=TWENTY_EPSILON_EB) THEN
-                     WRITE(MESSAGE,'(3A)') 'ERROR(815): VENT ',TRIM(ID),' L_EDDY = 0 in DFSEM.'
+                     WRITE(MESSAGE,'(3A)') 'ERROR(815): VENT ',TRIM(ID),' L_EDDY = 0 in Synthetic Eddy Method.'
                      CALL SHUTDOWN(MESSAGE,PROCESS_0_ONLY=.FALSE.) ; RETURN
                   ENDIF
                   IF (TURBULENCE_INTENSITY>0._EB) THEN
@@ -12451,12 +12451,12 @@ MESH_LOOP_1: DO NM=1,NMESHES
                      VT%R_IJ = MAX(VT%R_IJ,1.E-10_EB)
                      IF (ALL(ABS(REYNOLDS_STRESS)<TWENTY_EPSILON_EB)) THEN
                         WRITE(MESSAGE,'(3A)') 'ERROR(816): VENT ',TRIM(ID),&
-                           ' TURBULENCE_INTENSITY or REYNOLDS_STRESS required for DFSEM.'
+                           ' TURBULENCE_INTENSITY or REYNOLDS_STRESS required for Synthetic Eddy Method.'
                         CALL SHUTDOWN(MESSAGE,PROCESS_0_ONLY=.FALSE.) ; RETURN
                      ENDIF
                   ENDIF
                   IF (TRIM(SURF_ID)=='HVAC') THEN
-                     WRITE(MESSAGE,'(3A)') 'ERROR(817): VENT ',TRIM(ID),' DFSEM not permitted with HVAC.'
+                     WRITE(MESSAGE,'(3A)') 'ERROR(817): VENT ',TRIM(ID),' Synthetic Eddy Method not permitted with HVAC.'
                      CALL SHUTDOWN(MESSAGE,PROCESS_0_ONLY=.FALSE.) ; RETURN
                   ENDIF
                   ! L_EDDY is interpreted in principal-stress coordinates:
