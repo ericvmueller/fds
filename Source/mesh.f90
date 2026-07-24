@@ -340,7 +340,7 @@ TYPE MESH_TYPE
    INTEGER :: N_TERRAIN_SLCF=0
 
    REAL(EB), ALLOCATABLE, DIMENSION(:,:) :: FLUX0_LS,FLUX1_LS,PHI_LS,PHI1_LS, &
-                                            SR_X_LS,SR_Y_LS,U_LS,V_LS,Z_LS,DZTDX,DZTDY,MAG_ZT, &
+                                            SR_X_LS,SR_Y_LS,U_LS,V_LS,US_LS,VS_LS,Z_LS,DZTDX,DZTDY,MAG_ZT, &
                                             PHI_S_X,PHI_S_Y,PHI_W,LS_WORK1,LS_WORK2,ROS_EFF
 
 END TYPE MESH_TYPE
@@ -484,7 +484,7 @@ INTEGER, POINTER, DIMENSION(:,:,:) :: K_AGL_SLICE
 INTEGER, POINTER, DIMENSION(:,:) :: LS_KLO_TERRAIN,LS_KHI_TERRAIN,K_LS,LS_SURF_INDEX
 INTEGER, POINTER :: N_TERRAIN_SLCF
 REAL(EB), POINTER, DIMENSION(:,:) :: FLUX0_LS,FLUX1_LS,PHI_LS,PHI1_LS, &
-                                     SR_X_LS,SR_Y_LS,U_LS,V_LS,Z_LS,DZTDX,DZTDY,MAG_ZT, &
+                                     SR_X_LS,SR_Y_LS,U_LS,V_LS,US_LS,VS_LS,Z_LS,DZTDX,DZTDY,MAG_ZT, &
                                      PHI_S_X,PHI_S_Y,PHI_W,LS_WORK1,LS_WORK2,ROS_EFF
 
 
@@ -879,6 +879,8 @@ SR_X_LS => M%SR_X_LS
 SR_Y_LS => M%SR_Y_LS
 U_LS => M%U_LS
 V_LS => M%V_LS
+US_LS => M%US_LS
+VS_LS => M%VS_LS
 Z_LS => M%Z_LS
 DZTDX => M%DZTDX
 DZTDY => M%DZTDY

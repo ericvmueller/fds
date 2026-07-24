@@ -70,8 +70,11 @@ PHI1_LS = PHI_LS_MIN
 
 ! Wind speed components in the center of the first gas phsae cell above the ground.
 
+! Level set wind: U_LS/V_LS are corrector (persistent) values; US_LS/VS_LS are predictor values
 ALLOCATE(M%U_LS(0:IBP1,0:JBP1)) ; CALL ChkMemErr('VEGE:LEVEL SET','U_LS',IZERO) ; U_LS => M%U_LS ; U_LS = 0._EB
 ALLOCATE(M%V_LS(0:IBP1,0:JBP1)) ; CALL ChkMemErr('VEGE:LEVEL SET','V_LS',IZERO) ; V_LS => M%V_LS ; V_LS = 0._EB
+ALLOCATE(M%US_LS(0:IBP1,0:JBP1)) ; CALL ChkMemErr('VEGE:LEVEL SET','US_LS',IZERO) ; US_LS => M%US_LS ; US_LS = 0._EB
+ALLOCATE(M%VS_LS(0:IBP1,0:JBP1)) ; CALL ChkMemErr('VEGE:LEVEL SET','VS_LS',IZERO) ; VS_LS => M%VS_LS ; VS_LS = 0._EB
 
 ! Terrain height, Z_LS, and z index of the first gas cell above terrain, K_LS
 
@@ -302,15 +305,28 @@ END SUBROUTINE INITIALIZE_LEVEL_SET_FIRESPREAD_2
 SUBROUTINE LEVEL_SET_FIRESPREAD(T,DT,NM)
 
 USE MATH_FUNCTIONS, ONLY: EVALUATE_RAMP
+USE TURBULENCE, ONLY: TEST_FILTER
 INTEGER, INTENT(IN) :: NM
 REAL(EB), INTENT(IN) :: T,DT
 INTEGER :: IIG,IW,JJG,IC,OUTPUT_INDEX
 INTEGER :: KDUM,KWIND,ICF,IKT
-REAL(EB) :: UMF_TMP,ROS_MAG,SIN_THETA,COS_THETA,THETA,ZWIND(2),U_Z(2),V_Z(2),REF_WIND_HEIGHT
+REAL(EB) :: UMF_TMP,ROS_MAG,SIN_THETA,COS_THETA,THETA,ZWIND(2),U_Z(2),V_Z(2),REF_WIND_HEIGHT,&
+            U_LS_INST,V_LS_INST,ALPHA_LS
+REAL(EB), POINTER, DIMENSION(:,:,:) :: U_HAT,V_HAT
 
 T_NOW = CURRENT_TIME()
 
 CALL POINT_TO_MESH(NM)
+
+IF (LEVEL_SET_WIND_FILTER) THEN
+   U_HAT => WORK1
+   V_HAT => WORK2
+   CALL TEST_FILTER(U_HAT,U)
+   CALL TEST_FILTER(V_HAT,V)
+ELSE
+   U_HAT => U
+   V_HAT => V
+ENDIF
 
 CALL GET_BOUNDARY_VALUES
 
@@ -341,8 +357,8 @@ DO JJG=1,JBAR
 
       IF_CFD_COUPLED: IF (LEVEL_SET_COUPLED_WIND .AND. .NOT. LEVEL_SET_MODE==5) THEN  ! The wind speed is derived from the CFD
 
-         U_LS(IIG,JJG) = 0.5_EB*(U(IIG-1,JJG,K_LS(IIG,JJG))+U(IIG,JJG,K_LS(IIG,JJG)))
-         V_LS(IIG,JJG) = 0.5_EB*(V(IIG,JJG-1,K_LS(IIG,JJG))+V(IIG,JJG,K_LS(IIG,JJG)))
+         U_LS_INST = 0.5_EB*(U_HAT(IIG-1,JJG,K_LS(IIG,JJG))+U_HAT(IIG,JJG,K_LS(IIG,JJG)))
+         V_LS_INST = 0.5_EB*(V_HAT(IIG,JJG-1,K_LS(IIG,JJG))+V_HAT(IIG,JJG,K_LS(IIG,JJG)))
 
       ELSE IF_CFD_COUPLED  ! The wind velocity is specified by the user
 
@@ -362,9 +378,9 @@ DO JJG=1,JBAR
             SIN_THETA = 1._EB
             COS_THETA = 1._EB
          ENDIF
-         U_LS(IIG,JJG) = U0*EVALUATE_RAMP(REF_WIND_HEIGHT,I_RAMP_SPEED_Z)*&
+         U_LS_INST = U0*EVALUATE_RAMP(REF_WIND_HEIGHT,I_RAMP_SPEED_Z)*&
             EVALUATE_RAMP(T,I_RAMP_SPEED_T)*SIN_THETA
-         V_LS(IIG,JJG) = V0*EVALUATE_RAMP(REF_WIND_HEIGHT,I_RAMP_SPEED_Z)*&
+         V_LS_INST = V0*EVALUATE_RAMP(REF_WIND_HEIGHT,I_RAMP_SPEED_Z)*&
             EVALUATE_RAMP(T,I_RAMP_SPEED_T)*COS_THETA
 
       ENDIF IF_CFD_COUPLED
@@ -377,8 +393,8 @@ DO JJG=1,JBAR
 
          ! Check if sample height is in the mesh
          IF (ZC(KBAR)<REF_WIND_HEIGHT) THEN
-            U_LS(IIG,JJG) = 0.5_EB*(U(IIG-1,JJG,KBAR)+U(IIG,JJG,KBAR))
-            V_LS(IIG,JJG) = 0.5_EB*(V(IIG,JJG-1,KBAR)+V(IIG,JJG,KBAR))
+            U_LS_INST = 0.5_EB*(U_HAT(IIG-1,JJG,KBAR)+U_HAT(IIG,JJG,KBAR))
+            V_LS_INST = 0.5_EB*(V_HAT(IIG,JJG-1,KBAR)+V_HAT(IIG,JJG,KBAR))
          ELSE
 
             KWIND = 0
@@ -391,16 +407,16 @@ DO JJG=1,JBAR
                ENDIF
             ENDDO
 
-            U_Z(1) = 0.5_EB*(U(IIG-1,JJG,KWIND-1)+U(IIG,JJG,KWIND-1))
-            U_Z(2) = 0.5_EB*(U(IIG-1,JJG,KWIND)+U(IIG,JJG,KWIND))
-            V_Z(1) = 0.5_EB*(V(IIG,JJG-1,KWIND-1)+V(IIG,JJG,KWIND-1))
-            V_Z(2) = 0.5_EB*(V(IIG,JJG-1,KWIND)+V(IIG,JJG,KWIND))
+            U_Z(1) = 0.5_EB*(U_HAT(IIG-1,JJG,KWIND-1)+U_HAT(IIG,JJG,KWIND-1))
+            U_Z(2) = 0.5_EB*(U_HAT(IIG-1,JJG,KWIND)+U_HAT(IIG,JJG,KWIND))
+            V_Z(1) = 0.5_EB*(V_HAT(IIG,JJG-1,KWIND-1)+V_HAT(IIG,JJG,KWIND-1))
+            V_Z(2) = 0.5_EB*(V_HAT(IIG,JJG-1,KWIND)+V_HAT(IIG,JJG,KWIND))
             ! If wind comes from first grid cell assume plug flow near ground level
             IF (KWIND==1) THEN
                U_Z(1) = U_Z(2); V_Z(1) = V_Z(2); ZWIND(1) = Z_LS(IIG,JJG)
             ENDIF
-            U_LS(IIG,JJG) = U_Z(1) + (REF_WIND_HEIGHT-ZWIND(1))/(ZWIND(2)-ZWIND(1))*(U_Z(2)-U_Z(1))
-            V_LS(IIG,JJG) = V_Z(1) + (REF_WIND_HEIGHT-ZWIND(1))/(ZWIND(2)-ZWIND(1))*(V_Z(2)-V_Z(1))
+            U_LS_INST = U_Z(1) + (REF_WIND_HEIGHT-ZWIND(1))/(ZWIND(2)-ZWIND(1))*(U_Z(2)-U_Z(1))
+            V_LS_INST = V_Z(1) + (REF_WIND_HEIGHT-ZWIND(1))/(ZWIND(2)-ZWIND(1))*(V_Z(2)-V_Z(1))
 
          ENDIF
 
@@ -412,9 +428,30 @@ DO JJG=1,JBAR
       IF (SF%VEG_LSET_WIND_HEIGHT<0._EB) &
          UMF_TMP = 1.83_EB / LOG((20.0_EB + 1.18_EB * SF%VEG_LSET_HT) /(0.43_EB * SF%VEG_LSET_HT))  ! Bova et al., Eq. A2
 
-      ! Convert to midflame wind (m/s). Spread model-specific ROS projection is computed in LEVEL_SET_SPREAD_RATE.
-      U_LS(IIG,JJG) = UMF_TMP * U_LS(IIG,JJG)
-      V_LS(IIG,JJG) = UMF_TMP * V_LS(IIG,JJG)
+      ! Convert to midflame wind (m/s). Spread uses US_LS on the predictor and U_LS on the corrector.
+      U_LS_INST = UMF_TMP * U_LS_INST
+      V_LS_INST = UMF_TMP * V_LS_INST
+
+      IF (LEVEL_SET_WIND_TAU > 0._EB) THEN
+         ALPHA_LS = DT / (LEVEL_SET_WIND_TAU + DT)
+         IF (PREDICTOR) THEN
+            ! Provisional smoothed wind from predictor INST and last corrector state
+            US_LS(IIG,JJG) = ALPHA_LS * U_LS_INST + (1._EB - ALPHA_LS) * U_LS(IIG,JJG)
+            VS_LS(IIG,JJG) = ALPHA_LS * V_LS_INST + (1._EB - ALPHA_LS) * V_LS(IIG,JJG)
+         ELSE
+            ! Persistent smoothed wind advanced with corrector INST
+            U_LS(IIG,JJG) = ALPHA_LS * U_LS_INST + (1._EB - ALPHA_LS) * U_LS(IIG,JJG)
+            V_LS(IIG,JJG) = ALPHA_LS * V_LS_INST + (1._EB - ALPHA_LS) * V_LS(IIG,JJG)
+         ENDIF
+      ELSE
+         IF (PREDICTOR) THEN
+            US_LS(IIG,JJG) = U_LS_INST
+            VS_LS(IIG,JJG) = V_LS_INST
+         ELSE
+            U_LS(IIG,JJG) = U_LS_INST
+            V_LS(IIG,JJG) = V_LS_INST
+         ENDIF
+      ENDIF
 
    ENDDO
 ENDDO
@@ -691,11 +728,16 @@ REAL(EB) :: PHI_W_MAG,PHI_W_PROJ,PHI_S_MAG,PHI_S_PROJ,SLOPE_COEFF
 REAL(EB) :: UMF_X,UMF_Y,WIND_FACTOR,PHI_W_X,PHI_W_Y,PHI_S,PHX,PHY,MAG_PHI,THETA_ELPS_TMP,UMF_TMP
 REAL(EB), DIMENSION(:) :: NORMAL_FIRELINE(2)
 REAL(EB), DIMENSION(:) :: U_VEC(2),UHAT(2),SLOPE_VEC(2),SHAT(2)
+REAL(EB), POINTER, DIMENSION(:,:) :: U_LS_P,V_LS_P
 
 IF (PREDICTOR) THEN
    PHI_LS_P => PHI_LS
+   U_LS_P => US_LS
+   V_LS_P => VS_LS
 ELSE
    PHI_LS_P => PHI1_LS
+   U_LS_P => U_LS
+   V_LS_P => V_LS
 ENDIF
 
 SR_X_LS = 0.0_EB ; SR_Y_LS = 0.0_EB
@@ -745,8 +787,8 @@ FLUX_ILOOP: DO J=1,JBAR
                ! Richards/FARSITE ellipse model: build effective wind+slope direction/magnitude,
                ! then project ellipse spread rates onto x-y components.
                ! Factor 60 converts U from m/s to m/min for the ellipse model.
-               UMF_X = 60._EB*U_LS(I,J)
-               UMF_Y = 60._EB*V_LS(I,J)
+               UMF_X = 60._EB*U_LS_P(I,J)
+               UMF_Y = 60._EB*V_LS_P(I,J)
                UMF_MAG = SQRT(UMF_X**2 + UMF_Y**2)
 
                ! Compute wind factor affecting spread rate: R(U) = R_0*(1 + WIND_FACTOR).
@@ -857,7 +899,7 @@ FLUX_ILOOP: DO J=1,JBAR
                   SLOPE_COEFF = 5.275_EB * (SF%VEG_LSET_BETA**(-0.3_EB))
                   PHI_W_PROJ = 0._EB
                   PHI_S_PROJ = 0._EB
-                  U_VEC = (/U_LS(I,J),V_LS(I,J)/)
+                  U_VEC = (/U_LS_P(I,J),V_LS_P(I,J)/)
                   SLOPE_VEC = (/DZTDX(I,J),DZTDY(I,J)/)
 
                   IF (LEVEL_SET_PROJECTION_MODE==2) THEN
