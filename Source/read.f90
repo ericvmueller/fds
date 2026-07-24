@@ -12114,6 +12114,15 @@ MESH_LOOP_1: DO NM=1,NMESHES
          END SELECT
       ENDIF
 
+      ! SEM/DFSEM: MB and PBX/PBY/PBZ are mesh-relative and can assign the same
+      ! TOTAL_INDEX to segments with different planes or tangential extents.
+      ! Require XB or DB so the undivided eddy box is unambiguous.
+      IF (N_EDDY>0 .AND. (MB/='null' .OR. PBX>-1.E5_EB .OR. PBY>-1.E5_EB .OR. PBZ>-1.E5_EB)) THEN
+         WRITE(MESSAGE,'(3A)') 'ERROR: VENT ',TRIM(ID), &
+            ' with N_EDDY>0 must use XB or DB (not MB, PBX, PBY, or PBZ) to avoid ambiguity.'
+         CALL SHUTDOWN(MESSAGE,PROCESS_0_ONLY=.FALSE.) ; RETURN
+      ENDIF
+
       ! Check that the vent is properly specified
 
       IF (ABS(XB(3)-XB(4))<=SPACING(XB(4)) .AND. TWO_D .AND. N_TOTAL>N_IMPLICIT_VENTS) THEN
