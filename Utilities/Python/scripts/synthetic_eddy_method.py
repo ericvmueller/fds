@@ -195,7 +195,7 @@ u_fds_rms = M['URMS'].values
 T_fds = M['TMEAN'].values
 T_fds_rms = M['TRMS'].values
 
-I = 0.1  # dimensionless RELATIVE_RMS (10% of local wind speed); SPEED=10 m/s in input file
+I = 0.1  # TURBULENCE_INTENSITY; u'/U = v'/U = w'/U with U = local mean speed
 
 fig = fdsplotlib.plot_to_fig(x_data=u_exp, y_data=z_exp, marker_style='k>', data_label='Monin-Obukhov profile',
                              revision_label=version_string,

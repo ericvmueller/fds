@@ -1539,7 +1539,7 @@ TYPE VENTS_TYPE
    CHARACTER(LABEL_LENGTH) :: DEVC_ID='null',CTRL_ID='null',ID='null'
    ! Divergence-Free Synthetic Eddy Method (DFSEM; Poletto et al. 2013)
    INTEGER :: N_EDDY=0
-   REAL(EB) :: RELATIVE_RMS=0._EB !< Dimensionless intensity I; R~I^2 U(z_eddy)^2 via eddy amplitudes
+   REAL(EB) :: TURBULENCE_INTENSITY=0._EB !< I=u'/U=v'/U=w'/U; U=local mean at eddy; R~I^2 U^2 via amplitudes
    REAL(EB) :: R_IJ(3,3)=0._EB,EDDY_BOX_VOLUME=0._EB, &
               L_EDDY(3)=0._EB,C1_DFSEM=0._EB,EDDY_C2=1._EB,DFSEM_ROT(3,3)=0._EB, &
                X_EDDY_MIN=0._EB,X_EDDY_MAX=0._EB, &

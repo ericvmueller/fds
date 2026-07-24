@@ -11960,7 +11960,7 @@ USE MISC_FUNCTIONS, ONLY: PROCESS_MESH_NEIGHBORHOOD
 INTEGER :: N,N_TOTAL,NM,NNN,IOR,I1,I2,J1,J2,K1,K2,RGB(3),N_EDDY,II,JJ,KK,OBST_INDEX,N_EXPLICIT,N_IMPLICIT_VENTS,I_MODE,&
            N_ORIGINAL_VENTS,IC0,IC1,IC,EDDY_GAMMA2
 REAL(EB) :: SPREAD_RATE,TRANSPARENCY,XYZ(3),TMP_EXTERIOR,DYNAMIC_PRESSURE,XB_USER(6),XB_MESH(6), &
-            REYNOLDS_STRESS(3,3),RELATIVE_RMS,UVW(3),RADIUS,L_EDDY
+            REYNOLDS_STRESS(3,3),TURBULENCE_INTENSITY,UVW(3),RADIUS,L_EDDY
 CHARACTER(LABEL_LENGTH) :: ID,DEVC_ID,CTRL_ID,SURF_ID,PRESSURE_RAMP,TMP_EXTERIOR_RAMP,MULT_ID,OBST_ID
 CHARACTER(25) :: COLOR
 TYPE(MULTIPLIER_TYPE), POINTER :: MR
@@ -11973,7 +11973,7 @@ END TYPE
 TYPE(IMPLICIT_VENT_TYPE), ALLOCATABLE, DIMENSION(:) :: IMPLICIT_VENT
 NAMELIST /VENT/ AREA_ADJUST,COLOR,CTRL_ID,DB,DEVC_ID,DYNAMIC_PRESSURE,FYI,EDDY_GAMMA2,GEOM,ID,IOR, &
                 MB,MULT_ID,N_EDDY,OBST_ID,OUTLINE,PBX,PBY,PBZ,PRESSURE_RAMP,RADIUS,REYNOLDS_STRESS, &
-                RELATIVE_RMS,L_EDDY, &
+                TURBULENCE_INTENSITY,L_EDDY, &
                 RGB,SPREAD_RATE,SURF_ID,TEXTURE_ORIGIN,TMP_EXTERIOR,TMP_EXTERIOR_RAMP,TRANSPARENCY, &
                 UVW,XB,XYZ
 
@@ -12114,7 +12114,7 @@ MESH_LOOP_1: DO NM=1,NMESHES
          END SELECT
       ENDIF
 
-      ! SEM/DFSEM: MB and PBX/PBY/PBZ are mesh-relative and can assign the same
+      ! DFSEM: MB and PBX/PBY/PBZ are mesh-relative and can assign the same
       ! TOTAL_INDEX to segments with different planes or tangential extents.
       ! Require XB or DB so the undivided eddy box is unambiguous.
       IF (N_EDDY>0 .AND. (MB/='null' .OR. PBX>-1.E5_EB .OR. PBY>-1.E5_EB .OR. PBZ>-1.E5_EB)) THEN
@@ -12438,21 +12438,20 @@ MESH_LOOP_1: DO NM=1,NMESHES
                      WRITE(MESSAGE,'(3A)') 'ERROR(815): VENT ',TRIM(ID),' L_EDDY = 0 in DFSEM.'
                      CALL SHUTDOWN(MESSAGE,PROCESS_0_ONLY=.FALSE.) ; RETURN
                   ENDIF
-                  IF (RELATIVE_RMS>0._EB) THEN
-                     ! Dimensionless intensity I: R_IJ = I^2; eddy amplitudes later use R(z)=I^2 U(z)^2
-                     ! at the eddy center (keeps DFSEM divergence-free).
-                     VT%RELATIVE_RMS = RELATIVE_RMS
+                  IF (TURBULENCE_INTENSITY>0._EB) THEN
+                     ! I = u'/U = v'/U = w'/U with U the local mean speed at the eddy.
+                     VT%TURBULENCE_INTENSITY = TURBULENCE_INTENSITY
                      VT%R_IJ = 0._EB
-                     VT%R_IJ(1,1) = RELATIVE_RMS**2
-                     VT%R_IJ(2,2) = RELATIVE_RMS**2
-                     VT%R_IJ(3,3) = RELATIVE_RMS**2
+                     VT%R_IJ(1,1) = TURBULENCE_INTENSITY**2
+                     VT%R_IJ(2,2) = TURBULENCE_INTENSITY**2
+                     VT%R_IJ(3,3) = TURBULENCE_INTENSITY**2
                   ELSE
-                     VT%RELATIVE_RMS = 0._EB
+                     VT%TURBULENCE_INTENSITY = 0._EB
                      VT%R_IJ = REYNOLDS_STRESS
                      VT%R_IJ = MAX(VT%R_IJ,1.E-10_EB)
                      IF (ALL(ABS(REYNOLDS_STRESS)<TWENTY_EPSILON_EB)) THEN
                         WRITE(MESSAGE,'(3A)') 'ERROR(816): VENT ',TRIM(ID),&
-                           ' RELATIVE_RMS or REYNOLDS_STRESS required for DFSEM.'
+                           ' TURBULENCE_INTENSITY or REYNOLDS_STRESS required for DFSEM.'
                         CALL SHUTDOWN(MESSAGE,PROCESS_0_ONLY=.FALSE.) ; RETURN
                      ENDIF
                   ENDIF
@@ -12747,7 +12746,7 @@ TMP_EXTERIOR      = -1000.
 TMP_EXTERIOR_RAMP = 'null'
 TRANSPARENCY      = 1._EB
 UVW               = -1.E12_EB
-RELATIVE_RMS      = 0._EB
+TURBULENCE_INTENSITY = 0._EB
 XYZ               = -1.E6_EB
 XB                = -1.E6_EB
 

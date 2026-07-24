@@ -1928,8 +1928,10 @@ EPS_EDDY(3) = MERGE(1._EB,-1._EB,SEM_U01(VT%TOTAL_INDEX,NE,ICYC,6,SEM_BASE_SEED)
 ! Quantities are in principal-stress coordinates (lambda sorted descending in R_IJ diagonal).
 ! alpha is stored in CU/CV/CW in principal coordinates.
 !
-! RELATIVE_RMS: R_IJ holds I^2. Scale alpha by local mean speed at the eddy center so
-! R(z)~I^2 U(z)^2 without post-multiplying the assembled velocity (preserves div-free).
+! TURBULENCE_INTENSITY: R_IJ holds I^2 with I = u'/U = v'/U = w'/U.
+! Scale alpha by the local mean speed at the eddy center
+! without post-multiplying the assembled velocity (preserves div-free).
+! (Eddy advection still uses the bulk / height-mean velocity separately.)
 LAMBDA(1) = VT%R_IJ(1,1); LAMBDA(2) = VT%R_IJ(2,2); LAMBDA(3) = VT%R_IJ(3,3)
 SIGMA2 = VT%L_EDDY**2
 SLOS2 = SUM(LAMBDA/SIGMA2)
@@ -1948,7 +1950,7 @@ DO J=1,3
    END SELECT
 ENDDO
 
-IF (VT%RELATIVE_RMS>0._EB) THEN
+IF (VT%TURBULENCE_INTENSITY>0._EB) THEN
    U_MEAN = LOCAL_VELOCITY_LOOKUP(VT,NE,T)
    VT%CU_EDDY(NE) = VT%CU_EDDY(NE)*U_MEAN
    VT%CV_EDDY(NE) = VT%CV_EDDY(NE)*U_MEAN
@@ -1960,8 +1962,7 @@ END SUBROUTINE EDDY_AMPLITUDE
 
 REAL(EB) FUNCTION LOCAL_VELOCITY_LOOKUP(VT,NE,T)
 
-! Local mean-flow speed at the eddy center, used to dimensionalize RELATIVE_RMS.
-! (Eddy advection uses the bulk / height-mean velocity separately.)
+! Local mean-flow speed at the eddy center, used to dimensionalize TURBULENCE_INTENSITY.
 
 USE PHYSICAL_FUNCTIONS, ONLY: GET_WIND_AT_HEIGHT,SURFACE_VELOCITY_PROFILE_FACTOR
 
