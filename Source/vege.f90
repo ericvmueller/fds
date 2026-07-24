@@ -70,7 +70,6 @@ PHI1_LS = PHI_LS_MIN
 
 ! Wind speed components in the center of the first gas phsae cell above the ground.
 
-! Level set wind: U_LS/V_LS are corrector (persistent) values; US_LS/VS_LS are predictor values
 ALLOCATE(M%U_LS(0:IBP1,0:JBP1)) ; CALL ChkMemErr('VEGE:LEVEL SET','U_LS',IZERO) ; U_LS => M%U_LS ; U_LS = 0._EB
 ALLOCATE(M%V_LS(0:IBP1,0:JBP1)) ; CALL ChkMemErr('VEGE:LEVEL SET','V_LS',IZERO) ; V_LS => M%V_LS ; V_LS = 0._EB
 ALLOCATE(M%US_LS(0:IBP1,0:JBP1)) ; CALL ChkMemErr('VEGE:LEVEL SET','US_LS',IZERO) ; US_LS => M%US_LS ; US_LS = 0._EB
@@ -535,6 +534,7 @@ SUBROUTINE IGNITE_GRID_CELL
 
 REAL(EB) :: CROSSING_DISTANCE,FIRE_DEPTH,TAU_2
 
+LEVEL_SET_IGNITED = .TRUE.
 B1%T_IGN = T
 ROS_MAG = MAX(0.0001_EB,SQRT(SR_X_LS(IIG,JJG)**2 + SR_Y_LS(IIG,JJG)**2))  ! Rate Of Spread magnitude
 IF (ABS(SR_X_LS(IIG,JJG))<TWENTY_EPSILON_EB) THEN
@@ -963,8 +963,13 @@ REAL(EB), INTENT(IN) :: ROS_EQ
 REAL(EB), INTENT(OUT) :: ROS_USE
 
 IF (LEVEL_SET_TAU_ACCEL > 0._EB) THEN
-   ROS_USE = ROS_EFF(I,J)
-   IF (.NOT.PREDICTOR) ROS_EFF(I,J) = ROS_EQ + (ROS_EFF(I,J) - ROS_EQ)*EXP(-DT/LEVEL_SET_TAU_ACCEL)
+   ! Hold ROS_EFF at 0 until the first ignition so the lag does not spin up pre-ignition
+   IF (.NOT. LEVEL_SET_IGNITED) THEN
+      ROS_USE = 0._EB
+   ELSE
+      ROS_USE = ROS_EFF(I,J)
+      IF (.NOT.PREDICTOR) ROS_EFF(I,J) = ROS_EQ + (ROS_EFF(I,J) - ROS_EQ)*EXP(-DT/LEVEL_SET_TAU_ACCEL)
+   ENDIF
 ELSE
    ROS_USE = ROS_EQ
 ENDIF
