@@ -443,13 +443,10 @@ DO JJG=1,JBAR
             V_LS(IIG,JJG) = ALPHA_LS * V_LS_INST + (1._EB - ALPHA_LS) * V_LS(IIG,JJG)
          ENDIF
       ELSE
-         IF (PREDICTOR) THEN
-            US_LS(IIG,JJG) = U_LS_INST
-            VS_LS(IIG,JJG) = V_LS_INST
-         ELSE
-            U_LS(IIG,JJG) = U_LS_INST
-            V_LS(IIG,JJG) = V_LS_INST
-         ENDIF
+         U_LS(IIG,JJG) = U_LS_INST
+         V_LS(IIG,JJG) = V_LS_INST
+         US_LS(IIG,JJG) = U_LS_INST
+         VS_LS(IIG,JJG) = V_LS_INST
       ENDIF
 
    ENDDO

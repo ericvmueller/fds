@@ -618,7 +618,7 @@ LOGICAL :: LEVEL_SET_COUPLED_FIRE=.TRUE.  !< Indicator for fire and wind level s
 LOGICAL :: LEVEL_SET_COUPLED_WIND=.TRUE.  !< Indicator for fire and wind level set coupling
 REAL    :: LEVEL_SET_ELLIPSE_FACTOR = 1._EB !< Modifier for tuning length-breadth ratio of level set ellipse model
 REAL(EB) :: LEVEL_SET_TAU_ACCEL = -1._EB  !< Time constant for ROS acceleration lag (s); <=0 disables
-LOGICAL :: LEVEL_SET_IGNITED=.FALSE.      !< True after the first level-set IGNITE_GRID_CELL call
+LOGICAL :: LEVEL_SET_IGNITED=.FALSE.      !< True after first level-set ignition (synced across MPI)
 REAL(EB) :: LEVEL_SET_WIND_TAU = -1._EB   !< Time constant for level set wind moving average (s); <=0 disables
 LOGICAL :: LEVEL_SET_WIND_FILTER=.FALSE.  !< Apply spatial filtering to level set wind field
 

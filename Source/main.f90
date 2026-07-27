@@ -692,6 +692,8 @@ MAIN_LOOP: DO
 
       ! Exchange level set values, if necessary
 
+      IF (LEVEL_SET_MODE>0 .AND. LEVEL_SET_TAU_ACCEL>0._EB .AND. N_MPI_PROCESSES>1) &
+         CALL MPI_ALLREDUCE(MPI_IN_PLACE,LEVEL_SET_IGNITED,INTEGER_ONE,MPI_LOGICAL,MPI_LOR,MPI_COMM_WORLD,IERR)
       IF (LEVEL_SET_MODE>0) CALL MESH_EXCHANGE(14)
 
       ! Exchange newly inserted particles, if necessary
@@ -858,6 +860,8 @@ MAIN_LOOP: DO
    ! Exchange species mass fractions.
 
    IF (LEVEL_SET_MODE/=1) CALL MESH_EXCHANGE(4)
+   IF (LEVEL_SET_MODE>0 .AND. LEVEL_SET_TAU_ACCEL>0._EB .AND. N_MPI_PROCESSES>1) &
+      CALL MPI_ALLREDUCE(MPI_IN_PLACE,LEVEL_SET_IGNITED,INTEGER_ONE,MPI_LOGICAL,MPI_LOR,MPI_COMM_WORLD,IERR)
    IF (LEVEL_SET_MODE>0) CALL MESH_EXCHANGE(14)
 
    ! Apply mass and species boundary conditions, update radiation, particles, and re-compute divergence
