@@ -4537,14 +4537,30 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
                             CASE(2) ! diamond
                                 FWX = 2.0_EB; FWY = 2.0_EB; FWZ = 2.0_EB
                             CASE(4) ! exponential v2
-                                PLX(:) = HUGE_EB
-                                IF(ABS(DLANG(1,N))>0._EB) PLX(1) = DX(I)/ABS(DLANG(1,N))
-                                IF(ABS(DLANG(2,N))>0._EB) PLX(2) = DY(J)/ABS(DLANG(2,N))
-                                IF(ABS(DLANG(3,N))>0._EB) PLX(3) = DZ(K)/ABS(DLANG(3,N))
-                                PLX = PLX*EXTCOE(I,J,K)
-                                FWX = MIN(1._EB, 1._EB/(1._EB-EXP(-PLX(1)))-1._EB/(PLX(1)))
-                                FWY = MIN(1._EB, 1._EB/(1._EB-EXP(-PLX(2)))-1._EB/(PLX(2)))
-                                FWZ = MIN(1._EB, 1._EB/(1._EB-EXP(-PLX(3)))-1._EB/(PLX(3)))
+                                ! Safe tau: no HUGE*0. Grazing (|mu|~0) with extinction => tau->inf;
+                                ! grazing with no extinction => tau=0 (0.5 limit below).
+                                PLX = 0._EB
+                                IF (ABS(DLANG(1,N)) > TWO_EPSILON_EB) THEN
+                                   PLX(1) = EXTCOE(I,J,K)*DX(I)/ABS(DLANG(1,N))
+                                ELSEIF (EXTCOE(I,J,K) > TWENTY_EPSILON_EB) THEN
+                                   PLX(1) = HUGE_EB
+                                ENDIF
+                                IF (ABS(DLANG(2,N)) > TWO_EPSILON_EB) THEN
+                                   PLX(2) = EXTCOE(I,J,K)*DY(J)/ABS(DLANG(2,N))
+                                ELSEIF (EXTCOE(I,J,K) > TWENTY_EPSILON_EB) THEN
+                                   PLX(2) = HUGE_EB
+                                ENDIF
+                                IF (ABS(DLANG(3,N)) > TWO_EPSILON_EB) THEN
+                                   PLX(3) = EXTCOE(I,J,K)*DZ(K)/ABS(DLANG(3,N))
+                                ELSEIF (EXTCOE(I,J,K) > TWENTY_EPSILON_EB) THEN
+                                   PLX(3) = HUGE_EB
+                                ENDIF
+                                IF (PLX(1) < TWENTY_EPSILON_EB) THEN; FWX = 0.5_EB
+                                ELSE; FWX = MIN(1._EB, 1._EB/(1._EB-EXP(-PLX(1)))-1._EB/PLX(1)); ENDIF
+                                IF (PLX(2) < TWENTY_EPSILON_EB) THEN; FWY = 0.5_EB
+                                ELSE; FWY = MIN(1._EB, 1._EB/(1._EB-EXP(-PLX(2)))-1._EB/PLX(2)); ENDIF
+                                IF (PLX(3) < TWENTY_EPSILON_EB) THEN; FWZ = 0.5_EB
+                                ELSE; FWZ = MIN(1._EB, 1._EB/(1._EB-EXP(-PLX(3)))-1._EB/PLX(3)); ENDIF
                                 FWX = 1._EB/FWX; FWY = 1._EB/FWY; FWZ = 1._EB/FWZ
                         END SELECT    
                         
