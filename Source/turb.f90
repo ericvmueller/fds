@@ -1847,16 +1847,6 @@ MESH_APPLY_LOOP: DO NM=LOWER_MESH_INDEX,UPPER_MESH_INDEX
       VT%V_EDDY = VT%V_EDDY*VT%EDDY_C1
       VT%W_EDDY = VT%W_EDDY*VT%EDDY_C1
 
-      ! subtract mean from normal components so that fluctuations do not affect global volume flow
-      SELECT CASE (ABS(VT%IOR))
-         CASE(1)
-            VT%U_EDDY = VT%U_EDDY - SUM(VT%U_EDDY)/SIZE(VT%U_EDDY)
-         CASE(2)
-            VT%V_EDDY = VT%V_EDDY - SUM(VT%V_EDDY)/SIZE(VT%V_EDDY)
-         CASE(3)
-            VT%W_EDDY = VT%W_EDDY - SUM(VT%W_EDDY)/SIZE(VT%W_EDDY)
-      END SELECT
-
    ENDDO VENT_APPLY_LOOP
 ENDDO MESH_APPLY_LOOP
 
