@@ -1302,14 +1302,28 @@ METHOD_OF_MASS_TRANSFER: SELECT CASE(SPECIES_BC_INDEX)
                      B1%M_DOT_G_PP_ACTUAL(N) = 0._EB
                   ENDIF
                ENDIF
-            ! Trapezoidal HRR curve for level set spread
+            ! Level set fuel burnout: trapezoid (default) or exponential convolution
             ELSEIF (SF%VEG_LSET_SPREAD) THEN
-               IF (TSI <= B2%TAU_LS) THEN
-                  B1%M_DOT_G_PP_ACTUAL(N) = TSI/B2%TAU_LS*SF%MASS_FLUX(N)
-               ELSEIF (TSI <= B1%BURN_DURATION-B2%TAU_LS) THEN
-                  B1%M_DOT_G_PP_ACTUAL(N) = SF%MASS_FLUX(N)
+               IF (SF%VEG_LSET_EXPONENTIAL_BURNOUT) THEN
+                  ! Convolution of cell fill (tau_1=TAU_LS) with exp. burnout (t_f=FIREBASE_TIME).
+                  ! Available fuel m_fv = MASS_FLUX * t_f; rate integrates to m_fv.
+                  IF (TSI <= B2%TAU_LS) THEN
+                     B1%M_DOT_G_PP_ACTUAL(N) = SF%MASS_FLUX(N)*SF%VEG_LSET_FIREBASE_TIME/B2%TAU_LS*&
+                                              (1._EB - EXP(-TSI/SF%VEG_LSET_FIREBASE_TIME))
+                  ELSE
+                     B1%M_DOT_G_PP_ACTUAL(N) = SF%MASS_FLUX(N)*SF%VEG_LSET_FIREBASE_TIME/B2%TAU_LS*&
+                                              (EXP(-(TSI-B2%TAU_LS)/SF%VEG_LSET_FIREBASE_TIME) - &
+                                               EXP(-TSI/SF%VEG_LSET_FIREBASE_TIME))
+                  ENDIF
                ELSE
-                  B1%M_DOT_G_PP_ACTUAL(N) = (1-(TSI-B1%BURN_DURATION+B2%TAU_LS)/B2%TAU_LS)*SF%MASS_FLUX(N)
+                  ! Trapezoidal HRR curve for level set spread
+                  IF (TSI <= B2%TAU_LS) THEN
+                     B1%M_DOT_G_PP_ACTUAL(N) = TSI/B2%TAU_LS*SF%MASS_FLUX(N)
+                  ELSEIF (TSI <= B1%BURN_DURATION-B2%TAU_LS) THEN
+                     B1%M_DOT_G_PP_ACTUAL(N) = SF%MASS_FLUX(N)
+                  ELSE
+                     B1%M_DOT_G_PP_ACTUAL(N) = (1-(TSI-B1%BURN_DURATION+B2%TAU_LS)/B2%TAU_LS)*SF%MASS_FLUX(N)
+                  ENDIF
                ENDIF
             ELSE
                B1%M_DOT_G_PP_ACTUAL(N) = EVALUATE_RAMP(TSI,SF%RAMP(N)%INDEX,TAU=SF%RAMP(N)%TAU)*SF%MASS_FLUX(N)

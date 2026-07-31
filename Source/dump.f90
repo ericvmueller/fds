@@ -3337,7 +3337,13 @@ SURFLOOP: DO N=0,N_SURF
       WRITE(LU_OUTPUT,'(A)')        '     Level Set Fire Spread Model'
       IF (SF%VEG_LSET_IGNITE_T<1.E6_EB) &
       WRITE(LU_OUTPUT,'(A,ES10.3)')  '     Ignition Time (s)           ', SF%VEG_LSET_IGNITE_T
-      WRITE(LU_OUTPUT,'(A,ES10.3)') '     Burn Duration (s)           ', SF%BURN_DURATION
+      IF (SF%VEG_LSET_EXPONENTIAL_BURNOUT) THEN
+         WRITE(LU_OUTPUT,'(A)')        '     Burnout Model               EXPONENTIAL'
+         WRITE(LU_OUTPUT,'(A,ES10.3)') '     E-folding Time, t_f (s)     ', SF%VEG_LSET_FIREBASE_TIME
+      ELSE
+         WRITE(LU_OUTPUT,'(A)')        '     Burnout Model               TRAPEZOID'
+         WRITE(LU_OUTPUT,'(A,ES10.3)') '     Burn Duration (s)           ', SF%BURN_DURATION
+      ENDIF
       WRITE(LU_OUTPUT,'(A,ES10.3)') '     Rate of Spread, ROS_00 (m/s)', SF%VEG_LSET_ROS_00
       WRITE(LU_OUTPUT,'(A,ES10.3)') '     Packing Ratio               ', SF%VEG_LSET_BETA
       WRITE(LU_OUTPUT,'(A,ES10.3)') '     Surface Area/Volume (1/m)   ', SF%VEG_LSET_SIGMA*100.  ! Convert from 1/cm to 1/m
