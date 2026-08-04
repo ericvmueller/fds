@@ -217,12 +217,12 @@ ALLOCATE(M%PHI_S_Y(IBAR,JBAR))  ; CALL ChkMemErr('VEGE:LEVEL SET','PHI_S_Y',IZER
 
 ! ROS in X and Y directions
 
-ALLOCATE(M%SR_X_LS(IBAR,JBAR)) ; CALL ChkMemErr('VEGE:LEVEL SET','SR_X_LS',IZERO) ; SR_X_LS => M%SR_X_LS
-ALLOCATE(M%SR_Y_LS(IBAR,JBAR)) ; CALL ChkMemErr('VEGE:LEVEL SET','SR_Y_LS',IZERO) ; SR_Y_LS => M%SR_Y_LS
+ALLOCATE(M%SR_X_LS(IBAR,JBAR)) ; CALL ChkMemErr('VEGE:LEVEL SET','SR_X_LS',IZERO) ; SR_X_LS => M%SR_X_LS ; SR_X_LS = 0._EB
+ALLOCATE(M%SR_Y_LS(IBAR,JBAR)) ; CALL ChkMemErr('VEGE:LEVEL SET','SR_Y_LS',IZERO) ; SR_Y_LS => M%SR_Y_LS ; SR_Y_LS = 0._EB
 
-! Effective (time-lagged) head ROS; starts at 0 and relaxes toward equilibrium when LEVEL_SET_TAU_ACCEL>0
+! Lagged head ROS (ROS_LAG): exponential filter of ROS_EQ when LEVEL_SET_TAU_ACCEL>0; used for front propagation
 
-ALLOCATE(M%ROS_EFF(IBAR,JBAR)) ; CALL ChkMemErr('VEGE:LEVEL SET','ROS_EFF',IZERO) ; ROS_EFF => M%ROS_EFF ; ROS_EFF = 0._EB
+ALLOCATE(M%ROS_LAG(IBAR,JBAR)) ; CALL ChkMemErr('VEGE:LEVEL SET','ROS_LAG',IZERO) ; ROS_LAG => M%ROS_LAG ; ROS_LAG = 0._EB
 
 ! Compute components of terrain slope gradient and magnitude of gradient
 
@@ -303,6 +303,7 @@ END SUBROUTINE INITIALIZE_LEVEL_SET_FIRESPREAD_2
 
 SUBROUTINE LEVEL_SET_FIRESPREAD(T,DT,NM)
 
+USE MATH_FUNCTIONS, ONLY: EVALUATE_RAMP
 USE PHYSICAL_FUNCTIONS, ONLY: GET_WIND_AT_HEIGHT
 USE TURBULENCE, ONLY: TEST_FILTER
 INTEGER, INTENT(IN) :: NM
@@ -348,11 +349,22 @@ DO JJG=1,JBAR
          ENDIF
       ENDIF
 
-      ! Establish the wind field
+      ! Establish the wind field / sample height
 
-      REF_WIND_HEIGHT = SF%VEG_LSET_WIND_HEIGHT
-      ! If not set, use Behave/Andrews approach
-      IF (SF%VEG_LSET_WIND_HEIGHT<0._EB) REF_WIND_HEIGHT = 6.1_EB
+      UMF_TMP = 1._EB
+      IF (SF%I_RAMP_LS_DYNAMIC_WIND_HEIGHT>0) THEN
+         ! Dynamic flame height from previous-step ROS (SR_*_LS); floor at fuel bed height.
+         ! RAMP: Z = ROS (m/s), F = H_f (m). Bypasses VEG_LSET_WIND_HEIGHT and Andrews UMF factor.
+         ROS_MAG = SQRT(SR_X_LS(IIG,JJG)**2 + SR_Y_LS(IIG,JJG)**2)
+         REF_WIND_HEIGHT = MAX(SF%VEG_LSET_HT, EVALUATE_RAMP(ROS_MAG,SF%I_RAMP_LS_DYNAMIC_WIND_HEIGHT))
+      ELSE
+         REF_WIND_HEIGHT = SF%VEG_LSET_WIND_HEIGHT
+         ! If not set, use Behave/Andrews approach
+         IF (SF%VEG_LSET_WIND_HEIGHT<0._EB) REF_WIND_HEIGHT = 6.1_EB
+         ! Wind at midflame height (UMF). From Andrews 2012, USDA FS Gen Tech Rep. RMRS-GTR-266 (with added SI conversion)
+         IF (SF%VEG_LSET_WIND_HEIGHT<0._EB) &
+            UMF_TMP = 1.83_EB / LOG((20.0_EB + 1.18_EB * SF%VEG_LSET_HT) /(0.43_EB * SF%VEG_LSET_HT))  ! Bova et al., Eq. A2
+      ENDIF
 
       IF_CFD_COUPLED: IF (LEVEL_SET_COUPLED_WIND .AND. .NOT. LEVEL_SET_MODE==5) THEN  ! The wind speed is derived from the CFD
 
@@ -367,7 +379,7 @@ DO JJG=1,JBAR
 
       ! Use assumed elliptical shape of fireline as in Farsite
 
-      ! Find wind at ~6.1 m height for Farsite
+      ! Sample CFD wind at REF_WIND_HEIGHT above terrain
 
       IF (LEVEL_SET_COUPLED_WIND) THEN
 
@@ -402,13 +414,7 @@ DO JJG=1,JBAR
 
       ENDIF
 
-      UMF_TMP = 1._EB
-
-      ! Wind at midflame height (UMF). From Andrews 2012, USDA FS Gen Tech Rep. RMRS-GTR-266 (with added SI conversion)
-      IF (SF%VEG_LSET_WIND_HEIGHT<0._EB) &
-         UMF_TMP = 1.83_EB / LOG((20.0_EB + 1.18_EB * SF%VEG_LSET_HT) /(0.43_EB * SF%VEG_LSET_HT))  ! Bova et al., Eq. A2
-
-      ! Convert to midflame wind (m/s). Spread uses US_LS on the predictor and U_LS on the corrector.
+      ! Convert to midflame wind (m/s) when using Andrews factor. Spread uses US_LS on predictor, U_LS on corrector.
       U_LS_INST = UMF_TMP * U_LS_INST
       V_LS_INST = UMF_TMP * V_LS_INST
 
@@ -949,12 +955,12 @@ REAL(EB), INTENT(IN) :: ROS_EQ
 REAL(EB), INTENT(OUT) :: ROS_USE
 
 IF (LEVEL_SET_TAU_ACCEL > 0._EB) THEN
-   ! Hold ROS_EFF at 0 until the first ignition so the lag does not spin up pre-ignition
+   ! Hold ROS_LAG at 0 until the first ignition so the lag does not spin up pre-ignition
    IF (.NOT. LEVEL_SET_IGNITED) THEN
       ROS_USE = 0._EB
    ELSE
-      ROS_USE = ROS_EFF(I,J)
-      IF (.NOT.PREDICTOR) ROS_EFF(I,J) = ROS_EQ + (ROS_EFF(I,J) - ROS_EQ)*EXP(-DT/LEVEL_SET_TAU_ACCEL)
+      ROS_USE = ROS_LAG(I,J)
+      IF (.NOT.PREDICTOR) ROS_LAG(I,J) = ROS_EQ + (ROS_LAG(I,J) - ROS_EQ)*EXP(-DT/LEVEL_SET_TAU_ACCEL)
    ENDIF
 ELSE
    ROS_USE = ROS_EQ
