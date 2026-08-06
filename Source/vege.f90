@@ -311,7 +311,7 @@ INTEGER, INTENT(IN) :: NM
 REAL(EB), INTENT(IN) :: T,DT
 INTEGER :: IIG,IW,JJG,IC,OUTPUT_INDEX
 INTEGER :: KDUM,KWIND,ICF,IKT
-REAL(EB) :: UMF_TMP,ROS_MAG,ZWIND(2),U_Z(2),V_Z(2),REF_WIND_HEIGHT,&
+REAL(EB) :: UMF_TMP,ROS_MAG,I_BYRAM,ZWIND(2),U_Z(2),V_Z(2),REF_WIND_HEIGHT,&
             U_LS_INST,V_LS_INST,ALPHA_LS,WW
 REAL(EB), POINTER, DIMENSION(:,:,:) :: U_HAT,V_HAT
 
@@ -354,10 +354,12 @@ DO JJG=1,JBAR
 
       UMF_TMP = 1._EB
       IF (SF%I_RAMP_LS_DYNAMIC_WIND_HEIGHT>0) THEN
-         ! Dynamic flame height from previous-step ROS (SR_*_LS); floor at fuel bed height.
-         ! RAMP: Z = ROS (m/s), F = H_f (m). Bypasses VEG_LSET_WIND_HEIGHT and Andrews UMF factor.
+         ! Dynamic flame height from Byram intensity I = H*w*R; floor at fuel bed height.
+         ! H = 18 MJ/kg; w = available load (1-chi_char)*SURF_LOAD; R from previous-step ROS.
+         ! RAMP: Z = I (kW/m), F = H_f (m). Bypasses VEG_LSET_WIND_HEIGHT and Andrews UMF factor.
          ROS_MAG = SQRT(SR_X_LS(IIG,JJG)**2 + SR_Y_LS(IIG,JJG)**2)
-         REF_WIND_HEIGHT = MAX(SF%VEG_LSET_HT, EVALUATE_RAMP(ROS_MAG,SF%I_RAMP_LS_DYNAMIC_WIND_HEIGHT))
+         I_BYRAM = 18.E3_EB * (1._EB-SF%VEG_LSET_CHAR_FRACTION)*SF%VEG_LSET_SURF_LOAD * ROS_MAG
+         REF_WIND_HEIGHT = MAX(SF%VEG_LSET_HT, EVALUATE_RAMP(I_BYRAM,SF%I_RAMP_LS_DYNAMIC_WIND_HEIGHT))
       ELSE
          REF_WIND_HEIGHT = SF%VEG_LSET_WIND_HEIGHT
          ! If not set, use Behave/Andrews approach

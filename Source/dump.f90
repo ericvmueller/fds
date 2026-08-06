@@ -3350,7 +3350,7 @@ SURFLOOP: DO N=0,N_SURF
       WRITE(LU_OUTPUT,'(A,ES10.3)') '     Fuel Depth (m)              ', SF%VEG_LSET_HT
       WRITE(LU_OUTPUT,'(A,ES10.3)') '     Fuel Load (kg/m2)           ', SF%VEG_LSET_SURF_LOAD
       IF (SF%I_RAMP_LS_DYNAMIC_WIND_HEIGHT>0) THEN
-         WRITE(LU_OUTPUT,'(A)')        '     Wind Height                 DYNAMIC (from ROS ramp)'
+         WRITE(LU_OUTPUT,'(A)')        '     Wind Height                 DYNAMIC (from I=H*w*R ramp, kW/m)'
       ELSEIF (SF%VEG_LSET_WIND_HEIGHT>0._EB) THEN
          WRITE(LU_OUTPUT,'(A,ES10.3)') '     Wind Height (m)             ', SF%VEG_LSET_WIND_HEIGHT
       ELSE
