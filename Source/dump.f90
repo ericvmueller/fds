@@ -3342,6 +3342,7 @@ SURFLOOP: DO N=0,N_SURF
       WRITE(LU_OUTPUT,'(A,ES10.3)') '     Packing Ratio               ', SF%VEG_LSET_BETA
       WRITE(LU_OUTPUT,'(A,ES10.3)') '     Surface Area/Volume (1/m)   ', SF%VEG_LSET_SIGMA*100.  ! Convert from 1/cm to 1/m
       WRITE(LU_OUTPUT,'(A,ES10.3)') '     Fuel Depth (m)              ', SF%VEG_LSET_HT
+      WRITE(LU_OUTPUT,'(A,ES10.3)') '     Fuel Load (kg/m2)           ', SF%VEG_LSET_SURF_LOAD
    ENDIF
 
 ENDDO SURFLOOP
@@ -6793,26 +6794,7 @@ DEVICE_LOOP: DO N=1,N_DEVC
                                                  ELEM_INDX=DV%ELEM_INDEX,PART_INDEX=DV%PART_CLASS_INDEX,VELO_INDEX=DV%VELO_INDEX,&
                                                  PIPE_INDEX=DV%PIPE_INDEX,PROP_INDEX=DV%PROP_INDEX,REAC_INDEX=DV%REAC_INDEX,&
                                                  DEVC_INDEX=N)
-                        STATISTICS_SELECT: SELECT CASE(DV%SPATIAL_STATISTIC)
-                           CASE('MAX','MAXLOC X','MAXLOC Y','MAXLOC Z')
-                              IF (VALUE>SDV%VALUE_1) THEN
-                                 SDV%VALUE_1 = VALUE
-                                 SDV%VALUE_2 = REAL(SDV%MESH,EB)
-                                 IF (DV%SPATIAL_STATISTIC=='MAXLOC X') SDV%VALUE_3 = XC(I)
-                                 IF (DV%SPATIAL_STATISTIC=='MAXLOC Y') SDV%VALUE_3 = YC(J)
-                                 IF (DV%SPATIAL_STATISTIC=='MAXLOC Z') SDV%VALUE_3 = ZC(K)
-                              ENDIF
-                           CASE('MIN','MINLOC X','MINLOC Y','MINLOC Z')
-                              IF (VALUE<SDV%VALUE_1) THEN
-                                 SDV%VALUE_1 = VALUE
-                                 SDV%VALUE_2 = REAL(SDV%MESH,EB)
-                                 IF (DV%SPATIAL_STATISTIC=='MINLOC X') SDV%VALUE_3 = XC(I)
-                                 IF (DV%SPATIAL_STATISTIC=='MINLOC Y') SDV%VALUE_3 = YC(J)
-                                 IF (DV%SPATIAL_STATISTIC=='MINLOC Z') SDV%VALUE_3 = ZC(K)
-                              ENDIF
-                           CASE('MEAN')
-                              SDV%VALUE_1 = SDV%VALUE_1 + VALUE
-                              SDV%VALUE_2 = SDV%VALUE_2 + 1._EB
+                        STATISTICS_SELECT_RANGE: SELECT CASE(DV%SPATIAL_STATISTIC)
                            CASE('INTERPOLATION')
                               WGT = (1._EB-ABS(DV%X-XC(I))*RDX(I))*(1._EB-ABS(DV%Y-YC(J))*RDY(J))*(1._EB-ABS(DV%Z-ZC(K))*RDZ(K))
                               IF (DV%TEMPORAL_STATISTIC=='FAVRE AVERAGE' .OR. &
@@ -6820,57 +6802,74 @@ DEVICE_LOOP: DO N=1,N_DEVC
                               CALL INTERPOLATE_WALL_VALUES ! returns WALL_VALUE and WALL_WGT
                               SDV%VALUE_1 = SDV%VALUE_1 + WGT*( VALUE*(1._EB-WALL_WGT) + WALL_VALUE*WALL_WGT )
                               SDV%VALUE_2 = SDV%VALUE_2 + WGT
-                           CASE('VOLUME INTEGRAL')
-                              IF (VALUE <= DV%QUANTITY_RANGE(2) .AND. VALUE >=DV%QUANTITY_RANGE(1)) &
-                                 SDV%VALUE_1 = SDV%VALUE_1 + VALUE*VOL
-                           CASE('MASS INTEGRAL')
-                              IF (VALUE <= DV%QUANTITY_RANGE(2) .AND. VALUE >=DV%QUANTITY_RANGE(1)) &
-                                 SDV%VALUE_1 = SDV%VALUE_1 + VALUE*VOL*RHO(I,J,K)
-                           CASE('AREA INTEGRAL','AREA')
-                              IF (DV%SPATIAL_STATISTIC=='AREA') VALUE=1._EB
-                              IF (VALUE <= DV%QUANTITY_RANGE(2) .AND. VALUE >=DV%QUANTITY_RANGE(1)) THEN
-                                 AREA = 0._EB
-                                 IF (CFACE_AREA>TWENTY_EPSILON_EB) THEN
-                                    AREA = CFACE_AREA
-                                 ELSE
-                                    IF (.NOT.CELL(CELL_INDEX(I,J,K))%SOLID) THEN
-                                       SELECT CASE (ABS(DV%IOR_ASSUMED))
-                                          CASE(1); AREA=RC(I)*DY(J)*DZ(K)
-                                          CASE(2); AREA=DX(I)*DZ(K)
-                                          CASE(3); AREA=DX(I)*RC(I)*DY(J)
-                                       END SELECT
-                                    ENDIF
-                                 ENDIF
-                                 SDV%VALUE_1 = SDV%VALUE_1 + AREA*VALUE
-                              ENDIF
-                           CASE('VOLUME')
-                              IF (VALUE <= DV%QUANTITY_RANGE(2) .AND. VALUE >=DV%QUANTITY_RANGE(1)) &
-                                 SDV%VALUE_1 = SDV%VALUE_1 + VOL
-                           CASE('MASS')
-                              IF (VALUE <= DV%QUANTITY_RANGE(2) .AND. VALUE >=DV%QUANTITY_RANGE(1)) &
-                                 SDV%VALUE_1 = SDV%VALUE_1 + VOL*RHO(I,J,K)
-                           CASE('VOLUME MEAN')
-                              SDV%VALUE_1 = SDV%VALUE_1 + VALUE*VOL
-                              SDV%VALUE_2 = SDV%VALUE_2 + VOL
-                           CASE('MASS MEAN')
-                              SDV%VALUE_1 = SDV%VALUE_1 + VALUE*VOL*RHO(I,J,K)
-                              SDV%VALUE_2 = SDV%VALUE_2 + VOL*RHO(I,J,K)
-                           CASE('CENTROID X')
-                              SDV%VALUE_1 = SDV%VALUE_1 + VALUE*VOL*XC(I)
-                              SDV%VALUE_2 = SDV%VALUE_2 + VALUE*VOL
-                           CASE('CENTROID Y')
-                              SDV%VALUE_1 = SDV%VALUE_1 + VALUE*VOL*YC(J)
-                              SDV%VALUE_2 = SDV%VALUE_2 + VALUE*VOL
-                           CASE('CENTROID Z')
-                              SDV%VALUE_1 = SDV%VALUE_1 + VALUE*VOL*ZC(K)
-                              SDV%VALUE_2 = SDV%VALUE_2 + VALUE*VOL
-                           CASE('SUM')
-                              IF (VALUE <= DV%QUANTITY_RANGE(2) .AND. VALUE >=DV%QUANTITY_RANGE(1)) &
-                              SDV%VALUE_1 = SDV%VALUE_1 + VALUE
-                     END SELECT STATISTICS_SELECT
-                  ENDDO I_DEVICE_CELL_LOOP
-               ENDDO J_DEVICE_CELL_LOOP
-            ENDDO K_DEVICE_CELL_LOOP
+                           CASE DEFAULT
+                              RANGE_CHECK: IF (VALUE <= DV%QUANTITY_RANGE(2) .AND. VALUE >=DV%QUANTITY_RANGE(1)) THEN
+                                 STATISTICS_SELECT: SELECT CASE(DV%SPATIAL_STATISTIC)
+                                    CASE('MAX','MAXLOC X','MAXLOC Y','MAXLOC Z')
+                                       IF (VALUE>SDV%VALUE_1) THEN
+                                          SDV%VALUE_1 = VALUE
+                                          SDV%VALUE_2 = REAL(SDV%MESH,EB)
+                                          IF (DV%SPATIAL_STATISTIC=='MAXLOC X') SDV%VALUE_3 = XC(I)
+                                          IF (DV%SPATIAL_STATISTIC=='MAXLOC Y') SDV%VALUE_3 = YC(J)
+                                          IF (DV%SPATIAL_STATISTIC=='MAXLOC Z') SDV%VALUE_3 = ZC(K)
+                                       ENDIF
+                                    CASE('MIN','MINLOC X','MINLOC Y','MINLOC Z')
+                                       IF (VALUE<SDV%VALUE_1) THEN
+                                          SDV%VALUE_1 = VALUE
+                                          SDV%VALUE_2 = REAL(SDV%MESH,EB)
+                                          IF (DV%SPATIAL_STATISTIC=='MINLOC X') SDV%VALUE_3 = XC(I)
+                                          IF (DV%SPATIAL_STATISTIC=='MINLOC Y') SDV%VALUE_3 = YC(J)
+                                          IF (DV%SPATIAL_STATISTIC=='MINLOC Z') SDV%VALUE_3 = ZC(K)
+                                       ENDIF
+                                    CASE('MEAN')
+                                       SDV%VALUE_1 = SDV%VALUE_1 + VALUE
+                                       SDV%VALUE_2 = SDV%VALUE_2 + 1._EB
+                                    CASE('VOLUME INTEGRAL')
+                                       SDV%VALUE_1 = SDV%VALUE_1 + VALUE*VOL
+                                    CASE('MASS INTEGRAL')
+                                       SDV%VALUE_1 = SDV%VALUE_1 + VALUE*VOL*RHO(I,J,K)
+                                    CASE('AREA INTEGRAL','AREA')
+                                       IF (DV%SPATIAL_STATISTIC=='AREA') VALUE=1._EB
+                                       AREA = 0._EB
+                                       IF (CFACE_AREA>TWENTY_EPSILON_EB) THEN
+                                          AREA = CFACE_AREA
+                                       ELSE
+                                          IF (.NOT.CELL(CELL_INDEX(I,J,K))%SOLID) THEN
+                                             SELECT CASE (ABS(DV%IOR_ASSUMED))
+                                                CASE(1); AREA=RC(I)*DY(J)*DZ(K)
+                                                CASE(2); AREA=DX(I)*DZ(K)
+                                                CASE(3); AREA=DX(I)*RC(I)*DY(J)
+                                             END SELECT
+                                          ENDIF
+                                       ENDIF
+                                       SDV%VALUE_1 = SDV%VALUE_1 + AREA*VALUE
+                                    CASE('VOLUME')
+                                       SDV%VALUE_1 = SDV%VALUE_1 + VOL
+                                    CASE('MASS')
+                                       SDV%VALUE_1 = SDV%VALUE_1 + VOL*RHO(I,J,K)
+                                    CASE('VOLUME MEAN')
+                                       SDV%VALUE_1 = SDV%VALUE_1 + VALUE*VOL
+                                       SDV%VALUE_2 = SDV%VALUE_2 + VOL
+                                    CASE('MASS MEAN')
+                                       SDV%VALUE_1 = SDV%VALUE_1 + VALUE*VOL*RHO(I,J,K)
+                                       SDV%VALUE_2 = SDV%VALUE_2 + VOL*RHO(I,J,K)
+                                    CASE('CENTROID X')
+                                       SDV%VALUE_1 = SDV%VALUE_1 + VALUE*VOL*XC(I)
+                                       SDV%VALUE_2 = SDV%VALUE_2 + VALUE*VOL
+                                    CASE('CENTROID Y')
+                                       SDV%VALUE_1 = SDV%VALUE_1 + VALUE*VOL*YC(J)
+                                       SDV%VALUE_2 = SDV%VALUE_2 + VALUE*VOL
+                                    CASE('CENTROID Z')
+                                       SDV%VALUE_1 = SDV%VALUE_1 + VALUE*VOL*ZC(K)
+                                       SDV%VALUE_2 = SDV%VALUE_2 + VALUE*VOL
+                                    CASE('SUM')
+                                       SDV%VALUE_1 = SDV%VALUE_1 + VALUE
+                                 END SELECT STATISTICS_SELECT
+                           ENDIF RANGE_CHECK
+                        END SELECT STATISTICS_SELECT_RANGE
+                     ENDDO I_DEVICE_CELL_LOOP
+                  ENDDO J_DEVICE_CELL_LOOP
+               ENDDO K_DEVICE_CELL_LOOP
 
          END SELECT GAS_STATS_SELECT
 
@@ -6923,15 +6922,27 @@ CONTAINS
 SUBROUTINE SELECT_SPATIAL_STATISTIC(OPT_LP_INDEX,OPT_CUT_FACE_INDEX)
 
 INTEGER, OPTIONAL :: OPT_LP_INDEX,OPT_CUT_FACE_INDEX
-REAL(EB) :: PWT,AREA
+REAL(EB) :: PWT,AREA,R1,R2,VOLUME
 INTEGER :: ICF,JCF,NFACE
 
 PWT = 1._EB
 IF (PRESENT(OPT_LP_INDEX)) PWT = LAGRANGIAN_PARTICLE(OPT_LP_INDEX)%PWT
 
 AREA = B1%AREA
-IF (TWO_D) AREA = AREA/DY(BC%JJG)
-IF (CYLINDRICAL) AREA = AREA*2._EB*PI
+IF (TWO_D) THEN
+   AREA = AREA/DY(BC%JJG)
+   VOLUME = DX(BC%IIG)*DZ(BC%KKG)
+ELSEIF(CYLINDRICAL) THEN
+   R1 = R(BC%IIG-1)
+   R2 = R(BC%IIG)
+   AREA = AREA*2._EB*PI
+   VOLUME = PI*(R2**2-R1**2)*DZ(BC%KKG)
+ELSE
+   VOLUME = DX(BC%IIG)*DY(BC%JJG)*DZ(BC%KKG)
+   IF (CC_IBM) THEN
+      IF (CCVAR(BC%IIG,BC%JJG,BC%KKG,CC_IDCF) > 0) VOLUME = VOLUME * CUT_CELL(CCVAR(BC%IIG,BC%JJG,BC%KKG,CC_IDCC))%ALPHA_CC
+   ENDIF
+ENDIF
 
 IF (PRESENT(OPT_CUT_FACE_INDEX)) THEN
    ICF = OPT_CUT_FACE_INDEX
@@ -6944,36 +6955,37 @@ IF (PRESENT(OPT_CUT_FACE_INDEX)) THEN
    ENDIF
 ENDIF
 
-SELECT CASE(DV%SPATIAL_STATISTIC)
-   CASE('MAX','MAXLOC X','MAXLOC Y','MAXLOC Z')
-      IF (VALUE>SDV%VALUE_1) THEN
-         SDV%VALUE_1 = VALUE
-         SDV%VALUE_2 = REAL(SDV%MESH,EB)
-         IF (DV%SPATIAL_STATISTIC=='MAXLOC X') SDV%VALUE_3 = X_CENTER
-         IF (DV%SPATIAL_STATISTIC=='MAXLOC Y') SDV%VALUE_3 = Y_CENTER
-         IF (DV%SPATIAL_STATISTIC=='MAXLOC Z') SDV%VALUE_3 = Z_CENTER
-      ENDIF
-   CASE('MIN','MINLOC X','MINLOC Y','MINLOC Z')
-      IF (VALUE<SDV%VALUE_1) THEN
-         SDV%VALUE_1 = VALUE
-         SDV%VALUE_2 = REAL(SDV%MESH,EB)
-         IF (DV%SPATIAL_STATISTIC=='MINLOC X') SDV%VALUE_3 = X_CENTER
-         IF (DV%SPATIAL_STATISTIC=='MINLOC Y') SDV%VALUE_3 = Y_CENTER
-         IF (DV%SPATIAL_STATISTIC=='MINLOC Z') SDV%VALUE_3 = Z_CENTER
-      ENDIF
-   CASE('MEAN')
-      SDV%VALUE_1 = SDV%VALUE_1 + VALUE*PWT
-      SDV%VALUE_2 = SDV%VALUE_2 + PWT
-   CASE('SURFACE INTEGRAL')
-      IF (VALUE <= DV%QUANTITY_RANGE(2) .AND. VALUE >=DV%QUANTITY_RANGE(1)) &
+IF (DV%SPATIAL_STATISTIC/='null' .AND. (VALUE <= DV%QUANTITY_RANGE(2) .AND. VALUE >=DV%QUANTITY_RANGE(1))) THEN
+   SELECT CASE(DV%SPATIAL_STATISTIC)
+      CASE('MAX','MAXLOC X','MAXLOC Y','MAXLOC Z')
+         IF (VALUE>SDV%VALUE_1) THEN
+            SDV%VALUE_1 = VALUE
+            SDV%VALUE_2 = REAL(SDV%MESH,EB)
+            IF (DV%SPATIAL_STATISTIC=='MAXLOC X') SDV%VALUE_3 = X_CENTER
+            IF (DV%SPATIAL_STATISTIC=='MAXLOC Y') SDV%VALUE_3 = Y_CENTER
+            IF (DV%SPATIAL_STATISTIC=='MAXLOC Z') SDV%VALUE_3 = Z_CENTER
+         ENDIF
+      CASE('MIN','MINLOC X','MINLOC Y','MINLOC Z')
+         IF (VALUE<SDV%VALUE_1) THEN
+            SDV%VALUE_1 = VALUE
+            SDV%VALUE_2 = REAL(SDV%MESH,EB)
+            IF (DV%SPATIAL_STATISTIC=='MINLOC X') SDV%VALUE_3 = X_CENTER
+            IF (DV%SPATIAL_STATISTIC=='MINLOC Y') SDV%VALUE_3 = Y_CENTER
+            IF (DV%SPATIAL_STATISTIC=='MINLOC Z') SDV%VALUE_3 = Z_CENTER
+         ENDIF
+      CASE('MEAN')
+         SDV%VALUE_1 = SDV%VALUE_1 + VALUE*PWT
+         SDV%VALUE_2 = SDV%VALUE_2 + PWT
+      CASE('SURFACE INTEGRAL')
          SDV%VALUE_1 = SDV%VALUE_1 + VALUE*AREA*PWT
-   CASE('SURFACE AREA')
-      IF (VALUE <= DV%QUANTITY_RANGE(2) .AND. VALUE >=DV%QUANTITY_RANGE(1)) &
+      CASE('SURFACE AREA')
          SDV%VALUE_1 = SDV%VALUE_1 + AREA*PWT
-   CASE('SUM')
-      IF (VALUE <= DV%QUANTITY_RANGE(2) .AND. VALUE >=DV%QUANTITY_RANGE(1)) &
+      CASE('SUM')
          SDV%VALUE_1 = SDV%VALUE_1 + VALUE
-END SELECT
+      CASE('VOLUME')
+         SDV%VALUE_1 = SDV%VALUE_1 + VOLUME
+   END SELECT
+ENDIF
 
 END SUBROUTINE SELECT_SPATIAL_STATISTIC
 
@@ -9294,6 +9306,9 @@ SOLID_PHASE_SELECT: SELECT CASE(INDX)
          SOLID_PHASE_OUTPUT = 0._EB
       ENDIF
 
+   CASE(50)  ! FLUX TIME PRODUCT
+      SOLID_PHASE_OUTPUT = B1%INT_FTP*0.001_EB
+
    CASE(51)  ! ENTHALPY FLUX WALL
       ZZ_GET(1:N_TRACKED_SPECIES) = B1%ZZ_F(1:N_TRACKED_SPECIES)
       CALL GET_SENSIBLE_ENTHALPY(ZZ_GET,H_S,B1%TMP_F)
@@ -10119,13 +10134,14 @@ SUBROUTINE DUMP_PROF(T,NM)
 
 USE GEOMETRY_FUNCTIONS, ONLY: GET_WALL_NODE_WEIGHTS
 USE MEMORY_FUNCTIONS, ONLY: GET_LAGRANGIAN_PARTICLE_INDEX
+USE MATH_FUNCTIONS, ONLY: INTERPOLATE1D
 REAL(EB), INTENT(IN) :: T
 REAL(FB) :: STIME
 CHARACTER(LABEL_LENGTH) :: HEADING,LABEL
 INTEGER, INTENT(IN)  :: NM
 INTEGER :: I,N,IW,SURF_INDEX,NWP,LPC_INDEX,LP_INDEX
-REAL(EB) :: DXF,DXB
-REAL(EB), ALLOCATABLE, DIMENSION(:) :: PF_TEMP
+REAL(EB) :: DXF,DXB,INT_VALUE(20)
+REAL(EB), ALLOCATABLE, DIMENSION(:) :: PF_TEMP,PF_TEMP_NODE
 REAL(EB), DIMENSION(0:NWP_MAX) :: R_S,DX_S,DX_WGT_S,RDXN_S
 REAL(EB), DIMENSION(0:NWP_MAX+1) :: RDX_S
 REAL(EB), DIMENSION(NWP_MAX) :: MF_FRAC
@@ -10219,17 +10235,32 @@ PROF_LOOP: DO N=1,N_PROF
       PF_TEMP(NWP+1) = PF_TEMP(NWP)
    ENDIF
 
+   ! Interpolate temperatures at node points
+
+   IF (PF%N_DEPTHS>0 .OR. .NOT.PF%CELL_CENTERED) THEN
+      ALLOCATE(PF_TEMP_NODE(0:NWP))
+      DO I=0,NWP
+         PF_TEMP_NODE(I) = PF_TEMP(I)+DX_WGT_S(I)*(PF_TEMP(I+1)-PF_TEMP(I))
+      ENDDO
+   ENDIF
+
    ! Open the CHID_prof_N.csv file for a new row of output
 
    OPEN(LU_PROF(N),FILE=FN_PROF(N),FORM='FORMATTED',STATUS='OLD',POSITION='APPEND',DECIMAL=DECIMAL_SPECIFIER)
 
    IF (PF%FORMAT_INDEX==1) THEN
-      IF (PF%CELL_CENTERED) THEN
+      IF (PF%N_DEPTHS>0) THEN
+         DO I=1,PF%N_DEPTHS
+            CALL INTERPOLATE1D(R_S,PF_TEMP_NODE,PF%DEPTHS(I),INT_VALUE(I))
+         ENDDO
+         WRITE(TCFORM,'(7A,I0,2A)') "(",FMT_R,",'",SEPARATOR,"',I0,'",SEPARATOR,"',",2*PF%N_DEPTHS-1,REAL_LIST,")"
+         WRITE(LU_PROF(N),TCFORM) STIME,PF%N_DEPTHS,(PF%DEPTHS(I),I=1,PF%N_DEPTHS),(INT_VALUE(I),I=1,PF%N_DEPTHS)
+      ELSEIF (PF%CELL_CENTERED) THEN
          WRITE(TCFORM,'(7A,I0,2A)') "(",FMT_R,",'",SEPARATOR,"',I0,'",SEPARATOR,"',",2*NWP-1,REAL_LIST,")"
          WRITE(LU_PROF(N),TCFORM) STIME,NWP,(0.5_EB*(R_S(I)+R_S(I-1)),I=1,NWP),(PF_TEMP(I),I=1,NWP)
       ELSE
          WRITE(TCFORM,'(7A,I0,2A)') "(",FMT_R,",'",SEPARATOR,"',I0,'",SEPARATOR,"',",2*NWP+1,REAL_LIST,")"
-         WRITE(LU_PROF(N),TCFORM) STIME,NWP+1,(R_S(I),I=0,NWP),(PF_TEMP(I)+DX_WGT_S(I)*(PF_TEMP(I+1)-PF_TEMP(I)),I=0,NWP)
+         WRITE(LU_PROF(N),TCFORM) STIME,NWP+1,(R_S(I),I=0,NWP),(PF_TEMP_NODE(I),I=0,NWP)
       ENDIF
    ELSE ! Final values only
       SELECT CASE(SF%GEOMETRY)
@@ -10245,18 +10276,24 @@ PROF_LOOP: DO N=1,N_PROF
       WRITE(LU_PROF(N),'(3A)') 'm',SEPARATOR,TRIM(OUTPUT_QUANTITY(PF%QUANTITY_INDEX)%UNITS)
       WRITE(LU_PROF(N),'(3A)') TRIM(LABEL),SEPARATOR,TRIM(HEADING)
       WRITE(TCFORM,'(3A)') "(",REAL_LIST,")"
-      IF (PF%CELL_CENTERED) THEN
+      IF (PF%N_DEPTHS>0) THEN
+         DO I=1,PF%N_DEPTHS
+            CALL INTERPOLATE1D(R_S,PF_TEMP_NODE,PF%DEPTHS(I),INT_VALUE(I))
+            WRITE(LU_PROF(N),TCFORM) PF%DEPTHS(I),INT_VALUE(I)
+         ENDDO
+      ELSEIF (PF%CELL_CENTERED) THEN
          DO I=1,NWP
             WRITE(LU_PROF(N),TCFORM) 0.5_EB*(R_S(I)+R_S(I-1)),PF_TEMP(I)
          ENDDO
       ELSE
          DO I=0,NWP
-            WRITE(LU_PROF(N),TCFORM) R_S(I),PF_TEMP(I)+DX_WGT_S(I)*(PF_TEMP(I+1)-PF_TEMP(I))
+            WRITE(LU_PROF(N),TCFORM) R_S(I),PF_TEMP_NODE(I)
          ENDDO
       ENDIF
    ENDIF
 
    DEALLOCATE(PF_TEMP)
+   IF (ALLOCATED(PF_TEMP_NODE)) DEALLOCATE(PF_TEMP_NODE)
    CLOSE(LU_PROF(N))
 
 ENDDO PROF_LOOP
