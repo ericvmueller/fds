@@ -2806,10 +2806,11 @@ USE MIEV
 USE RADCAL_CALC
 USE WSGG_ARRAYS
 REAL(EB) :: PLANCK_C2,KSI,LT,RCRHO,YY,BBF,AP0,AMEAN,RADIANCE,TRANSMISSIVITY,XX
-INTEGER  :: N,I,J,K,IPC,IZERO,IBND,NS,NRA,NSB,RADCAL_TEMP(16)=0,RCT_SKIP=-1
+INTEGER  :: N,I,J,K,IPC,IZERO,IBND,NS,NRA,NSB,RADCAL_TEMP(16)=0,RCT_SKIP=-1,NM
 TYPE (LAGRANGIAN_PARTICLE_CLASS_TYPE), POINTER :: LPC
 TYPE (RAD_FILE_TYPE), POINTER :: RF
 TYPE (SPECIES_TYPE), POINTER :: SS
+TYPE (MESH_TYPE), POINTER :: M
 
 ! A few miscellaneous constants
 
@@ -3284,9 +3285,12 @@ CALL CALCULATE_FVM_ANGLES()
 
 ! Allocate array needed by angle-specific RADF output files
 
-DO N=1,N_RADF
-   RF => RAD_FILE(N)
-   ALLOCATE(RF%IL_SAVE(RF%I1:RF%I2,RF%J1:RF%J2,RF%K1:RF%K2,NUMBER_RADIATION_ANGLES))
+DO NM=LOWER_MESH_INDEX,UPPER_MESH_INDEX
+   M => MESHES(NM)
+   DO N=1,M%N_RADF
+      RF => M%RAD_FILE(N)
+      ALLOCATE(RF%IL_SAVE(RF%I1:RF%I2,RF%J1:RF%J2,RF%K1:RF%K2,NUMBER_RADIATION_ANGLES))
+   ENDDO
 ENDDO
 
 END SUBROUTINE INIT_RADIATION
@@ -3790,7 +3794,7 @@ LOGICAL :: NEGATIVE_MASK(3), APPLY_ALT_SCHEME
 REAL(EB) :: XID,YJD,ZKD,KAPPA_PART_SINGLE,DLF,DLA(3),TSI,TMP_EXTERIOR,TEMP_ORIENTATION(3),&
             COS_DLO_ARR(NUMBER_RADIATION_ANGLES)
 REAL(EB), ALLOCATABLE, DIMENSION(:) :: ZZ_GET
-REAL(EB), ALLOCATABLE, DIMENSION(:,:,:) :: QP_CORRECTION
+REAL(EB), ALLOCATABLE, DIMENSION(:,:,:) :: QP_CORRECTION,RTE_SOURCE
 REAL(EB), ALLOCATABLE, DIMENSION(:,:,:) :: ILDX,ILDY,ILDZ
 INTEGER :: IID,JJD,KKD,IP
 LOGICAL :: UPDATE_INTENSITY, IS_PARTICLE_ORIENTATION_RAMP
@@ -4210,6 +4214,13 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
       ELSE
          UIIOLD = UII
       ENDIF
+
+      ! The RTE source is independent of radiation angle. Compute it once
+      ! per spectral band instead of rebuilding it in every angular sweep.
+      ALLOCATE(RTE_SOURCE, MOLD=KFST4_GAS)
+      RTE_SOURCE = KFST4_GAS + KFST4_PART + &
+                   RSA_RAT*(SCAEFF+SCAEFF_G)*UIIOLD
+
       UII = 0._EB
 
       ! Compute boundary condition intensity emissivity*sigma*Tw**4/pi or emissivity*QRADOUT/pi for wall with internal radiation
@@ -4451,8 +4462,7 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
                      A_SUM = AXD + AYD + AZ
                      RAP = 1._EB/(A_SUM + EXTCOE(I,J,K)*VC*RSA(N))
                      IL(I,J,K) = MAX(0._EB, RAP * (AIU_SUM + VC*RSA(N)*RFPI* &
-                                 ( KFST4_GAS(I,J,K) + KFST4_PART(I,J,K) + RSA_RAT*&
-                                 (SCAEFF(I,J,K)+SCAEFF_G(I,J,K))*UIIOLD(I,J,K) ) ) )
+                                 RTE_SOURCE(I,J,K) ) )
                      IF (SOLID_PARTICLES) IL_UP(I,J,K) = MAX(0._EB,AIU_SUM/A_SUM)
                   ENDDO CILOOP
                ENDDO CKLOOP
@@ -4476,8 +4486,7 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
                      A_SUM = AX + AZ
                      RAP = 1._EB/(A_SUM + EXTCOE(I,J,K)*VC*RSA(N))
                      IL(I,J,K) = MAX(0._EB, RAP * (AIU_SUM + VC*RSA(N)*RFPI* &
-                                    (KFST4_GAS(I,J,K) + KFST4_PART(I,J,K) + RSA_RAT* &
-                                    (SCAEFF(I,J,K)+SCAEFF_G(I,J,K))*UIIOLD(I,J,K) ) ) )
+                                    RTE_SOURCE(I,J,K) ) )
                      IF (SOLID_PARTICLES) IL_UP(I,J,K) = MAX(0._EB,AIU_SUM/A_SUM)
                   ENDDO I2LOOP
                ENDDO K2LOOP
@@ -4706,6 +4715,11 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
                         ENDDO
 
                      ENDIF
+
+                     IF (SOLID_PARTICLES) IL_UP(I,J,K) = MAX(0._EB,AIU_SUM/A_SUM)
+                     RAP = 1._EB/(A_SUM + EXTCOE(I,J,K)*VC*RSA(N))
+                     IL(I,J,K) = MAX(0._EB, RAP * (AIU_SUM + VC*RSA(N)*RFPI* &
+                                     RTE_SOURCE(I,J,K) ) )
 
                   ENDDO SLICE_LOOP
                   !$OMP END PARALLEL DO
@@ -4946,6 +4960,8 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
          ENDIF
          B1%Q_RAD_IN  = B1%Q_RAD_IN + B1%EMISSIVITY*(INRAD_F(ICF)+BBFA*EFLUX)
       ENDDO
+
+      DEALLOCATE(RTE_SOURCE)
 
    ENDIF INTENSITY_UPDATE
 

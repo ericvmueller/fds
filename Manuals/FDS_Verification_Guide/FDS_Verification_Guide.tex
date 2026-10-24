@@ -7,9 +7,9 @@
 % The mathematical style of these documents follows                                               %
 %                                                                                                 %
 % A. Thompson and B.N. Taylor. The NIST Guide for the Use of the International System of Units.   %
-%    NIST Special Publication 881, 2008.                                                          %
+%    NIST Special Publication 811, 2008.                                                          %
 %                                                                                                 %
-% http://www.nist.gov/pml/pubs/sp811/index.cfm                                                    %
+% https://www.nist.gov/pml/special-publication-811                                                %
 %                                                                                                 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -2683,7 +2683,17 @@ A sealed, adiabatic box, 1~m on a side, is filled with 10~kg of spherically-shap
 \label{geom_hrrpuv_init}
 \label{geom_part_init}
 
+\subsection{Energy Conservation for Specified Mass Flux Particles}
+\label{cold_particle}
 
+A sealed, adiabatic box, 1~m on a side is filled with a gas with a molecular weight of 28~\unit{g/mol} and a specific heat of 1~\unit{kJ/(kg.K)} at a temperature of 20~\unit{\degreeCelsius}. A single 1.5~\unit{cm} diameter particle with a surface temperature of -80~\unit{\degreeCelsius} is placed at the center of the box. The particle emits mass for 100~\unit{s} at a rate of 0.1~\unit{\%/s} of the initial gas mass (i.e, over 100~\unit{s} it adds an additional 10~\% mass). The particle has an emissivity of zero and a heat transfer coefficient of 0~\unit{W/(m^2.K)}. The only energy source term is the enthalpy of the mass being added to the box. This case tests that the change in internal energy of the box is equal to enthalpy being injected.
+
+\begin{figure}[ht]
+    \centering    
+    \includegraphics[height=2.2in]{SCRIPT_FIGURES/cold_particle}
+    \caption[The \ct{cold_particle} test case]{Change in internal energy.}
+    \label{cold_particle_fig}
+\end{figure}
 
 \chapter{Checking for Coding Errors}
 
@@ -8028,9 +8038,9 @@ Folder                      & Reference                     & Input File        
 \tct{Pyrolysis}             & \ref{enthalpy}               & \tct{enthalpy.fds}                            & \tct{enthalpy_devc.csv}                            & \tct{enthalpy.csv}                                 \\ \hline
 \tct{Pyrolysis}             & \ref{shrink_swell}           & \tct{shrink_swell.fds}                        & \tct{shrink_swell_devc.csv}                        & \tct{shrink_swell.csv}                             \\ \hline
 \tct{Radiation}             & \ref{radiation_shield}       & \tct{radiation_shield.fds}                    & \tct{radiation_shield_devc.csv}                    & \tct{radiation_shield.csv}                         \\ \hline
-\tct{Species}               & \ref{mixing_reactions}       & \tct{reactionrate_EDC_1step_CH4_nonmix.fds}   & \tct{reactionrate_EDC_1step_CH4_nonmix_devc.csv}   & \tct{reactionrate_EDC_1step_CH4_nonmix_spec.csv}   \\ \hline
+\tct{Species}               & \ref{mixing_reactions}       & \tct{reactionrate_EDC_1step_CH4_nonmix.fds}   & \tct{reactionrate_EDC_1step_CH4_nonmix_devc.csv}   & \tct{reactionrate_EDC_1step_CH4_nonmix_spec.csv} \newline \tct{reactionrate_EDC_1step_CH4_nonmix_temppres.csv}  \\ \hline
 \tct{Species}               & \ref{finite_rate_reactions}  & \tct{reactionrate_arrhenius_2order_1step.fds} & \tct{reactionrate_arrhenius_2order_1step_devc.csv} & \tct{reactionrate_arrhenius_2order_1step_soln.csv} \\ \hline
-\tct{Sprinklers_and_Sprays} & \ref{water_evaporation_1}    & \tct{water_evaporation_1.fds}                 & \tct{water_evaporation_1_devc.csv}                 & \tct{water_evaporation_1.csv}                      \\ \hline
+\tct{Sprinklers_and_Sprays} & \ref{water_evaporation_1}    & \tct{water_evaporation_1.fds}                 & \tct{water_evaporation_1_devc.csv} \tct{water_evaporation_1_mass.csv}                & \tct{water_evaporation_1.csv}                      \\ \hline
 \tct{Sprinklers_and_Sprays} & \ref{particle_drag}          & \tct{particle_drag_U50_N16.fds}               & \tct{particle_drag_U50_N16_devc.csv}               & \tct{particle_drag_U50_N16.csv}                    \\ \hline
 \end{xltabular}
 \end{landscape}

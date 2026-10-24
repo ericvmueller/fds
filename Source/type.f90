@@ -265,15 +265,6 @@ TYPE BOUNDARY_ONE_D_TYPE
 END TYPE BOUNDARY_ONE_D_TYPE
 
 
-!> \brief Variables associated with a WALL boundary cell that allows 3D heat transfer
-
-TYPE BOUNDARY_THR_D_TYPE
-
-   TYPE(INTERNAL_NODE_TYPE), ALLOCATABLE, DIMENSION(:) :: NODE  !< Index of the interior solid cell
-
-END TYPE BOUNDARY_THR_D_TYPE
-
-
 TYPE INTERNAL_NODE_TYPE
    INTEGER, ALLOCATABLE, DIMENSION(:) :: ALTERNATE_WALL_INDEX   !< Index of WALL cell in one of the two alternate directions
    INTEGER, ALLOCATABLE, DIMENSION(:) :: ALTERNATE_WALL_NODE    !< Interior node of alternate WALL cell
@@ -288,6 +279,15 @@ TYPE INTERNAL_NODE_TYPE
    INTEGER :: MESH_NUMBER=-1                                    !< MESH number of the node
    LOGICAL :: HT3D=.TRUE.                                       !< Indicates that this cell is meant to be updated in 3D
 END TYPE INTERNAL_NODE_TYPE
+
+
+!> \brief Variables associated with a WALL boundary cell that allows 3D heat transfer
+
+TYPE BOUNDARY_THR_D_TYPE
+
+   TYPE(INTERNAL_NODE_TYPE), ALLOCATABLE, DIMENSION(:) :: NODE  !< Index of the interior solid cell
+
+END TYPE BOUNDARY_THR_D_TYPE
 
 
 TYPE BOUNDARY_PROP1_TYPE
@@ -452,6 +452,9 @@ TYPE WALL_TYPE
    INTEGER :: N_REALS=0               !< Number of reals to pack into restart or send/recv buffer
    INTEGER :: N_INTEGERS=0            !< Number of integers to pack into restart or send/recv buffer
    INTEGER :: N_LOGICALS=0            !< Number of logicals to pack into restart or send/recv buffer
+   INTEGER :: N_REALS_LITE=0          !< Number of reals to pack into lightweight send/recv buffer
+   INTEGER :: N_INTEGERS_LITE=0       !< Number of integers to pack into lightweight send/recv buffer
+   INTEGER :: N_LOGICALS_LITE=0       !< Number of logicals to pack into lightweight send/recv buffer
 
    LOGICAL :: THIN=.FALSE.            !< Indicates if the underlying solid is zero cells thick
 
@@ -464,7 +467,7 @@ TYPE EXTERNAL_WALL_TYPE
    INTEGER :: NOM                                     !< Number of the adjacent (Other) Mesh
    INTEGER :: NIC_MIN                                 !< Start of indices for the cell in the other mesh
    INTEGER :: NIC_MAX                                 !< End of indices for the cell in the other mesh
-   INTEGER :: NIC                                     !< NIC_MAX-NIC_MIN
+   INTEGER :: NIC=0                                   !< NIC_MAX-NIC_MIN
    INTEGER :: IIO_MIN                                 !< Minimum I index of adjacent cell in other mesh
    INTEGER :: IIO_MAX                                 !< Maximum I index of adjacent cell in other mesh
    INTEGER :: JJO_MIN                                 !< Minimum J index of adjacent cell in other mesh
@@ -976,6 +979,7 @@ TYPE SURFACE_TYPE
    REAL(EB), ALLOCATABLE, DIMENSION(:) :: HEAT_SOURCE
    REAL(EB), ALLOCATABLE, DIMENSION(:) :: LAYER_THICKNESS
    REAL(EB), ALLOCATABLE, DIMENSION(:) :: MIN_LAYER_THICKNESS !< Smallest layer size before layer is removed (m)
+   REAL(EB), ALLOCATABLE, DIMENSION(:) :: MINIMUM_LAYER_MASS_FRACTION !< Fraction of original layer mass when layer is removed
    LOGICAL, ALLOCATABLE, DIMENSION(:) :: HT3D_LAYER
    REAL(EB), ALLOCATABLE, DIMENSION(:) :: CELL_SIZE_FACTOR
    REAL(EB), ALLOCATABLE, DIMENSION(:) :: CELL_SIZE           !< Specified constant cell size (m)
@@ -1543,7 +1547,7 @@ TYPE VENTS_TYPE
                X1_ORIG=0._EB,X2_ORIG=0._EB,Y1_ORIG=0._EB,Y2_ORIG=0._EB,Z1_ORIG=0._EB,Z2_ORIG=0._EB, &
                X0=-9.E6_EB,Y0=-9.E6_EB,Z0=-9.E6_EB,FIRE_SPREAD_RATE,UNDIVIDED_INPUT_AREA=0._EB,INPUT_AREA=0._EB,&
                TMP_EXTERIOR=-1000._EB,DYNAMIC_PRESSURE=0._EB,UVW(3)=-1.E12_EB,RADIUS=-1._EB
-   LOGICAL :: ACTIVATED=.TRUE.,GEOM=.FALSE.,AREA_ADJUST=.TRUE.,DRAW=.TRUE.
+   LOGICAL :: ACTIVATED=.TRUE.,GEOM=.FALSE.,AREA_ADJUST=.TRUE.
    CHARACTER(LABEL_LENGTH) :: DEVC_ID='null',CTRL_ID='null',ID='null'
    ! Divergence-Free Synthetic Eddy Method (DFSEM; Poletto et al. 2013)
    INTEGER :: N_EDDY=0

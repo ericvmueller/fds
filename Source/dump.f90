@@ -336,9 +336,9 @@ IF (CC_IBM) THEN
    ALLOCATE(FN_BNDG(2*N_BNDF,NMESHES))
    ALLOCATE(LU_BNDG(2*N_BNDF,NMESHES))
 ENDIF
-IF (N_RADF>0) THEN
-   ALLOCATE(FN_RADF(N_RADF,NMESHES))
-   ALLOCATE(LU_RADF(N_RADF,NMESHES))
+IF (N_RADF_MAX>0) THEN
+   ALLOCATE(FN_RADF(N_RADF_MAX,NMESHES))
+   ALLOCATE(LU_RADF(N_RADF_MAX,NMESHES))
 ENDIF
 IF (TERRAIN_CASE) THEN
    ALLOCATE(FN_TERRAIN(NMESHES))
@@ -869,7 +869,6 @@ CHARACTER(LEN=1024) :: SLICEPARMS, SLICELABEL
 TYPE(PATCH_TYPE), POINTER :: PA
 TYPE(MESH_TYPE), POINTER :: M4
 INTEGER :: CC_VAL,NSTEPS
-INTEGER, PARAMETER :: SMOKE3D_VERSION=1
 LOGICAL :: OVERLAPPING_X,OVERLAPPING_Y,OVERLAPPING_Z
 TYPE (BOUNDARY_COORD_TYPE), POINTER :: BC
 TYPE (RAD_FILE_TYPE), POINTER :: RF
@@ -1041,6 +1040,13 @@ SMOKE3D_INITIALIZATION: IF (SMOKE3D) THEN
       IF (.NOT. APPEND) THEN
          OPEN(LU_SMOKE3D(N,NM),  FILE=FN_SMOKE3D(N,NM),  FORM='UNFORMATTED',STATUS='REPLACE')
          WRITE(LU_SMOKE3D(N,NM)) INTEGER_ONE,SMOKE3D_VERSION,0,M%IBAR,0,M%JBAR,0,M%KBAR
+         IF (SMOKE3D_VERSION==2) THEN
+            SELECT CASE(SMOKE3D_FILE(N)%DISPLAY_TYPE)
+               CASE('GAS')         ; WRITE(LU_SMOKE3D(N,NM)) 0._FB,1._FB
+               CASE('FIRE')        ; WRITE(LU_SMOKE3D(N,NM)) 0._FB,REAL(HRRPUV_MAX_SMV,FB)
+               CASE('TEMPERATURE') ; WRITE(LU_SMOKE3D(N,NM)) REAL(TEMP_MIN_SMV,FB),REAL(TEMP_MAX_SMV,FB)
+            END SELECT
+         ENDIF
          CLOSE(LU_SMOKE3D(N,NM))
          OPEN(LU_SMOKE3D(N+N_SMOKE3D,NM),FILE=FN_SMOKE3D(N+N_SMOKE3D,NM),FORM='FORMATTED',STATUS='REPLACE',&
               DECIMAL=DECIMAL_SPECIFIER)
@@ -1048,7 +1054,11 @@ SMOKE3D_INITIALIZATION: IF (SMOKE3D) THEN
          CLOSE(LU_SMOKE3D(N+N_SMOKE3D,NM))
          IF (M%N_STRINGS+5>M%N_STRINGS_MAX) CALL RE_ALLOCATE_STRINGS(NM)
          M%N_STRINGS = M%N_STRINGS + 1
-         WRITE(M%STRING(M%N_STRINGS),'(A,I6,F11.3)') 'SMOKF3D',NM,SMOKE3D_FILE(N)%MASS_EXTINCTION_COEFFICIENT
+         IF (SMOKE3D_VERSION==2) THEN
+            WRITE(M%STRING(M%N_STRINGS),'(A,I6,F11.3)') 'SMOKH3D',NM,SMOKE3D_FILE(N)%MASS_EXTINCTION_COEFFICIENT
+         ELSE
+            WRITE(M%STRING(M%N_STRINGS),'(A,I6,F11.3)') 'SMOKF3D',NM,SMOKE3D_FILE(N)%MASS_EXTINCTION_COEFFICIENT
+         ENDIF
          M%N_STRINGS = M%N_STRINGS + 1
          WRITE(M%STRING(M%N_STRINGS),'(1X,A)') TRIM(FN_SMOKE3D(N,NM))
          M%N_STRINGS = M%N_STRINGS + 1
@@ -2303,9 +2313,56 @@ MESH_LOOP: DO NM=1,NMESHES
    ENDDO
 
    ! Create EXTERIOR_PATCHes with which Smokeview colors, textures, or contours exterior mesh boundaries.
+   ! We want to avoid drawing VENTs on exterior surfaces such that the bit planes overlap. Thus, some VENTs are to be drawn 
+   ! slightly offset from the plane of the surface on which they are attached. 
+   ! The exterior surface of the domain are covered with EXTERIOR_PATCHES or "dummy" vents because they are not explicitly 
+   ! specified in the input file, but Smokeview needs to draw them as such.
+   ! VENT_INDICES provides a code for each exterior cell. -1 means that nothing is to be drawn there. 0 means the default surface
+   ! type. A positive number indicates the index of the VENT that is to be drawn flush with the wall, assuming that there is no
+   ! possibility of bit plane overlap.
 
    ALLOCATE(M%EXTERIOR_PATCH(10)) ; M%N_EXTERIOR_PATCH = 0  ! The size of EXTERIOR_PATCH will expand if need be.
    ALLOCATE(VENT_INDICES(MAX(M%IBAR,M%JBAR),MAX(M%JBAR,M%KBAR),6)) ; VENT_INDICES = 0
+
+   ! Look for OBSTructions that are flush with an exterior boundary of the domain. Set VENT_INDICES=-1 there.
+
+   OBST_LOOP: DO N=1,M%N_OBST
+
+      OB=>M%OBSTRUCTION(N)
+
+      FACE_INDEX = 0
+      IF (OB%I1==0      .AND. OB%I2==0     ) FACE_INDEX = 1
+      IF (OB%I1==M%IBAR .AND. OB%I2==M%IBAR) FACE_INDEX = 2
+      IF (OB%J1==0      .AND. OB%J2==0     ) FACE_INDEX = 3
+      IF (OB%J1==M%JBAR .AND. OB%J2==M%JBAR) FACE_INDEX = 4
+      IF (OB%K1==0      .AND. OB%K2==0     ) FACE_INDEX = 5
+      IF (OB%K1==M%KBAR .AND. OB%K2==M%KBAR) FACE_INDEX = 6
+
+      SELECT CASE(FACE_INDEX)  ! Get vent cell indices
+         CASE(0)
+            CYCLE OBST_LOOP
+         CASE(1:2)
+            HI1 = MAX(1,OB%J1+1)
+            HI2 = MIN(M%JBAR,OB%J2)
+            VI1 = MAX(1,OB%K1+1)
+            VI2 = MIN(M%KBAR,OB%K2)
+         CASE(3:4)
+            HI1 = MAX(1,OB%I1+1)
+            HI2 = MIN(M%IBAR,OB%I2)
+            VI1 = MAX(1,OB%K1+1)
+            VI2 = MIN(M%KBAR,OB%K2)
+         CASE(5:6)
+            HI1 = MAX(1,OB%I1+1)
+            HI2 = MIN(M%IBAR,OB%I2)
+            VI1 = MAX(1,OB%J1+1)
+            VI2 = MIN(M%JBAR,OB%J2)
+      END SELECT
+
+      VENT_INDICES(HI1:HI2,VI1:VI2,FACE_INDEX) = -1
+
+   ENDDO OBST_LOOP
+
+   ! Loop over VENTs and do not draw vents for MIRRORs, OPEN, or INTERPOLATED. 
 
    VENT_LOOP: DO N=1,M%N_VENT
 
@@ -2345,14 +2402,16 @@ MESH_LOOP: DO NM=1,NMESHES
           VT%BOUNDARY_TYPE==OPEN_BOUNDARY     .OR. &
           VT%BOUNDARY_TYPE==PERIODIC_BOUNDARY .OR. &
           VT%TYPE_INDICATOR==2) THEN  ! Render this vent invisible in Smokeview
+
          WHERE (VENT_INDICES(HI1:HI2,VI1:VI2,FACE_INDEX)==0) VENT_INDICES(HI1:HI2,VI1:VI2,FACE_INDEX) = -1
-      ELSE  ! Tag user-specified vents
-         WHERE (VENT_INDICES(HI1:HI2,VI1:VI2,FACE_INDEX)==0) VENT_INDICES(HI1:HI2,VI1:VI2,FACE_INDEX) = N
-         IF (.NOT.VT%DRAW) THEN  ! a dummy vent will be created and drawn rather than the actual vent.
-            VT%COLOR_INDICATOR =  8
-            VT%TYPE_INDICATOR  = -2
-            VT%TRANSPARENCY    =  0._EB
-         ENDIF
+
+      ELSEIF (ALL(VENT_INDICES(HI1:HI2,VI1:VI2,FACE_INDEX)==0)) THEN  ! Draw a patch exactly at the exterior boundary surface
+
+         VENT_INDICES(HI1:HI2,VI1:VI2,FACE_INDEX) = N
+         VT%COLOR_INDICATOR =  8  ! These three parameters ensure that the original vent will not be drawn as an offset plane.
+         VT%TYPE_INDICATOR  = -2
+         VT%TRANSPARENCY    =  0._EB
+
       ENDIF
 
    ENDDO VENT_LOOP
@@ -2366,15 +2425,9 @@ MESH_LOOP: DO NM=1,NMESHES
          XX = M%X(0) - 0.001_EB*M%DX(0)
          CALL SEARCH_OTHER_MESHES(XX,YY,ZZ,NOM,IIO,JJO,KKO)
          IF (NOM>0 .AND. VENT_INDICES(J,K,1)<1) VENT_INDICES(J,K,1)=-1
-         IF (.NOT.SETUP_ONLY) THEN
-            IF (M%WALL(M%CELL(M%CELL_INDEX(1,J,K))%WALL_INDEX(-1))%OBST_INDEX>0) VENT_INDICES(J,K,1)=-1
-         ENDIF
          XX = M%X(M%IBAR) + 0.001_EB*M%DX(M%IBAR)
          CALL SEARCH_OTHER_MESHES(XX,YY,ZZ,NOM,IIO,JJO,KKO)
          IF (NOM>0 .AND. VENT_INDICES(J,K,2)<1) VENT_INDICES(J,K,2)=-1
-         IF (.NOT.SETUP_ONLY) THEN
-            IF (M%WALL(M%CELL(M%CELL_INDEX(M%IBAR,J,K))%WALL_INDEX(1))%OBST_INDEX>0) VENT_INDICES(J,K,2)=-1
-         ENDIF
       ENDDO
    ENDDO
 
@@ -2385,15 +2438,9 @@ MESH_LOOP: DO NM=1,NMESHES
          YY = M%Y(0) - 0.001_EB*M%DY(0)
          CALL SEARCH_OTHER_MESHES(XX,YY,ZZ,NOM,IIO,JJO,KKO)
          IF (NOM>0 .AND. VENT_INDICES(I,K,3)<1) VENT_INDICES(I,K,3)=-1
-         IF (.NOT.SETUP_ONLY) THEN
-            IF (M%WALL(M%CELL(M%CELL_INDEX(I,1,K))%WALL_INDEX(-2))%OBST_INDEX>0) VENT_INDICES(I,K,3)=-1
-         ENDIF
          YY = M%Y(M%JBAR) + 0.001_EB*M%DY(M%JBAR)
          CALL SEARCH_OTHER_MESHES(XX,YY,ZZ,NOM,IIO,JJO,KKO)
          IF (NOM>0 .AND. VENT_INDICES(I,K,4)<1) VENT_INDICES(I,K,4)=-1
-         IF (.NOT.SETUP_ONLY) THEN
-            IF (M%WALL(M%CELL(M%CELL_INDEX(I,M%JBAR,K))%WALL_INDEX(2))%OBST_INDEX>0) VENT_INDICES(I,K,4)=-1
-         ENDIF
       ENDDO
    ENDDO
 
@@ -2404,15 +2451,9 @@ MESH_LOOP: DO NM=1,NMESHES
          ZZ = M%Z(0) - 0.001_EB*M%DZ(0)
          CALL SEARCH_OTHER_MESHES(XX,YY,ZZ,NOM,IIO,JJO,KKO)
          IF (NOM>0 .AND. VENT_INDICES(I,J,5)<1) VENT_INDICES(I,J,5)=-1
-         IF (.NOT.SETUP_ONLY) THEN
-            IF (M%WALL(M%CELL(M%CELL_INDEX(I,J,1))%WALL_INDEX(-3))%OBST_INDEX>0) VENT_INDICES(I,J,5)=-1
-         ENDIF
          ZZ = M%Z(M%KBAR) + 0.001_EB*M%DZ(M%KBAR)
          CALL SEARCH_OTHER_MESHES(XX,YY,ZZ,NOM,IIO,JJO,KKO)
          IF (NOM>0 .AND. VENT_INDICES(I,J,6)<1) VENT_INDICES(I,J,6)=-1
-         IF (.NOT.SETUP_ONLY) THEN
-            IF (M%WALL(M%CELL(M%CELL_INDEX(I,J,M%KBAR))%WALL_INDEX(3))%OBST_INDEX>0) VENT_INDICES(I,J,6)=-1
-         ENDIF
       ENDDO
    ENDDO
 
@@ -4867,9 +4908,9 @@ SUBROUTINE GET_GEOMINFO(SLICETYPE,I1,I2,J1,J2,K1,K2,NVERTS,NVERTS_CUTCELLS,NFACE
          ENDDO
          DO K=1,NK-1
             DO J=1,NJ-1
-               IF (ANY(CELL(CELL_INDEX(SLICE:SLICE+1,J,K))%SOLID)) CYCLE
-               IF (FCVAR(SLICE,J,K,CC_FGSC,IAXIS) == CC_CUTCFE) THEN
-                  ICF = FCVAR(SLICE,J,K,CC_IDCF,IAXIS) ! store cutcell faces and vertices
+               IF (ANY(CELL(CELL_INDEX(SLICE:SLICE+1,J+J1,K+K1))%SOLID)) CYCLE
+               IF (FCVAR(SLICE,J+J1,K+K1,CC_FGSC,IAXIS) == CC_CUTCFE) THEN
+                  ICF = FCVAR(SLICE,J+J1,K+K1,CC_IDCF,IAXIS) ! store cutcell faces and vertices
                   DO IFACECF=1,CUT_FACE(ICF)%NFACE+CUT_FACE(ICF)%NSFACE
                      NVF=CUT_FACE(ICF)%CFELEM(1,IFACECF)
                      VERTBEG = IVERTCUT + 1
@@ -4905,14 +4946,14 @@ SUBROUTINE GET_GEOMINFO(SLICETYPE,I1,I2,J1,J2,K1,K2,NVERTS,NVERTS_CUTCELLS,NFACE
                ELSE
                   IFACE = IFACE + 1 ! store solid and gas faces and vertices (2 faces per cell)
                   LOCATIONS(IFACE) = 0 + 16
-                  IF ( FCVAR(SLICE,J,K,CC_FGSC,IAXIS) == CC_SOLID) LOCATIONS(IFACE)=1 + 16
+                  IF ( FCVAR(SLICE,J+J1,K+K1,CC_FGSC,IAXIS) == CC_SOLID) LOCATIONS(IFACE)=1 + 16
                   FACES(3*IFACE-2) = IJK(  J,  K,NJ)
                   FACES(3*IFACE-1) = IJK(J+1,  K,NJ)
                   FACES(3*IFACE)   = IJK(J+1,K+1,NJ)
 
                   IFACE = IFACE + 1
                   LOCATIONS(IFACE) = 0 + 4
-                  IF ( FCVAR(SLICE,J,K,CC_FGSC,IAXIS) == CC_SOLID) LOCATIONS(IFACE)=1 + 4
+                  IF ( FCVAR(SLICE,J+J1,K+K1,CC_FGSC,IAXIS) == CC_SOLID) LOCATIONS(IFACE)=1 + 4
                   FACES(3*IFACE-2) = IJK(  J,  K,NJ)
                   FACES(3*IFACE-1) = IJK(J+1,K+1,NJ)
                   FACES(3*IFACE)   = IJK(  J,K+1,NJ)
@@ -4932,9 +4973,9 @@ SUBROUTINE GET_GEOMINFO(SLICETYPE,I1,I2,J1,J2,K1,K2,NVERTS,NVERTS_CUTCELLS,NFACE
          ENDDO
          DO K=1,NK-1
             DO I=1,NI-1
-               IF (ANY(CELL(CELL_INDEX(I,SLICE:SLICE+1,K))%SOLID)) CYCLE
-               IF (FCVAR(I,SLICE,K,CC_FGSC,JAXIS) == CC_CUTCFE) THEN
-                  ICF = FCVAR(I,SLICE,K,CC_IDCF,JAXIS)
+               IF (ANY(CELL(CELL_INDEX(I+I1,SLICE:SLICE+1,K+K1))%SOLID)) CYCLE
+               IF (FCVAR(I+I1,SLICE,K+K1,CC_FGSC,JAXIS) == CC_CUTCFE) THEN
+                  ICF = FCVAR(I+I1,SLICE,K+K1,CC_IDCF,JAXIS)
                   DO IFACECF=1,CUT_FACE(ICF)%NFACE+CUT_FACE(ICF)%NSFACE
                      NVF=CUT_FACE(ICF)%CFELEM(1,IFACECF)
                      VERTBEG = IVERTCUT + 1
@@ -4966,14 +5007,14 @@ SUBROUTINE GET_GEOMINFO(SLICETYPE,I1,I2,J1,J2,K1,K2,NVERTS,NVERTS_CUTCELLS,NFACE
                ELSE
                   IFACE = IFACE + 1
                   LOCATIONS(IFACE) = 0 + 16
-                  IF ( FCVAR(I,SLICE,K,CC_FGSC,JAXIS) == CC_SOLID) LOCATIONS(IFACE)=1 + 16
+                  IF ( FCVAR(I+I1,SLICE,K+K1,CC_FGSC,JAXIS) == CC_SOLID) LOCATIONS(IFACE)=1 + 16
                   FACES(3*IFACE-2) = IJK(  I,  K,NI)
                   FACES(3*IFACE-1) = IJK(I+1,  K,NI)
                   FACES(3*IFACE)   = IJK(I+1,K+1,NI)
 
                   IFACE = IFACE + 1
                   LOCATIONS(IFACE) = 0 + 4
-                  IF ( FCVAR(I,SLICE,K,CC_FGSC,JAXIS) == CC_SOLID) LOCATIONS(IFACE)=1 + 4
+                  IF ( FCVAR(I+I1,SLICE,K+K1,CC_FGSC,JAXIS) == CC_SOLID) LOCATIONS(IFACE)=1 + 4
                   FACES(3*IFACE-2) = IJK(  I,  K,NI)
                   FACES(3*IFACE-1) = IJK(I+1,K+1,NI)
                   FACES(3*IFACE)   = IJK(  I,K+1,NI)
@@ -4993,9 +5034,9 @@ SUBROUTINE GET_GEOMINFO(SLICETYPE,I1,I2,J1,J2,K1,K2,NVERTS,NVERTS_CUTCELLS,NFACE
          ENDDO
          DO J=1,NJ-1
             DO I=1,NI-1
-               IF (ANY(CELL(CELL_INDEX(I,J,SLICE:SLICE+1))%SOLID)) CYCLE
-               IF (FCVAR(I,J,SLICE,CC_FGSC,KAXIS) == CC_CUTCFE) THEN
-                  ICF = FCVAR(I,J,SLICE,CC_IDCF,KAXIS)
+               IF (ANY(CELL(CELL_INDEX(I+I1,J+J1,SLICE:SLICE+1))%SOLID)) CYCLE
+               IF (FCVAR(I+I1,J+J1,SLICE,CC_FGSC,KAXIS) == CC_CUTCFE) THEN
+                  ICF = FCVAR(I+I1,J+J1,SLICE,CC_IDCF,KAXIS)
                   DO IFACECF=1,CUT_FACE(ICF)%NFACE+CUT_FACE(ICF)%NSFACE
                      NVF=CUT_FACE(ICF)%CFELEM(1,IFACECF)
                      VERTBEG = IVERTCUT + 1
@@ -5027,14 +5068,14 @@ SUBROUTINE GET_GEOMINFO(SLICETYPE,I1,I2,J1,J2,K1,K2,NVERTS,NVERTS_CUTCELLS,NFACE
                ELSE
                   IFACE = IFACE + 1
                   LOCATIONS(IFACE) = 0 + 16
-                  IF ( FCVAR(I,J,SLICE,CC_FGSC,KAXIS) == CC_SOLID) LOCATIONS(IFACE)=1 + 16
+                  IF ( FCVAR(I+I1,J+J1,SLICE,CC_FGSC,KAXIS) == CC_SOLID) LOCATIONS(IFACE)=1 + 16
                   FACES(3*IFACE-2) = IJK(  I,  J,NI)
                   FACES(3*IFACE-1) = IJK(I+1,  J,NI)
                   FACES(3*IFACE)   = IJK(I+1,J+1,NI)
 
                   IFACE = IFACE + 1
                   LOCATIONS(IFACE) = 0 + 4
-                  IF ( FCVAR(I,J,SLICE,CC_FGSC,KAXIS) == CC_SOLID) LOCATIONS(IFACE)=1 + 4
+                  IF ( FCVAR(I+I1,J+J1,SLICE,CC_FGSC,KAXIS) == CC_SOLID) LOCATIONS(IFACE)=1 + 4
                   FACES(3*IFACE-2) = IJK(  I,  J,NI)
                   FACES(3*IFACE-1) = IJK(I+1,J+1,NI)
                   FACES(3*IFACE)   = IJK(  I,J+1,NI)
@@ -7398,7 +7439,8 @@ REAL(EB) :: H_TC,TMP_TC,RE_D,NUSSELT,VEL,K_G,MU_G,COSTHETA,FAC,&
             EXPON,Y_SPECIES,MEC,Y_SPECIES2,Y_H2O,R_Y_H2O,R_DN,SGN,Y_ALL(N_SPECIES),H_S,D_Z_N(0:I_MAX_TEMP),&
             DISSIPATION_RATE,S11,S22,S33,S12,S13,S23,DUDX,DUDY,DUDZ,DVDX,DVDY,DVDZ,DWDX,DWDY,DWDZ,ONTHDIV,SS,ETA,DELTA,R_DX2,&
             UVW,UODX,VODY,WODZ,XHAT,ZHAT,BBF,GAMMA_LOC,VC,VOL,PHI,GAS_PHASE_OUTPUT_CC,&
-            GAS_PHASE_OUTPUT_CFA,CFACE_AREA,VELOCITY_COMPONENT(1:3),ATOTV(1:3),TMP_F,R_D,MW,PROBE_TMP,PROBE_RHO,PROBE_DELTA_P
+            GAS_PHASE_OUTPUT_CFA,CFACE_AREA,VELOCITY_COMPONENT(1:3),ATOTV(1:3),TMP_F,R_D,MW,PROBE_TMP,PROBE_RHO,PROBE_DELTA_P,&
+            RHOY_FACE
 REAL(EB), PARAMETER :: C_DIMARZO=2.23E5_EB
 INTEGER :: N,I,J,K,NN,IL,III,JJJ,KKK,IP,JP,KP,FED_ACTIVITY,IP1,JP1,KP1,IM1,JM1,KM1,IIM1,JJM1,KKM1,NR,NS,RAM,&
            ICC,JCC,NCELL,AXIS,ICF,NFACE,JCF,JCC_LO,JCC_HI,PDPA_FORMULA,IC
@@ -7735,7 +7777,6 @@ IND_SELECT: SELECT CASE(IND)
             CASE(0) ; UVW = MAX(UODX,VODY,WODZ) + ABS(DS(II,JJ,KK))
             CASE(1) ; UVW = UODX + VODY + WODZ  + ABS(DS(II,JJ,KK))
             CASE(2) ; UVW = SQRT(UODX**2+VODY**2+WODZ**2) + ABS(DS(II,JJ,KK))
-            CASE(3) ; UVW = MAX(UODX,VODY,WODZ)
          END SELECT
          GAS_PHASE_OUTPUT_RES = DT*UVW
       ENDIF
@@ -7868,7 +7909,8 @@ IND_SELECT: SELECT CASE(IND)
       ELSEIF (Y_INDEX > 0) THEN
          CALL GET_MASS_FRACTION(ZZ_GET,Y_INDEX,Y_SPECIES2)
       ENDIF
-      GAS_PHASE_OUTPUT_RES = 0.5_EB*(RHO(II,JJ,KK)*Y_SPECIES+RHO(IP,JP,KP)*Y_SPECIES2)*VEL
+      RHOY_FACE = 0.5_EB*(RHO(II,JJ,KK)*Y_SPECIES+RHO(IP,JP,KP)*Y_SPECIES2)
+      GAS_PHASE_OUTPUT_RES = RHOY_FACE*VEL
 
    CASE(94)  ! VOLUME FRACTION
       GAS_PHASE_OUTPUT_RES =  RCON*Y_SPECIES/RSUM(II,JJ,KK)/(1._EB-R_Y_H2O/RSUM(II,JJ,KK))
@@ -8580,6 +8622,16 @@ IND_SELECT: SELECT CASE(IND)
       JJJ = MAX(1,MIN(JJ,JBAR))
       KKK = MAX(1,MIN(KK,KBAR))
       GAS_PHASE_OUTPUT_RES = CHI_R(III,JJJ,KKK)
+   CASE(503)  ! CFL 0
+      IF (CELL(CELL_INDEX(II,JJ,KK))%SOLID) THEN
+         GAS_PHASE_OUTPUT_RES = 0._EB
+      ELSE
+         UODX = MAXVAL(ABS(US(II-1:II,JJ,KK)))*RDX(II)
+         VODY = MAXVAL(ABS(VS(II,JJ-1:JJ,KK)))*RDY(JJ)
+         WODZ = MAXVAL(ABS(WS(II,JJ,KK-1:KK)))*RDZ(KK)
+         UVW = MAX(UODX,VODY,WODZ) + ABS(DS(II,JJ,KK)) ! CFL_VELOCITY_NORM=0
+         GAS_PHASE_OUTPUT_RES = DT*UVW
+      ENDIF
    CASE(504)  ! CFL 1
       IF (CELL(CELL_INDEX(II,JJ,KK))%SOLID) THEN
          GAS_PHASE_OUTPUT_RES = 0._EB
@@ -8590,14 +8642,14 @@ IND_SELECT: SELECT CASE(IND)
          UVW = UODX + VODY + WODZ  + ABS(DS(II,JJ,KK)) ! CFL_VELOCITY_NORM=1
          GAS_PHASE_OUTPUT_RES = DT*UVW
       ENDIF
-   CASE(505)  ! CFL 3
+   CASE(505)  ! CFL 2
       IF (CELL(CELL_INDEX(II,JJ,KK))%SOLID) THEN
          GAS_PHASE_OUTPUT_RES = 0._EB
       ELSE
          UODX = MAXVAL(ABS(US(II-1:II,JJ,KK)))*RDX(II)
          VODY = MAXVAL(ABS(VS(II,JJ-1:JJ,KK)))*RDY(JJ)
          WODZ = MAXVAL(ABS(WS(II,JJ,KK-1:KK)))*RDZ(KK)
-         UVW = MAX(UODX,VODY,WODZ)                     ! CFL_VELOCITY_NORM=3
+         UVW = SQRT(UODX**2+VODY**2+WODZ**2) + ABS(DS(II,JJ,KK)) ! CFL_VELOCITY_NORM=2
          GAS_PHASE_OUTPUT_RES = DT*UVW
       ENDIF
 
@@ -8825,6 +8877,9 @@ CC_IBM_IF: IF (CC_IBM) THEN
                   GAS_PHASE_OUTPUT_CFA = GAS_PHASE_OUTPUT_CFA + CUT_FACE(ICF)%VEL(JCF) * CUT_FACE(ICF)%AREA(JCF)
                CASE(8)   ! W-VELOCITY
                   GAS_PHASE_OUTPUT_CFA = GAS_PHASE_OUTPUT_CFA + CUT_FACE(ICF)%VEL(JCF) * CUT_FACE(ICF)%AREA(JCF)
+               CASE(91:93) ! MASS FLUX X, Y, Z: face density times cut-face velocity; the Cartesian U, V, W on a
+                           ! cut face is the face flux over the full Cartesian area, not the gas-side velocity.
+                  GAS_PHASE_OUTPUT_CFA = GAS_PHASE_OUTPUT_CFA + RHOY_FACE*CUT_FACE(ICF)%VEL(JCF)*CUT_FACE(ICF)%AREA(JCF)
                CASE(192:194) ! F_X,F_Y,F_Z UNKNOWN NUMBER
                   GAS_PHASE_OUTPUT_RES = REAL(CUT_FACE(ICF)%UNKF(JCF),EB); RETURN
             END SELECT IND_SELECT_3
