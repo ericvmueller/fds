@@ -1,6 +1,26 @@
 #!$FIREMODELS/fds/.github/fds_python_env/bin/python
 
 import subprocess
+import io
+import re
+import sys
+
+# Keep normal output visible and collect it for the final error/warning check.
+class ValidationOutput:
+    def __init__(self, stream):
+        self.stream = stream
+
+    def write(self, text):
+        validation_output.write(text)
+        return self.stream.write(text)
+
+    def __getattr__(self, name):
+        return getattr(self.stream, name)
+
+validation_output = io.StringIO()
+stdout, stderr = sys.stdout, sys.stderr
+sys.stdout, sys.stderr = ValidationOutput(stdout), ValidationOutput(stderr)
+
 import fdsplotlib
 import matplotlib.pyplot as plt
 import importlib
@@ -20,28 +40,29 @@ def safe_run(script_path):
 
 # Scripts to run prior to dataplot
 
-print("NIST_deposition_gauge...");        safe_run("./scripts/NIST_deposition_gauge.py")
+# print("Askervein_Hill...");               safe_run("./scripts/Askervein_Hill.py")
+print("Crown_Fires...");                  safe_run("./scripts/Crown_Fires.py")
 print("flame_height...");                 safe_run("./scripts/flame_height.py")
-print("NIST_RSE...");                     safe_run("./scripts/NIST_RSE.py")
-print("sippola_aerosol_deposition...");   safe_run("./scripts/sippola_aerosol_deposition.py")
+print("FM_Burner...");                    safe_run("./scripts/FM_Burner.py")
+print("FM_Vertical_Wall_Flames...");      safe_run("./scripts/FM_Vertical_Wall_Flames.py")
+print("JIS_Facade_filter...");            safe_run("./scripts/JIS_Facade_filter.py")
 print("layer_height...");                 safe_run("./scripts/layer_height.py")
-print("NIST_NRC_Corner_Effects...");      safe_run("./scripts/NIST_NRC_Corner_Effects.py")
 print("LNG_Dispersion...");               safe_run("./scripts/LNG_Dispersion.py")
 print("LNG_wind_profiles...");            safe_run("./scripts/LNG_wind_profiles.py")
-print("FM_Vertical_Wall_Flames...");      safe_run("./scripts/FM_Vertical_Wall_Flames.py")
-print("umd_line_burner_process...");      safe_run("./scripts/umd_line_burner_process.py")
-# print("Askervein_Hill...");               safe_run("./scripts/Askervein_Hill.py")
-print("UWO_Wind_Tunnel...");              safe_run("./scripts/UWO_Wind_Tunnel.py")
-print("FM_Burner...");                    safe_run("./scripts/FM_Burner.py")
-print("JIS_Facade_filter...");            safe_run("./scripts/JIS_Facade_filter.py")
-print("Crown_Fires...");                  safe_run("./scripts/Crown_Fires.py")
-print("Ranz_Marshall...");                safe_run("./scripts/Ranz_Marshall.py")
+print("NIST_deposition_gauge...");        safe_run("./scripts/NIST_deposition_gauge.py")
+print("NIST_RSE...");                     safe_run("./scripts/NIST_RSE.py")
+print("NIST_NRC_Corner_Effects...");      safe_run("./scripts/NIST_NRC_Corner_Effects.py")
 print("Phoenix_LNG_Fires...");            safe_run("./scripts/Phoenix_LNG_Fires.py")
+print("Ranz_Marshall...");                safe_run("./scripts/Ranz_Marshall.py")
 print("Sandia_Fireballs...");             safe_run("./scripts/Sandia_Fireballs.py")
 print("Sandia_Jet_Fires...");             safe_run("./scripts/Sandia_Jet_Fires.py")
 print("Sandia_Plumes_TKE...");            safe_run("./scripts/Sandia_Plumes_TKE.py")
 print("Sandia_Pool_Fires...");            safe_run("./scripts/Sandia_Pool_Fires.py")
+print("sippola_aerosol_deposition...");   safe_run("./scripts/sippola_aerosol_deposition.py")
+print("SNL_Walls...");                    safe_run("./scripts/SNL_Walls.py")
 print("TAMU_Jet_Fires...");               safe_run("./scripts/TAMU_Jet_Fires.py")
+print("umd_line_burner_process...");      safe_run("./scripts/umd_line_burner_process.py")
+print("UWO_Wind_Tunnel...");              safe_run("./scripts/UWO_Wind_Tunnel.py")
 
 # Dataplot and scatplot options
 
@@ -112,7 +133,11 @@ print("Theobald_Hose_Stream...");         safe_run("./scripts/Theobald_Hose_Stre
 print("USFS_Deep_Fuel_Beds...");          safe_run("./scripts/USFS_Deep_Fuel_Beds.py")
 print("Wu_Bakar_Tunnels...");             safe_run("./scripts/Wu_Bakar_Tunnels.py")
 
-print("Python validation scripts completed successfully!")
+sys.stdout, sys.stderr = stdout, stderr
+if re.search(r'error|warning', validation_output.getvalue(), re.IGNORECASE):
+    print("Python validation scripts failed: errors or warnings were reported above.")
+else:
+    print("Python validation scripts completed successfully!")
 
 # ------------------------------
 # plot_range usage examples

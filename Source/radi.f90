@@ -2806,10 +2806,11 @@ USE MIEV
 USE RADCAL_CALC
 USE WSGG_ARRAYS
 REAL(EB) :: PLANCK_C2,KSI,LT,RCRHO,YY,BBF,AP0,AMEAN,RADIANCE,TRANSMISSIVITY,XX
-INTEGER  :: N,I,J,K,IPC,IZERO,IBND,NS,NRA,NSB,RADCAL_TEMP(16)=0,RCT_SKIP=-1
+INTEGER  :: N,I,J,K,IPC,IZERO,IBND,NS,NRA,NSB,RADCAL_TEMP(16)=0,RCT_SKIP=-1,NM
 TYPE (LAGRANGIAN_PARTICLE_CLASS_TYPE), POINTER :: LPC
 TYPE (RAD_FILE_TYPE), POINTER :: RF
 TYPE (SPECIES_TYPE), POINTER :: SS
+TYPE (MESH_TYPE), POINTER :: M
 
 ! A few miscellaneous constants
 
@@ -2858,7 +2859,7 @@ CALL ChkMemErr('RADI','DLO_ORIENTATION',IZERO)
 
 
 ! Set for ray rotation
-ALLOW_RANDOM_RADIATION_ROTATION = RANDOMIZE_RADIATION_DIRECTIONS .AND. .NOT.CYLINDRICAL .AND. .NOT.TWO_D
+ALLOW_RANDOM_RADIATION_ROTATION = RANDOM_ROTATION .AND. .NOT.CYLINDRICAL .AND. .NOT.TWO_D
 
 !-----------------------------------------------------
 !
@@ -3284,9 +3285,12 @@ CALL CALCULATE_FVM_ANGLES()
 
 ! Allocate array needed by angle-specific RADF output files
 
-DO N=1,N_RADF
-   RF => RAD_FILE(N)
-   ALLOCATE(RF%IL_SAVE(RF%I1:RF%I2,RF%J1:RF%J2,RF%K1:RF%K2,NUMBER_RADIATION_ANGLES))
+DO NM=LOWER_MESH_INDEX,UPPER_MESH_INDEX
+   M => MESHES(NM)
+   DO N=1,M%N_RADF
+      RF => M%RAD_FILE(N)
+      ALLOCATE(RF%IL_SAVE(RF%I1:RF%I2,RF%J1:RF%J2,RF%K1:RF%K2,NUMBER_RADIATION_ANGLES))
+   ENDDO
 ENDDO
 
 END SUBROUTINE INIT_RADIATION
@@ -3789,6 +3793,7 @@ INTEGER, ALLOCATABLE :: IJK_SLICE(:,:)
 REAL(EB) :: XID,YJD,ZKD,KAPPA_PART_SINGLE,DLF,DLA(3),TSI,TMP_EXTERIOR,TEMP_ORIENTATION(3),&
             COS_DLO_ARR(NUMBER_RADIATION_ANGLES)
 REAL(EB), ALLOCATABLE, DIMENSION(:) :: ZZ_GET
+REAL(EB), ALLOCATABLE, DIMENSION(:,:,:) :: RTE_SOURCE
 INTEGER :: IID,JJD,KKD,IP
 LOGICAL :: UPDATE_INTENSITY, IS_PARTICLE_ORIENTATION_RAMP
 REAL(EB), POINTER, DIMENSION(:,:,:) :: IL,UIIOLD,KAPPA_PART,KFST4_PART,EXTCOE,SCAEFF,SCAEFF_G,IL_UP
@@ -3829,7 +3834,7 @@ OUTRAD_W   => WALL_WORK1
 INRAD_W    => WALL_WORK2
 IF (CC_IBM) THEN
    OUTRAD_F => FACE_WORK1
-   INRAD_F  => FACE_WORK2; INRAD_F  = 0._EB
+   INRAD_F  => FACE_WORK2
    IL_F     => FACE_WORK3
 ENDIF
 
@@ -4201,6 +4206,13 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
       ELSE
          UIIOLD = UII
       ENDIF
+
+      ! The RTE source is independent of radiation angle. Compute it once
+      ! per spectral band instead of rebuilding it in every angular sweep.
+      ALLOCATE(RTE_SOURCE, MOLD=KFST4_GAS)
+      RTE_SOURCE = KFST4_GAS + KFST4_PART + &
+                   RSA_RAT*(SCAEFF+SCAEFF_G)*UIIOLD
+
       UII = 0._EB
 
       ! Compute boundary condition intensity emissivity*sigma*Tw**4/pi or emissivity*QRADOUT/pi for wall with internal radiation
@@ -4252,6 +4264,7 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
          BR  => BOUNDARY_RADIA(CFA%BR_INDEX)
          BC  => BOUNDARY_COORD(CFA%BC_INDEX)
          NVECL = GET_CFACE_RAD_NVEC(CFA)
+         INRAD_F(ICF) = 0._EB
          DO N=1,NRA
             DLA = (/DLX(N),DLY(N),DLZ(N)/)
             DLF = DOT_PRODUCT(NVECL,DLA) ! face normal * radiation angle
@@ -4436,8 +4449,7 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
                      A_SUM = AXD + AYD + AZ
                      RAP = 1._EB/(A_SUM + EXTCOE(I,J,K)*VC*RSA(N))
                      IL(I,J,K) = MAX(0._EB, RAP * (AIU_SUM + VC*RSA(N)*RFPI* &
-                                 ( KFST4_GAS(I,J,K) + KFST4_PART(I,J,K) + RSA_RAT*&
-                                 (SCAEFF(I,J,K)+SCAEFF_G(I,J,K))*UIIOLD(I,J,K) ) ) )
+                                 RTE_SOURCE(I,J,K) ) )
                      IF (SOLID_PARTICLES) IL_UP(I,J,K) = MAX(0._EB,AIU_SUM/A_SUM)
                   ENDDO CILOOP
                ENDDO CKLOOP
@@ -4461,8 +4473,7 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
                      A_SUM = AX + AZ
                      RAP = 1._EB/(A_SUM + EXTCOE(I,J,K)*VC*RSA(N))
                      IL(I,J,K) = MAX(0._EB, RAP * (AIU_SUM + VC*RSA(N)*RFPI* &
-                                    (KFST4_GAS(I,J,K) + KFST4_PART(I,J,K) + RSA_RAT* &
-                                    (SCAEFF(I,J,K)+SCAEFF_G(I,J,K))*UIIOLD(I,J,K) ) ) )
+                                    RTE_SOURCE(I,J,K) ) )
                      IF (SOLID_PARTICLES) IL_UP(I,J,K) = MAX(0._EB,AIU_SUM/A_SUM)
                   ENDDO I2LOOP
                ENDDO K2LOOP
@@ -4536,7 +4547,7 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
                            DO IFACE=1,CF%NFACE
                               CFA => CFACE(CF%CFACE_INDEX(IFACE))
                               BC => BOUNDARY_COORD(CFA%BC_INDEX)
-                              DLF = DOT_PRODUCT(GET_CFACE_RAD_NVEC(CFA),DLA) ! face normal * radiation angle
+                              DLF = DOT_PRODUCT(CF%NVEC_RAD(IAXIS:KAXIS,IFACE),DLA) ! Geometric normal: cut-cell balance closes.
                               IF (DLF>0._EB) THEN ! upwind
                                  BR  => BOUNDARY_RADIA(CFA%BR_INDEX)
                                  AILFU = AILFU + DLF*CFA%AREA*BR%BAND(IBND)%ILW(N)
@@ -4587,8 +4598,7 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
                      IF (SOLID_PARTICLES) IL_UP(I,J,K) = MAX(0._EB,AIU_SUM/A_SUM)
                      RAP = 1._EB/(A_SUM + EXTCOE(I,J,K)*VC*RSA(N))
                      IL(I,J,K) = MAX(0._EB, RAP * (AIU_SUM + VC*RSA(N)*RFPI* &
-                                     ( KFST4_GAS(I,J,K) + KFST4_PART(I,J,K) + RSA_RAT*&
-                                     (SCAEFF(I,J,K)+SCAEFF_G(I,J,K))*UIIOLD(I,J,K) ) ) )
+                                     RTE_SOURCE(I,J,K) ) )
 
                   ENDDO SLICE_LOOP
                   !$OMP END PARALLEL DO
@@ -4781,7 +4791,7 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
          IF (CFACE(ICF)%BOUNDARY_TYPE==NULL_BOUNDARY) CYCLE
          B1 => BOUNDARY_PROP1(CFA%B1_INDEX)
          SF => SURFACE(CFA%SURF_INDEX)
-         IF (SF%SKIP_INRAD) INRAD_W(ICF) = 0._EB
+         IF (SF%SKIP_INRAD) INRAD_F(ICF) = 0._EB
          IF (SF%TMP_GAS_FRONT>0._EB) CYCLE
          IF (SF%EXTERNAL_FLUX > TWENTY_EPSILON_EB) THEN
             IF (ABS(T_BEGIN) <= SPACING(B1%T_IGN)) THEN
@@ -4795,6 +4805,8 @@ BAND_LOOP: DO IBND = 1,NUMBER_SPECTRAL_BANDS
          ENDIF
          B1%Q_RAD_IN  = B1%Q_RAD_IN + B1%EMISSIVITY*(INRAD_F(ICF)+BBFA*EFLUX)
       ENDDO
+
+      DEALLOCATE(RTE_SOURCE)
 
    ENDIF INTENSITY_UPDATE
 
