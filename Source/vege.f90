@@ -386,12 +386,11 @@ DO JJG=1,JBAR
 
       IF (LEVEL_SET_COUPLED_WIND) THEN
 
-         ! Check if sample height is in the mesh
-         IF (ZC(KBAR)<REF_WIND_HEIGHT) THEN
+         ! Check if the sample height above the local terrain is in the mesh
+         IF (ZC(KBAR)-Z_LS(IIG,JJG)<REF_WIND_HEIGHT) THEN
             U_LS_INST = 0.5_EB*(U_HAT(IIG-1,JJG,KBAR)+U_HAT(IIG,JJG,KBAR))
             V_LS_INST = 0.5_EB*(V_HAT(IIG,JJG-1,KBAR)+V_HAT(IIG,JJG,KBAR))
          ELSE
-
             KWIND = 0
             DO KDUM = K_LS(IIG,JJG),KBAR
                IF ((ZC(KDUM)-Z_LS(IIG,JJG))>=REF_WIND_HEIGHT) THEN

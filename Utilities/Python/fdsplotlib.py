@@ -1050,7 +1050,10 @@ def configure_fds_fonts(**kwargs):
 
 def plot_to_fig(x_data,y_data,**kwargs):
     """
-    Create a simple x,y plot and return the fig handle
+    Create a simple x,y plot and return the fig handle.
+
+    Optional !n! style prefixes sort legend entries numerically, including
+    appended curves. Ties and unnumbered entries retain plotting order.
     """
     # # useful debug statements
     # print(x_data)
@@ -1177,12 +1180,14 @@ def plot_to_fig(x_data,y_data,**kwargs):
     plot_type=kwargs.get('plot_type','linear')
 
     # convert matlab styles to matplotlib
-    style = kwargs.get('marker_style','ko')
+    style = kwargs.get('line_style') or kwargs.get('marker_style','ko')
+    legend_order = None
+    if style and style.startswith('!'):
+        number, style = style[1:].split('!', 1)
+        legend_order = int(number)
+        if legend_order < 1 or not style:
+            raise ValueError("Legend order requires !n! followed by a style, with n >= 1")
     color,marker,linestyle = parse_matlab_style(style)
-
-    if kwargs.get('line_style'):
-        style = kwargs.get('line_style')
-        color,marker,linestyle = parse_matlab_style(style)
 
     marker_fill_color = kwargs.get('marker_fill_color',None)
     markerfacecolor = marker_fill_color
@@ -1236,7 +1241,7 @@ def plot_to_fig(x_data,y_data,**kwargs):
 
     # generate the main x,y plot
     if plot_type=='linear':
-        ax.plot(x_data,y_data,
+        lines = ax.plot(x_data,y_data,
             markevery=markevery,
             label=data_label,
             markerfacecolor=markerfacecolor,
@@ -1250,7 +1255,7 @@ def plot_to_fig(x_data,y_data,**kwargs):
             dashes=dashes)
 
     if plot_type=='loglog':
-        ax.loglog(x_data,y_data,
+        lines = ax.loglog(x_data,y_data,
             markevery=markevery,
             label=data_label,
             markerfacecolor=markerfacecolor,
@@ -1264,7 +1269,7 @@ def plot_to_fig(x_data,y_data,**kwargs):
             dashes=dashes)
 
     if plot_type=='semilogx':
-        ax.semilogx(x_data,y_data,
+        lines = ax.semilogx(x_data,y_data,
             markevery=markevery,
             label=data_label,
             markerfacecolor=markerfacecolor,
@@ -1278,7 +1283,7 @@ def plot_to_fig(x_data,y_data,**kwargs):
             dashes=dashes)
 
     if plot_type=='semilogy':
-        ax.semilogy(x_data,y_data,
+        lines = ax.semilogy(x_data,y_data,
             markevery=markevery,
             label=data_label,
             markerfacecolor=markerfacecolor,
@@ -1290,6 +1295,11 @@ def plot_to_fig(x_data,y_data,**kwargs):
             linewidth=linewidth,
             color=color,
             dashes=dashes)
+
+    # Keep order on the artists so it survives subsequent dataplot 'f' rows.
+    if legend_order is not None:
+        for line in lines:
+            line._fds_legend_order = legend_order
 
     # if y fill range is passed, add it to the plot
     if kwargs.get('y_error_fill_absolute') and not kwargs.get('y_error_fill_relative'):
@@ -1346,6 +1356,10 @@ def plot_to_fig(x_data,y_data,**kwargs):
 
     # --- always get current handles and labels ---
     handles, labels = ax.get_legend_handles_labels()
+    order = sorted(range(len(handles)),
+                   key=lambda i: getattr(handles[i], '_fds_legend_order', math.inf))
+    handles = [handles[i] for i in order]
+    labels = [labels[i] for i in order]
 
     # --- case 1 or 2: creating a new figure ---
     if not using_existing_figure:
@@ -1938,6 +1952,7 @@ def scatplot(saved_data, drange, **kwargs):
     Stats_Output = kwargs.get("Stats_Output", "Validation")
     Scatterplot_Dir = kwargs.get("Scatterplot_Dir", "")
     verbose = kwargs.get("verbose", True)
+    model_prefix = kwargs.get("model_prefix", "FDS")
 
     plot_style = get_plot_style("fds")
     scat_figure_size = (plot_style["Scat_Paper_Width"],plot_style["Scat_Paper_Height"])
@@ -2055,6 +2070,7 @@ def scatplot(saved_data, drange, **kwargs):
                     Save_Dataname,
                     Save_Measured_Metric,
                     Save_Predicted_Metric,
+                    model_prefix=model_prefix,
                 )
 
             # if verbose:
@@ -2382,6 +2398,7 @@ def _write_raw_scatter_csv(
     Save_Dataname,
     Save_Measured_Metric,
     Save_Predicted_Metric,
+    model_prefix="FDS",
 ):
     """
     Write raw (pre-mask) measured/predicted values used by scatplot.
@@ -2393,7 +2410,7 @@ def _write_raw_scatter_csv(
 
     # Match histogram naming convention
     fname = (
-        "FDS_"
+        f"{model_prefix}_"
         + scatter_title
         .replace(" ", "_")
         .replace(";", "")
@@ -2643,7 +2660,7 @@ def statistics_output(
                 for j in range(i * 8, min((i + 1) * 8, n)):
                     end = "&" if (j % 2) == 0 else "\\\\"
                     fid.write(
-                        f"\\includegraphics[height=2.2in]"
+                        f"\\includegraphics[height=1.9in]"
                         f"{{SCRIPT_FIGURES/Scatterplots/{Output_Histograms[j]}}} {end}\n"
                     )
                 fid.write("\\end{tabular*}\n")
@@ -2673,7 +2690,7 @@ def histogram_output(Histogram_Tex_Output, Output_Histograms):
 
             for j in range(i * 8, min((i + 1) * 8, n)):
                 end = "&" if j % 2 == 0 else "\\\\"
-                fid.write(f"\\includegraphics[height=2.2in]"
+                fid.write(f"\\includegraphics[height=1.9in]"
                           f"{{SCRIPT_FIGURES/Scatterplots/{Output_Histograms[j]}}} {end}\n")
 
             fid.write("\\end{tabular*}\n")
