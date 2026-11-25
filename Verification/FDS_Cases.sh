@@ -902,6 +902,8 @@ $QFDS -d WUI Needle_TGA_E.fds
 $QFDS -d WUI Needle_TGA_F.fds
 $QFDS -d WUI Needle_TGA_G.fds
 $QFDS -d WUI Needle_TGA_H.fds
+$QFDS -d WUI part_drag_cc_false.fds
+$QFDS -d WUI part_drag_cc_true.fds
 $QFDS -d WUI part_drag_prof_ux.fds
 $QFDS -d WUI part_drag_prof_uy.fds
 $QFDS -d WUI part_drag_prof_uz.fds
