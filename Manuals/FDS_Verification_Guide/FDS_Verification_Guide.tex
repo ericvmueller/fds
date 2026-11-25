@@ -6368,6 +6368,30 @@ This test series examines the drag force experienced by a static particle near a
 
 \FloatBarrier
 
+\subsubsection{Particle Layers that Partially Fill Grid Cells}
+\label{part_drag_cc_false}
+\label{part_drag_cc_true}
+
+When particles are specified with an \ct{INIT} block and \ct{MASS_PER_VOLUME}, such as typical vegetation layers, the requested \ct{XB} volume may not perfectly align with a whole number of grid cells. When particles are placed at cell centers (\ct{CELL_CENTERED=T}) the inserted volume snaps to the grid and the requested mass is redistributed over the grid-aligned volume. However, when \ct{CELL_CENTERED=F} particles only appear in the regions of cells which intersect with \ct{XB}. To ensure that mass-per-volume is uniform throughout the occupied volume, the weighted mass of particles should be proportional to local intersection volume of \ct{XB} and each cell. This re-scaling, along with subgrid interpolation (see Section~\ref{sec:particle_drag_near_surfaces}, for example), allows a more accurate solution relative to the user-requested geometry.
+
+To test this, five solid particle layers are placed on the floor of a domain with 1~m cubic grid cells. The particle layers are $h=1.0$, 1.25, 1.5, 1.75, and 2.0~m deep, so only the 1.0 and 2.0~m deep layers perfectly align with the grid. The layers have a mass-per-volume of $m'''=2$~kg/m$^3$, and the particles are cylinders of radius $r=1$~mm, density $\rho_{\rm p}=400$~kg/m$^3$, and a drag coefficient of $C_{\rm d}=1$. The wind is frozen with the linear profile $u=z$ and \ct{NEAR_WALL_PARTICLE_INTERPOLATION=T}, so each particle feels the wind at its own height. The drag area of a cylinder is a quarter of its surface area by default, so the drag area per unit volume of the layer is $m'''/(2 \rho_{\rm p} r)=2.5$~m$^{-1}$. The total drag force on a layer with floor area $A=4$~m$^2$ is expected to be
+\be
+   F = \frac{1}{2} \, \rho \, C_{\rm d} \, \frac{m'''}{2 \rho_{\rm p} r} \, A \int_0^h u^2 \, \d z = \frac{1}{2} \, \rho \, C_{\rm d} \, \frac{m'''}{2 \rho_{\rm p} r} \, A \, \frac{h^3}{3} \approx 1.992 \, h^3 \; {\rm N}
+\ee
+where $\rho=1.195$~kg/m$^3$ is the ambient density of air. A single line device with five points, one at the center of each layer, sums the drag on the particles within each layer. Each layer is centered at $x=4h$, and the line device uses \ct{COORD_FACTOR=0.25}, so that it reports the drag as a function of the layer depth.
+
+In the case \ct{part_drag_cc_false}, 500 particles are requested in each grid cell (\ct{CELL_CENTERED=F}), but both the number of particles and the mass in each cell are scaled by the fraction of the cell inside the \ct{INIT} \ct{XB} region. The number of particles is rounded to the nearest integer, with a minimum of one. In the case \ct{part_drag_cc_true}, a single particle is placed at the center of each grid cell that the \ct{INIT} region touches (\ct{CELL_CENTERED=T}). In both cases the local weights preserve the total mass requested by the user and the assumption of uniformity in mass-per-volume. Figure~\ref{part_drag_cc_fig} compares the computed and expected drag forces. The error from the cell-centered case has two sources: (1) errors from snapping the volume of particles to the grid, and (2) errors from using only the cell center velocity to compute drag rather than estimating the distribution within the cell.
+
+\begin{figure}[ht]
+\centering
+\includegraphics[height=2.2in]{SCRIPT_FIGURES/part_drag_cc}
+\caption[The \ct{part_drag_cc} test cases]{Drag force on vegetation layers of various depths in a linear wind profile, with particles placed randomly (\ct{CELL_CENTERED=F}) or at cell centers (\ct{CELL_CENTERED=T}).}
+\label{part_drag_cc_fig}
+\end{figure}
+
+
+\FloatBarrier
+
 \subsection{Mesh Screen in a Duct}
 \label{screen_drag_1}
 \label{screen_drag_2}
